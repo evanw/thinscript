@@ -1,0 +1,164 @@
+<script>
+
+function avoidErrorSwallowing(promise) {
+  promise.catch(function(error) {
+    setTimeout(function() {
+      throw error;
+    });
+  });
+  return promise;
+}
+
+function loadWasm(callback) {
+  var name = 'compiled.wasm';
+  avoidErrorSwallowing(fetch(name).then(function(response) {
+    return response.arrayBuffer();
+  }).then(function(buffer) {
+    callback(new Uint8Array(buffer));
+  }));
+}
+
+function fetchSourceCode(callback) {
+  var sources = [
+    '../src/checker.zs',
+    '../src/entry.zs',
+    '../src/lexer.zs',
+    '../src/node.zs',
+    '../src/parser.zs',
+    '../src/support.zs',
+    '../src/wasm.zs',
+  ];
+  var promises = [];
+  for (var i = 0; i < sources.length; i++) {
+    promises.push(fetch(sources[i]));
+  }
+  avoidErrorSwallowing(Promise.all(promises).then(function(all) {
+    return Promise.all(all.map(function(response) {
+      return response.text();
+    }));
+  }).then(function(all) {
+    callback(all.join('\n'));
+  }));
+}
+
+function main() {
+  loadWasm(function(bytes) {
+    fetchSourceCode(function(sourceCode) {
+      function parseString(ptr) {
+        var text = '';
+        var c;
+        while ((c = HEAP8[ptr]) !== 0) {
+          text += String.fromCharCode(c);
+          ptr++;
+        }
+        return text;
+      }
+
+      var module = Wasm.instantiateModule(bytes, {
+        imports: {
+          'new': function(size) {
+            var result = heapOffset;
+            size = (size + 7) & ~7;
+            heapOffset += size; // Use a simple bump allocator for now
+            return result;
+          },
+
+          assert: function(truth) {
+            if (!truth) {
+              throw new Error('Assertion failed');
+            }
+          },
+
+          IO_print: function(value) {
+            console.log(strings[value - 1]);
+          },
+
+          String_new: function(ptr) {
+            strings.push(parseString(ptr));
+            return strings.length;
+          },
+
+          String_length: function(self) {
+            return strings[self - 1].length;
+          },
+
+          String_get: function(self, index) {
+            return strings[self - 1].charCodeAt(index);
+          },
+
+          String_append: function(self, other) {
+            strings.push(strings[self - 1] + strings[other - 1]);
+            return strings.length;
+          },
+
+          String_appendNew: function(self, other) {
+            strings.push(strings[self - 1] + parseString(other));
+            return strings.length;
+          },
+
+          String_slice: function(self, start, end) {
+            strings.push(strings[self - 1].slice(start, end));
+            return strings.length;
+          },
+
+          String_equal: function(self, other) {
+            return strings[self - 1] === strings[other - 1];
+          },
+
+          String_equalNew: function(self, other) {
+            return strings[self - 1] === parseString(other);
+          },
+
+          String_toString: function(value) {
+            strings.push(value.toString());
+            return strings.length;
+          },
+
+          ByteArray_new: function() {
+            arrays.push([]);
+            return arrays.length;
+          },
+
+          ByteArray_length: function(self) {
+            return arrays[self - 1].length;
+          },
+
+          ByteArray_getByte: function(self, index) {
+            return arrays[self - 1][index];
+          },
+
+          ByteArray_setByte: function(self, index, byte) {
+            arrays[self - 1][index] = byte & 255;
+          },
+
+          ByteArray_appendByte: function(self, byte) {
+            arrays[self - 1].push(byte & 255);
+          },
+        },
+      });
+
+      var strings = [];
+      var arrays = [];
+      var exports = module.exports;
+      var memory = exports.memory;
+      var HEAP8 = new Uint8Array(memory);
+      var HEAP32 = new Int32Array(memory);
+      var heapOffset = HEAP32[2];
+
+      strings.push(sourceCode);
+      exports.main(strings.length);
+      console.log(arrays[0].length);
+
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([new Uint8Array(arrays[0], {type: 'application/octet-stream'})]));
+      link.download = 'compiled.wasm';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  });
+}
+
+main();
+
+</script>
