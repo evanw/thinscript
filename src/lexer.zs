@@ -46,16 +46,19 @@ const TOKEN_CLASS = 38;
 const TOKEN_CONST = 39;
 const TOKEN_CONTINUE = 40;
 const TOKEN_ELSE = 41;
-const TOKEN_FALSE = 42;
-const TOKEN_FUNCTION = 43;
-const TOKEN_IF = 44;
-const TOKEN_NEW = 45;
-const TOKEN_NULL = 46;
-const TOKEN_RETURN = 47;
-const TOKEN_THIS = 48;
-const TOKEN_TRUE = 49;
-const TOKEN_VAR = 50;
-const TOKEN_WHILE = 51;
+const TOKEN_EXPORT = 42;
+const TOKEN_EXTERN = 43;
+const TOKEN_FALSE = 44;
+const TOKEN_FUNCTION = 45;
+const TOKEN_IF = 46;
+const TOKEN_IMPORT = 47;
+const TOKEN_NEW = 48;
+const TOKEN_NULL = 49;
+const TOKEN_RETURN = 50;
+const TOKEN_THIS = 51;
+const TOKEN_TRUE = 52;
+const TOKEN_VAR = 53;
+const TOKEN_WHILE = 54;
 
 class Token {
   kind: int;
@@ -64,23 +67,33 @@ class Token {
 }
 
 function tokenToString(token: int): string {
-  if (token == TOKEN_END_OF_FILE) return "END_OF_FILE";
-  if (token == TOKEN_CHARACTER) return "CHARACTER";
-  if (token == TOKEN_IDENTIFIER) return "IDENTIFIER";
-  if (token == TOKEN_INT) return "INT";
-  if (token == TOKEN_STRING) return "STRING";
   if (token == TOKEN_ASSIGN) return "ASSIGN";
   if (token == TOKEN_BITWISE_AND) return "BITWISE_AND";
   if (token == TOKEN_BITWISE_OR) return "BITWISE_OR";
   if (token == TOKEN_BITWISE_XOR) return "BITWISE_XOR";
+  if (token == TOKEN_BREAK) return "BREAK";
+  if (token == TOKEN_CHARACTER) return "CHARACTER";
+  if (token == TOKEN_CLASS) return "CLASS";
   if (token == TOKEN_COLON) return "COLON";
   if (token == TOKEN_COMMA) return "COMMA";
   if (token == TOKEN_COMPLEMENT) return "COMPLEMENT";
+  if (token == TOKEN_CONST) return "CONST";
+  if (token == TOKEN_CONTINUE) return "CONTINUE";
   if (token == TOKEN_DIVIDE) return "DIVIDE";
   if (token == TOKEN_DOT) return "DOT";
+  if (token == TOKEN_ELSE) return "ELSE";
+  if (token == TOKEN_END_OF_FILE) return "END_OF_FILE";
   if (token == TOKEN_EQUAL) return "EQUAL";
+  if (token == TOKEN_EXPORT) return "EXPORT";
+  if (token == TOKEN_EXTERN) return "EXTERN";
+  if (token == TOKEN_FALSE) return "FALSE";
+  if (token == TOKEN_FUNCTION) return "FUNCTION";
   if (token == TOKEN_GREATER_THAN) return "GREATER_THAN";
   if (token == TOKEN_GREATER_THAN_EQUAL) return "GREATER_THAN_EQUAL";
+  if (token == TOKEN_IDENTIFIER) return "IDENTIFIER";
+  if (token == TOKEN_IF) return "IF";
+  if (token == TOKEN_IMPORT) return "IMPORT";
+  if (token == TOKEN_INT) return "INT";
   if (token == TOKEN_LEFT_BRACE) return "LEFT_BRACE";
   if (token == TOKEN_LEFT_PARENTHESIS) return "LEFT_PARENTHESIS";
   if (token == TOKEN_LESS_THAN) return "LESS_THAN";
@@ -90,28 +103,21 @@ function tokenToString(token: int): string {
   if (token == TOKEN_MINUS) return "MINUS";
   if (token == TOKEN_MINUS_MINUS) return "MINUS_MINUS";
   if (token == TOKEN_MULTIPLY) return "MULTIPLY";
+  if (token == TOKEN_NEW) return "NEW";
   if (token == TOKEN_NOT) return "NOT";
   if (token == TOKEN_NOT_EQUAL) return "NOT_EQUAL";
+  if (token == TOKEN_NULL) return "NULL";
   if (token == TOKEN_PLUS) return "PLUS";
   if (token == TOKEN_PLUS_PLUS) return "PLUS_PLUS";
   if (token == TOKEN_QUESTION_MARK) return "QUESTION_MARK";
   if (token == TOKEN_REMAINDER) return "REMAINDER";
+  if (token == TOKEN_RETURN) return "RETURN";
   if (token == TOKEN_RIGHT_BRACE) return "RIGHT_BRACE";
   if (token == TOKEN_RIGHT_PARENTHESIS) return "RIGHT_PARENTHESIS";
   if (token == TOKEN_SEMICOLON) return "SEMICOLON";
   if (token == TOKEN_SHIFT_LEFT) return "SHIFT_LEFT";
   if (token == TOKEN_SHIFT_RIGHT) return "SHIFT_RIGHT";
-  if (token == TOKEN_BREAK) return "BREAK";
-  if (token == TOKEN_CLASS) return "CLASS";
-  if (token == TOKEN_CONST) return "CONST";
-  if (token == TOKEN_CONTINUE) return "CONTINUE";
-  if (token == TOKEN_ELSE) return "ELSE";
-  if (token == TOKEN_FALSE) return "FALSE";
-  if (token == TOKEN_FUNCTION) return "FUNCTION";
-  if (token == TOKEN_IF) return "IF";
-  if (token == TOKEN_NEW) return "NEW";
-  if (token == TOKEN_NULL) return "NULL";
-  if (token == TOKEN_RETURN) return "RETURN";
+  if (token == TOKEN_STRING) return "STRING";
   if (token == TOKEN_THIS) return "THIS";
   if (token == TOKEN_TRUE) return "TRUE";
   if (token == TOKEN_VAR) return "VAR";
@@ -163,9 +169,12 @@ function tokenize(source: Source, log: Log): Token {
       else if (String_equalNew(text, "const")) kind = TOKEN_CONST;
       else if (String_equalNew(text, "continue")) kind = TOKEN_CONTINUE;
       else if (String_equalNew(text, "else")) kind = TOKEN_ELSE;
+      else if (String_equalNew(text, "export")) kind = TOKEN_EXPORT;
+      else if (String_equalNew(text, "extern")) kind = TOKEN_EXTERN;
       else if (String_equalNew(text, "false")) kind = TOKEN_FALSE;
       else if (String_equalNew(text, "function")) kind = TOKEN_FUNCTION;
       else if (String_equalNew(text, "if")) kind = TOKEN_IF;
+      else if (String_equalNew(text, "import")) kind = TOKEN_IMPORT;
       else if (String_equalNew(text, "new")) kind = TOKEN_NEW;
       else if (String_equalNew(text, "null")) kind = TOKEN_NULL;
       else if (String_equalNew(text, "return")) kind = TOKEN_RETURN;
@@ -220,8 +229,7 @@ function tokenize(source: Source, log: Log): Token {
       if (i < limit && String_get(contents, i) == '/') {
         i = i + 1;
 
-        while (i < limit && String_get(contents, i) != '
-') {
+        while (i < limit && String_get(contents, i) != '\n') {
           i = i + 1;
         }
 

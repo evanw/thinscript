@@ -417,6 +417,19 @@ function checkBinary(context: CheckContext, node: Node, expectedType: Type, resu
   node.resolvedType = resultType;
 }
 
+function createDefaultValueForType(context: CheckContext, type: Type): Node {
+  if (type == context.intType) {
+    return createInt(0);
+  }
+
+  if (type == context.boolType) {
+    return createBool(false);
+  }
+
+  assert(typeIsReference(context, type));
+  return createNull();
+}
+
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   assert(node.kind == NODE_GLOBAL || parentScope != null);
 
@@ -466,6 +479,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedType);
+    }
+
+    else {
+      appendChild(node, createDefaultValueForType(context, symbol.resolvedType));
     }
   }
 

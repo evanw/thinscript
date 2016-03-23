@@ -13,6 +13,7 @@ function String_equal(self: String, other: String): bool;
 function String_equalNew(self: String, other: string): bool;
 function String_slice(self: String, start: int, end: int): String;
 function String_toString(value: int): String;
+function String_quote(self: String): String;
 
 // This is an external handle for now
 class ByteArray {}

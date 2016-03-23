@@ -262,23 +262,23 @@ class WasmModule {
 }
 
 function wasmAllocateImport(module: WasmModule, signatureIndex: int, mod: String, name: String): WasmImport {
-  var import = new WasmImport();
-  import.signatureIndex = signatureIndex;
-  import.module = mod;
-  import.name = name;
+  var result = new WasmImport();
+  result.signatureIndex = signatureIndex;
+  result.module = mod;
+  result.name = name;
 
   if (module.firstImport == null) {
-    module.firstImport = import;
-    module.lastImport = import;
+    module.firstImport = result;
+    module.lastImport = result;
   }
 
   else {
-    module.lastImport.next = import;
-    module.lastImport = import;
+    module.lastImport.next = result;
+    module.lastImport = result;
   }
 
   module.importCount = module.importCount + 1;
-  return import;
+  return result;
 }
 
 function wasmAllocateFunction(module: WasmModule, name: String, signatureIndex: int, body: Node): WasmFunction {
@@ -440,12 +440,12 @@ function wasmEmitImportTable(array: ByteArray, module: WasmModule): void {
   var section = wasmStartSection(array, String_new("import_table"));
   wasmWriteVarUnsigned(array, module.importCount);
 
-  var import = module.firstImport;
-  while (import != null) {
-    wasmWriteVarUnsigned(array, import.signatureIndex);
-    wasmWriteLengthPrefixedString(array, import.module);
-    wasmWriteLengthPrefixedString(array, import.name);
-    import = import.next;
+  var current = module.firstImport;
+  while (current != null) {
+    wasmWriteVarUnsigned(array, current.signatureIndex);
+    wasmWriteLengthPrefixedString(array, current.module);
+    wasmWriteLengthPrefixedString(array, current.name);
+    current = current.next;
   }
 
   wasmFinishSection(array, section);
@@ -1005,7 +1005,10 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
       var fn = wasmAllocateFunction(module, child.symbol.name, signatureIndex, body);
 
       // Only export the main function
-      if (String_equalNew(child.symbol.name, "main")) {
+      if (String_equalNew(child.symbol.name, "main") ||
+          String_equalNew(child.symbol.name, "CompileResult_js") ||
+          String_equalNew(child.symbol.name, "CompileResult_log") ||
+          String_equalNew(child.symbol.name, "CompileResult_wasm")) {
         fn.isExported = true;
       }
 

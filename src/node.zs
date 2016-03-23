@@ -63,6 +63,10 @@ function isUnary(kind: int): bool {
   return kind >= NODE_COMPLEMENT && kind <= NODE_PREFIX_INCREMENT;
 }
 
+function isUnaryPostfix(kind: int): bool {
+  return kind >= NODE_POSTFIX_DECREMENT && kind <= NODE_POSTFIX_INCREMENT;
+}
+
 function isBinary(kind: int): bool {
   return kind >= NODE_ADD && kind <= NODE_SUBTRACT;
 }
