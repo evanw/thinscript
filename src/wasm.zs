@@ -178,9 +178,7 @@ const WASM_MAGIC = 1836278016;
 const WASM_VERSION = 10;
 const WASM_I32_LOAD_STORE_ALIGNMENT = 2; // 1 << 2 is 4, and 4 is sizeof(int)
 const WASM_SIZE_IN_PAGES = 256;
-const WASM_INITIAL_HEAP_OFFSET = 8;
-const WASM_INITIAL_HEAP_SIZE = 4;
-const WASM_FIRST_STRING_OFFSET = 12; // WASM_INITIAL_HEAP_OFFSET + WASM_INITIAL_HEAP_SIZE
+const WASM_MEMORY_INITIALIZER_OFFSET = 8; // Leave space for "null"
 
 const WASM_TYPE_VOID = 0;
 const WASM_TYPE_I32 = 1;
@@ -257,8 +255,7 @@ class WasmModule {
   lastSignature: WasmSignature;
   signatureCount: int;
 
-  // Table of string constants
-  stringBytes: ByteArray;
+  memoryInitializer: ByteArray;
 }
 
 function wasmAllocateImport(module: WasmModule, signatureIndex: int, mod: String, name: String): WasmImport {
@@ -849,25 +846,25 @@ function wasmEmitDataSegments(array: ByteArray, module: WasmModule): void {
   var section = wasmStartSection(array, String_new("data_segments"));
   wasmWriteVarUnsigned(array, 1);
 
-  var stringByteCount = ByteArray_length(module.stringBytes);
-  var byteOffset = WASM_INITIAL_HEAP_OFFSET;
-  var byteCount = WASM_INITIAL_HEAP_SIZE + stringByteCount;
+  var memoryInitializer = module.memoryInitializer;
+  var byteOffset = WASM_MEMORY_INITIALIZER_OFFSET;
+  var byteCount = ByteArray_length(memoryInitializer);
   var initialHeapOffset = (byteOffset + byteCount + 7) & ~7;
-  assert(WASM_FIRST_STRING_OFFSET == WASM_INITIAL_HEAP_OFFSET + WASM_INITIAL_HEAP_SIZE);
+  assert(byteCount >= 4);
 
   wasmWriteVarUnsigned(array, byteOffset);
   wasmWriteVarUnsigned(array, byteCount);
 
   // Pass the initial heap offset to the runtime
-  ByteArray_appendByte(array, initialHeapOffset);
-  ByteArray_appendByte(array, initialHeapOffset >> 8);
-  ByteArray_appendByte(array, initialHeapOffset >> 16);
-  ByteArray_appendByte(array, initialHeapOffset >> 24);
+  ByteArray_setByte(memoryInitializer, 0, initialHeapOffset);
+  ByteArray_setByte(memoryInitializer, 1, initialHeapOffset >> 8);
+  ByteArray_setByte(memoryInitializer, 2, initialHeapOffset >> 16);
+  ByteArray_setByte(memoryInitializer, 3, initialHeapOffset >> 24);
 
   // Put the string table next after that
   var i = 0;
-  while (i < stringByteCount) {
-    ByteArray_appendByte(array, ByteArray_getByte(module.stringBytes, i));
+  while (i < byteCount) {
+    ByteArray_appendByte(array, ByteArray_getByte(memoryInitializer, i));
     i = i + 1;
   }
 
@@ -916,15 +913,16 @@ function wasmGetType(context: CheckContext, type: Type): int {
 
 function wasmCollectStrings(module: WasmModule, node: Node): void {
   if (node.kind == NODE_STRING) {
-    node.intValue = WASM_FIRST_STRING_OFFSET + ByteArray_length(module.stringBytes);
+    var memoryInitializer = module.memoryInitializer;
+    node.intValue = WASM_MEMORY_INITIALIZER_OFFSET + ByteArray_length(memoryInitializer);
     var text = node.stringValue;
     var i = 0;
     var count = String_length(text);
     while (i < count) {
-      ByteArray_appendByte(module.stringBytes, String_get(text, i));
+      ByteArray_appendByte(memoryInitializer, String_get(text, i));
       i = i + 1;
     }
-    ByteArray_appendByte(module.stringBytes, 0);
+    ByteArray_appendByte(memoryInitializer, 0);
   }
 
   var child = node.firstChild;
@@ -956,7 +954,13 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
 
 function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   var module = new WasmModule();
-  module.stringBytes = ByteArray_new();
+  module.memoryInitializer = ByteArray_new();
+
+  // Make room for the initial heap offset
+  ByteArray_appendByte(module.memoryInitializer, 0);
+  ByteArray_appendByte(module.memoryInitializer, 0);
+  ByteArray_appendByte(module.memoryInitializer, 0);
+  ByteArray_appendByte(module.memoryInitializer, 0);
 
   // The "malloc" equivalent is in the standard library
   var imports = String_new("imports");

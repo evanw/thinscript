@@ -1,4 +1,3 @@
-function IO_print(text: String): void;
 function assert(truth: bool): void;
 
 // An external string handle for now

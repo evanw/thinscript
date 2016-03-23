@@ -121,6 +121,9 @@ function jsEmitExpression(result: JsResult, node: Node, parentPrecedence: int): 
 
   else if (node.kind == NODE_CALL) {
     var value = callValue(node);
+    if (functionBody(value.symbol.node) == null) {
+      jsAppendText(result, "__imports.");
+    }
     jsEmitExpression(result, value, PRECEDENCE_UNARY_POSTFIX);
     jsAppendText(result, "(");
 

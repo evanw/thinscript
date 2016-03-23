@@ -1,8 +1,112 @@
 <meta charset="utf8">
-<body></body>
+<style>
+  body {
+    font-family: sans-serif;
+    line-height: 150%;
+    margin: 50px 0 50px 50px;
+  }
+
+  h1, p {
+    padding-right: 50px;
+  }
+
+  button {
+    float: right;
+  }
+
+  textarea {
+    width: 100%;
+    height: 400px;
+    font-family: monospace;
+  }
+
+  section {
+    width: 50%;
+    float: left;
+    padding-right: 50px;
+    box-sizing: border-box;
+  }
+</style>
+<body>
+  <h1>ZeroScript Compiler Demo</h1>
+  <p>
+    Compile using:
+    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
+    <label><input type="radio" name="backend" id="backend-wasm"> WebAssembly</label>
+    <br>
+    Compile to:
+    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
+    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly</label>
+  </p>
+
+  <section>
+    <h2>Input</h2>
+    <textarea id="input" autofocus></textarea>
+  </section>
+
+  <section>
+    <h2>Output <button id="download">Download</button></h2>
+    <textarea id="output" readonly></textarea>
+  </section>
+</body>
 <script>
 
 (function() {
+  var input = document.getElementById('input');
+  var output = document.getElementById('output');
+  var download = document.getElementById('download');
+
+  var backendWebAssembly = document.getElementById('backend-wasm');
+  var backendJavaScript = document.getElementById('backend-js');
+
+  var targetWebAssembly = document.getElementById('target-wasm');
+  var targetJavaScript = document.getElementById('target-js');
+
+  var loadedWebAssembly = null;
+  var loadedJavaScript = null;
+
+  var downloadName = null;
+  var blobToDownload = null;
+
+  var example =
+    'class Link {\n' +
+    '  value: int;\n' +
+    '  next: Link;\n' +
+    '}\n' +
+    '\n' +
+    'class List {\n' +
+    '  first: Link;\n' +
+    '  last: Link;\n' +
+    '}\n' +
+    '\n' +
+    'function append(list: List, value: int): void {\n' +
+    '  var link = new Link();\n' +
+    '  link.value = value;\n' +
+    '\n' +
+    '  if (list.first == null) {\n' +
+    '    list.first = link;\n' +
+    '  } else {\n' +
+    '    list.last.next = link;\n' +
+    '  }\n' +
+    '  list.last = link;\n' +
+    '}\n' +
+    '\n' +
+    'function main(): int {\n' +
+    '  var list = new List();\n' +
+    '  append(list, 1);\n' +
+    '  append(list, 2);\n' +
+    '  append(list, 3);\n' +
+    '\n' +
+    '  var total = 0;\n' +
+    '  var link = list.first;\n' +
+    '  while (link != null) {\n' +
+    '    total = total + link.value;\n' +
+    '    link = link.next;\n' +
+    '  }\n' +
+    '\n' +
+    '  return total;\n' +
+    '}\n';
+
   function avoidErrorSwallowing(promise) {
     promise.catch(function(error) {
       setTimeout(function() {
@@ -12,36 +116,21 @@
     return promise;
   }
 
-  function loadWasm(callback) {
+  function loadJavaScript(callback) {
+    var name = 'compiled.js';
+    avoidErrorSwallowing(fetch(name).then(function(response) {
+      return response.text();
+    }).then(function(text) {
+      callback(text);
+    }));
+  }
+
+  function loadWebAssembly(callback) {
     var name = 'compiled.wasm';
     avoidErrorSwallowing(fetch(name).then(function(response) {
       return response.arrayBuffer();
     }).then(function(buffer) {
       callback(new Uint8Array(buffer));
-    }));
-  }
-
-  function fetchSourceCode(callback) {
-    var sources = [
-      '../src/checker.zs',
-      '../src/entry.zs',
-      '../src/js.zs',
-      '../src/lexer.zs',
-      '../src/node.zs',
-      '../src/parser.zs',
-      '../src/support.zs',
-      '../src/wasm.zs',
-    ];
-    var promises = [];
-    for (var i = 0; i < sources.length; i++) {
-      promises.push(fetch(sources[i]));
-    }
-    avoidErrorSwallowing(Promise.all(promises).then(function(all) {
-      return Promise.all(all.map(function(response) {
-        return response.text();
-      }));
-    }).then(function(all) {
-      callback(all.join('\n'));
     }));
   }
 
@@ -57,7 +146,7 @@
     return text;
   }
 
-  function loadStdlib() {
+  function loadStdlibForWebAssembly() {
     var arrays = [];
     var strings = [];
     var stdlib = {
@@ -77,10 +166,6 @@
         if (!truth) {
           throw new Error('Assertion failed');
         }
-      },
-
-      IO_print: function(value) {
-        console.log(strings[value - 1]);
       },
 
       String_new: function(ptr) {
@@ -153,57 +238,195 @@
     return stdlib;
   }
 
+  function loadStdlibForJavaScript() {
+    return {
+      assert: function(truth) {
+        if (!truth) {
+          throw new Error('Assertion failed');
+        }
+      },
+
+      String_new: function(value) {
+        return value;
+      },
+
+      String_length: function(self) {
+        return self.length;
+      },
+
+      String_get: function(self, index) {
+        return self.charCodeAt(index);
+      },
+
+      String_append: function(self, other) {
+        return self + other;
+      },
+
+      String_appendNew: function(self, other) {
+        return self + other;
+      },
+
+      String_slice: function(self, start, end) {
+        return self.slice(start, end);
+      },
+
+      String_equal: function(self, other) {
+        return self === other;
+      },
+
+      String_equalNew: function(self, other) {
+        return self === other;
+      },
+
+      String_toString: function(value) {
+        return value.toString();
+      },
+
+      String_quote: function(self) {
+        return JSON.stringify(self);
+      },
+
+      ByteArray_new: function() {
+        return [];
+      },
+
+      ByteArray_length: function(self) {
+        return self.length;
+      },
+
+      ByteArray_getByte: function(self, index) {
+        return self[index];
+      },
+
+      ByteArray_setByte: function(self, index, byte) {
+        self[index] = byte & 255;
+      },
+
+      ByteArray_appendByte: function(self, byte) {
+        self.push(byte & 255);
+      },
+    };
+  }
+
+  function compileAndRunWebAssembly(code, input) {
+    var stdlib = loadStdlibForWebAssembly();
+    var module = Wasm.instantiateModule(code, {imports: stdlib});
+    var exports = module.exports;
+    var memory = exports.memory;
+    stdlib.bytes = new Uint8Array(memory);
+    stdlib.heapOffset = new Int32Array(memory)[2];
+    stdlib.strings.push(input);
+    var result = exports.main(stdlib.strings.length);
+    var wasm = stdlib.arrays[exports.CompileResult_wasm(result) - 1];
+    return {
+      wasm: wasm ? new Uint8Array(wasm) : null,
+      log: stdlib.strings[exports.CompileResult_log(result) - 1] || '',
+      js: stdlib.strings[exports.CompileResult_js(result) - 1] || '',
+    };
+  }
+
+  function compileAndRunJavaScript(code, input) {
+    var stdlib = loadStdlibForJavaScript();
+    var exports = new Function('__imports',
+      code + '\n' +
+      'return {main: main, CompileResult_js: CompileResult_js, CompileResult_log: CompileResult_log, CompileResult_wasm: CompileResult_wasm};'
+    )(stdlib);
+    var result = exports.main(input);
+    var wasm = exports.CompileResult_wasm(result);
+    return {
+      wasm: wasm ? new Uint8Array(wasm) : null,
+      log: exports.CompileResult_log(result),
+      js: exports.CompileResult_js(result),
+    };
+  }
+
+  function hexdump(bytes) {
+    var text = '';
+    var rows = bytes.length + 15 >>> 4;
+
+    for (var i = 0; i < rows; i++) {
+      if (i > 0) {
+        text += '\n';
+      }
+
+      var columns = Math.min(16, bytes.length - i * 16);
+
+      for (var j = 0; j < columns; j++) {
+        text += (0x100 | bytes[i * 16 + j]).toString(16).slice(-2) + ' ';
+      }
+
+      for (var j = columns; j < 16; j++) {
+        text += '   ';
+      }
+
+      text += '| ';
+
+      for (var j = 0; j < columns; j++) {
+        var c = bytes[i * 16 + j];
+        text += c >= 0x20 && c <= 0x7E ? String.fromCharCode(c) : '\xB7';
+      }
+    }
+
+    return text;
+  }
+
+  function compile() {
+    if (backendWebAssembly.checked) {
+      var result = compileAndRunWebAssembly(loadedWebAssembly, input.value);
+    } else {
+      var result = compileAndRunJavaScript(loadedJavaScript, input.value);
+    }
+
+    if (result.log) {
+      output.value = result.log;
+      downloadName = 'log.txt';
+      blobToDownload = new Blob([result.log], {type: 'text/plain'});
+    }
+
+    else if (targetJavaScript.checked) {
+      output.value = result.js;
+      downloadName = 'compiled.js';
+      blobToDownload = new Blob([result.js], {type: 'text/plain'});
+    }
+
+    else {
+      output.value = hexdump(result.wasm);
+      downloadName = 'compiled.wasm';
+      blobToDownload = new Blob([result.wasm], {type: 'application/octet-stream'});
+    }
+  }
+
+  function downloadCompiledResult() {
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blobToDownload);
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   function main() {
-    loadWasm(function(bytes) {
-      fetchSourceCode(function(sourceCode) {
-        var stdlib = loadStdlib();
-        var module = Wasm.instantiateModule(bytes, {imports: stdlib});
-        var exports = module.exports;
-        var memory = exports.memory;
-        stdlib.bytes = new Uint8Array(memory);
-        stdlib.heapOffset = new Int32Array(memory)[2];
-        stdlib.strings.push(sourceCode);
+    loadWebAssembly(function(wasm) {
+      loadedWebAssembly = wasm;
 
-        var result = exports.main(stdlib.strings.length);
-        var wasm = new Uint8Array(stdlib.arrays[exports.CompileResult_wasm(result) - 1]);
-        var log = stdlib.strings[exports.CompileResult_log(result) - 1] || '';
-        var js = stdlib.strings[exports.CompileResult_js(result) - 1] || '';
-        console.log('done #1, ' +
-          'wasm length ' + (wasm && wasm.length) + ', ' +
-          'log length ' + log.length + ', ' +
-          'js length ' + js.length);
-        if (log) {
-          console.log(log);
-          return;
+      loadJavaScript(function(js) {
+        loadedJavaScript = js;
+
+        backendWebAssembly.onchange = compile;
+        backendJavaScript.onchange = compile;
+        targetWebAssembly.onchange = compile;
+        targetJavaScript.onchange = compile;
+        input.oninput = compile;
+        download.onclick = downloadCompiledResult;
+
+        if (typeof Wasm !== 'undefined') {
+          backendWebAssembly.checked = true;
+        } else {
+          backendJavaScript.checked = true;
         }
 
-        var stdlib2 = loadStdlib();
-        var module = Wasm.instantiateModule(wasm, {imports: stdlib2});
-        var exports = module.exports;
-        var memory = exports.memory;
-        stdlib2.bytes = new Uint8Array(memory);
-        stdlib2.heapOffset = new Int32Array(memory)[2];
-        stdlib2.strings.push(sourceCode);
-
-        var result = exports.main(stdlib2.strings.length);
-        var wasm = new Uint8Array(stdlib2.arrays[exports.CompileResult_wasm(result) - 1]);
-        var log = stdlib2.strings[exports.CompileResult_log(result) - 1] || '';
-        var js = stdlib2.strings[exports.CompileResult_js(result) - 1] || '';
-        console.log('done #2, ' +
-          'wasm length ' + (wasm && wasm.length) + ', ' +
-          'log length ' + log.length + ', ' +
-          'js length ' + js.length);
-        if (log) {
-          console.log(log);
-          return;
-        }
-
-        var link = document.createElement('a');
-        link.href = URL.createObjectURL(new Blob([wasm], {type: 'application/octet-stream'}));
-        link.download = 'compiled.wasm';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        input.value = example;
+        compile();
       });
     });
   }
