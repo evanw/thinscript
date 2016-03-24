@@ -1,0 +1,466 @@
+<meta charset="utf8">
+<title>ThinScript Compiler Demo</title>
+<style>
+  body {
+    font: 14px/150% sans-serif;
+    margin: 50px 0 50px 50px;
+  }
+
+  h1, p {
+    padding-right: 50px;
+  }
+
+  #backend-wasm[disabled] + span,
+  #backend-wasm[disabled] + span + span {
+    color: #BBB;
+  }
+
+  #backend-wasm + span + span {
+    display: none;
+  }
+
+  #backend-wasm[disabled] + span + span {
+    display: inline;
+  }
+
+  button {
+    float: right;
+  }
+
+  textarea {
+    width: 100%;
+    height: 400px;
+    font: 12px/130% monospace;
+  }
+
+  section {
+    width: 50%;
+    float: left;
+    padding-right: 50px;
+    box-sizing: border-box;
+  }
+</style>
+<body>
+  <h1>ThinScript Compiler Demo</h1>
+  <p>
+    Compile using:
+    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
+    <label><input type="radio" name="backend" id="backend-wasm"><span> WebAssembly</span><span> (not supported by your browser)</span></label>
+    <br>
+    Compile to:
+    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
+    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly</label>
+  </p>
+
+  <section>
+    <h2>Input</h2>
+    <textarea id="input" autofocus></textarea>
+  </section>
+
+  <section>
+    <h2>Output <button id="download">Download</button></h2>
+    <textarea id="output" readonly></textarea>
+  </section>
+</body>
+<script>
+
+(function() {
+  var input = document.getElementById('input');
+  var output = document.getElementById('output');
+  var download = document.getElementById('download');
+
+  var backendWebAssembly = document.getElementById('backend-wasm');
+  var backendJavaScript = document.getElementById('backend-js');
+
+  var targetWebAssembly = document.getElementById('target-wasm');
+  var targetJavaScript = document.getElementById('target-js');
+
+  var loadedWebAssembly = null;
+  var loadedJavaScript = null;
+
+  var downloadName = null;
+  var blobToDownload = null;
+
+  var example = [
+    'declare function print(text: string): void;',
+    '',
+    'class Link {',
+    '  value: int;',
+    '  next: Link;',
+    '}',
+    '',
+    'class List {',
+    '  first: Link;',
+    '  last: Link;',
+    '',
+    '  append(value: int): void {',
+    '    var link = new Link();',
+    '    link.value = value;',
+    '',
+    '    // Append the new link to the end of the chain',
+    '    if (this.first == null) this.first = link;',
+    '    else this.last.next = link;',
+    '    this.last = link;',
+    '  }',
+    '}',
+    '',
+    'extern function main(): int {',
+    '  var list = new List();',
+    '  list.append(1);',
+    '  list.append(2);',
+    '  list.append(3);',
+    '',
+    '  var total = 0;',
+    '  var link = list.first;',
+    '  while (link != null) {',
+    '    total = total + link.value;',
+    '    link = link.next;',
+    '  }',
+    '',
+    '  print("hello, world\\n");',
+    '  return total;',
+    '}',
+  ].join('\n') + '\n';
+
+  function fetch(url, responseType, callback) {
+    var xhr = new XMLHttpRequest;
+    xhr.open('GET', url);
+    xhr.onload = function() {
+      callback(xhr.response);
+    };
+    xhr.responseType = responseType;
+    xhr.send(null);
+  }
+
+  function loadJavaScript(callback) {
+    fetch('compiled.js', 'text', callback);
+  }
+
+  function loadWebAssembly(callback) {
+    fetch('compiled.wasm', 'arraybuffer', function(buffer) {
+      callback(new Uint8Array(buffer));
+    });
+  }
+
+  function parseString(bytes, index, length) {
+    var hasLength = length > 0;
+    var text = '';
+
+    while (hasLength ? length > 0 : bytes[index] !== 0) {
+      text += String.fromCharCode(bytes[index]);
+      index++;
+      length--;
+    }
+
+    return text;
+  }
+
+  function loadStdlibForWebAssembly() {
+    var strings = [];
+    var stdlib = {
+      strings: strings,
+      bytes: null,
+
+      assert: function(truth) {
+        if (!truth) {
+          throw new Error('Assertion failed');
+        }
+      },
+
+      String_new: function(ptr) {
+        strings.push(parseString(stdlib.bytes, ptr, 0));
+        return strings.length;
+      },
+
+      String_newLength: function(ptr, length) {
+        strings.push(parseString(stdlib.bytes, ptr, length));
+        return strings.length;
+      },
+
+      String_length: function(self) {
+        return strings[self - 1].length;
+      },
+
+      String_get: function(self, index) {
+        return strings[self - 1].charCodeAt(index);
+      },
+
+      String_append: function(self, other) {
+        strings.push(strings[self - 1] + strings[other - 1]);
+        return strings.length;
+      },
+
+      String_appendNew: function(self, other) {
+        strings.push(strings[self - 1] + parseString(stdlib.bytes, other));
+        return strings.length;
+      },
+
+      String_slice: function(self, start, end) {
+        strings.push(strings[self - 1].slice(start, end));
+        return strings.length;
+      },
+
+      String_equal: function(self, other) {
+        return strings[self - 1] === strings[other - 1];
+      },
+
+      String_equalNew: function(self, other) {
+        return strings[self - 1] === parseString(stdlib.bytes, other);
+      },
+
+      String_toStringSigned: function(value) {
+        strings.push((value | 0).toString());
+        return strings.length;
+      },
+
+      String_toStringUnsigned: function(value) {
+        strings.push((value >>> 0).toString());
+        return strings.length;
+      },
+
+      String_quote: function(self) {
+        strings.push(JSON.stringify(strings[self - 1]));
+        return strings.length;
+      },
+    };
+    return stdlib;
+  }
+
+  function loadStdlibForJavaScript() {
+    return {
+      assert: function(truth) {
+        if (!truth) {
+          throw new Error('Assertion failed');
+        }
+      },
+
+      String_new: function(value) {
+        return value;
+      },
+
+      String_newLength: function(value, length) {
+        return value;
+      },
+
+      String_length: function(self) {
+        return self.length;
+      },
+
+      String_get: function(self, index) {
+        return self.charCodeAt(index);
+      },
+
+      String_append: function(self, other) {
+        return self + other;
+      },
+
+      String_appendNew: function(self, other) {
+        return self + other;
+      },
+
+      String_slice: function(self, start, end) {
+        return self.slice(start, end);
+      },
+
+      String_equal: function(self, other) {
+        return self === other;
+      },
+
+      String_equalNew: function(self, other) {
+        return self === other;
+      },
+
+      String_toStringSigned: function(value) {
+        return (value | 0).toString();
+      },
+
+      String_toStringUnsigned: function(value) {
+        return (value >>> 0).toString();
+      },
+
+      String_quote: function(self) {
+        return JSON.stringify(self);
+      },
+
+      ByteArray_new: function() {
+        return [];
+      },
+
+      ByteArray_length: function(self) {
+        return self.length;
+      },
+
+      ByteArray_getByte: function(self, index) {
+        return self[index];
+      },
+
+      ByteArray_setByte: function(self, index, byte) {
+        self[index] = byte & 255;
+      },
+
+      ByteArray_appendByte: function(self, byte) {
+        self.push(byte & 255);
+      },
+    };
+  }
+
+  var CompileTarget = {
+    JAVASCRIPT: 1,
+    WEBASSEMBLY: 2,
+  };
+
+  function compileAndRunWebAssembly(code, input, target) {
+    var stdlib = loadStdlibForWebAssembly();
+    var module = Wasm.instantiateModule(code, {globals: stdlib});
+    var exports = module.exports;
+    var memory = exports.memory;
+
+    stdlib.bytes = new Uint8Array(memory);
+
+    stdlib.strings.push('<stdin>');
+    var nameString = stdlib.strings.length;
+
+    stdlib.strings.push(input);
+    var contentsString = stdlib.strings.length;
+
+    var compiler = exports.Compiler_new(target);
+    exports.Compiler_addInput(compiler, nameString, contentsString);
+    exports.Compiler_finish(compiler);
+
+    var wasm = exports.Compiler_wasm(compiler);
+    var ints = new Int32Array(memory);
+    var wasmData = wasm && ints[wasm >> 2];
+    var wasmLength = wasm && ints[(wasm + 4) >> 2];
+    return {
+      wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
+      log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
+      js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
+    };
+  }
+
+  function compileAndRunJavaScript(code, input, target) {
+    var stdlib = loadStdlibForJavaScript();
+    var exports = {};
+    new Function('globals', 'exports', code)(stdlib, exports);
+
+    var compiler = exports.Compiler_new(target);
+    exports.Compiler_addInput(compiler, '<stdin>', input);
+    exports.Compiler_finish(compiler);
+
+    var wasm = exports.Compiler_wasm(compiler);
+    return {
+      wasm: wasm ? new Uint8Array(wasm) : null,
+      log: exports.Compiler_log(compiler),
+      js: exports.Compiler_js(compiler),
+    };
+  }
+
+  function hexdump(bytes) {
+    var text = '';
+    var rows = bytes.length + 15 >>> 4;
+
+    for (var i = 0; i < rows; i++) {
+      if (i > 0) {
+        text += '\n';
+      }
+
+      var columns = Math.min(16, bytes.length - i * 16);
+
+      for (var j = 0; j < columns; j++) {
+        text += (0x100 | bytes[i * 16 + j]).toString(16).slice(-2) + ' ';
+      }
+
+      for (var j = columns; j < 16; j++) {
+        text += '   ';
+      }
+
+      text += '| ';
+
+      for (var j = 0; j < columns; j++) {
+        var c = bytes[i * 16 + j];
+        text += c >= 0x20 && c <= 0x7E ? String.fromCharCode(c) : '\xB7';
+      }
+    }
+
+    return text;
+  }
+
+  function compile() {
+    var target = targetJavaScript.checked ? CompileTarget.JAVASCRIPT : CompileTarget.WEBASSEMBLY;
+
+    try {
+      if (backendWebAssembly.checked) {
+        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value, target);
+      } else {
+        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value, target);
+      }
+    } catch (e) {
+      var message = e + '';
+      if (e.stack) {
+        message = e.stack.indexOf(message) !== -1 ? e.stack : message + '\n' + e.stack;
+      }
+      output.value = message;
+      downloadName = 'error.txt';
+      blobToDownload = new Blob([message], {type: 'text/plain'});
+      return;
+    }
+
+    if (compiler.log) {
+      output.value = compiler.log;
+      downloadName = 'log.txt';
+      blobToDownload = new Blob([compiler.log], {type: 'text/plain'});
+    }
+
+    else if (targetJavaScript.checked) {
+      output.value = compiler.js;
+      downloadName = 'compiled.js';
+      blobToDownload = new Blob([compiler.js], {type: 'text/plain'});
+    }
+
+    else {
+      output.value = compiler.wasm && hexdump(compiler.wasm);
+      downloadName = 'compiled.wasm';
+      blobToDownload = new Blob([compiler.wasm], {type: 'application/octet-stream'});
+    }
+  }
+
+  function downloadCompiledResult() {
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blobToDownload);
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function main() {
+    loadWebAssembly(function(wasm) {
+      loadedWebAssembly = wasm;
+
+      loadJavaScript(function(js) {
+        loadedJavaScript = js;
+
+        backendWebAssembly.onchange = compile;
+        backendJavaScript.onchange = compile;
+        targetWebAssembly.onchange = compile;
+        targetJavaScript.onchange = compile;
+        input.oninput = compile;
+        download.onclick = downloadCompiledResult;
+
+        if (typeof Wasm !== 'undefined') {
+          backendWebAssembly.checked = true;
+        } else {
+          backendJavaScript.checked = true;
+          backendWebAssembly.disabled = true;
+        }
+
+        input.value = example;
+        compile();
+      });
+    });
+  }
+
+  main();
+})();
+
+</script>
