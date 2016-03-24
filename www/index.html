@@ -327,10 +327,8 @@
 
   function compileAndRunJavaScript(code, input) {
     var stdlib = loadStdlibForJavaScript();
-    var exports = new Function('__imports',
-      code + '\n' +
-      'return {main: main, CompileResult_js: CompileResult_js, CompileResult_log: CompileResult_log, CompileResult_wasm: CompileResult_wasm};'
-    )(stdlib);
+    var exports = {};
+    new Function('__imports', 'exports', code)(stdlib, exports);
     var result = exports.main(input);
     var wasm = exports.CompileResult_wasm(result);
     return {

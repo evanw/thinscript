@@ -187,8 +187,16 @@ function jsEmitStatement(result: JsResult, node: Node): void {
     }
 
     jsAppendIndent(result);
-    jsAppendText(result, "function ");
-    jsAppendString(result, node.symbol.name);
+    if (isExternSymbol(node.symbol)) {
+      jsAppendText(result, "var ");
+      jsAppendString(result, node.symbol.name);
+      jsAppendText(result, " = exports.");
+      jsAppendString(result, node.symbol.name);
+      jsAppendText(result, " = function");
+    } else {
+      jsAppendText(result, "function ");
+      jsAppendString(result, node.symbol.name);
+    }
     jsAppendText(result, "(");
 
     var returnType = functionReturnType(node);
@@ -204,7 +212,7 @@ function jsEmitStatement(result: JsResult, node: Node): void {
 
     jsAppendText(result, ") ");
     jsEmitBlock(result, functionBody(node));
-    jsAppendText(result, "\n");
+    jsAppendText(result, isExternSymbol(node.symbol) ? ";\n" : "\n");
   }
 
   else if (node.kind == NODE_IF) {

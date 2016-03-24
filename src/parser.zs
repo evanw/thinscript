@@ -41,7 +41,7 @@ function advance(context: ParserContext): void {
 function unexpectedToken(context: ParserContext): void {
   error(context.log, context.current.range, String_append(
     String_new("Unexpected "),
-    String_toString(context.current.kind)));
+    String_new(tokenToString(context.current.kind))));
 }
 
 function expect(context: ParserContext, kind: int): bool {
@@ -456,7 +456,7 @@ function parseReturn(context: ParserContext): Node {
   return withRange(createReturn(value), spanRanges(token.range, semicolon.range));
 }
 
-function parseClass(context: ParserContext): Node {
+function parseClass(context: ParserContext, flags: int): Node {
   var token = context.current;
   assert(token.kind == TOKEN_CLASS);
   advance(context);
@@ -467,9 +467,10 @@ function parseClass(context: ParserContext): Node {
   }
 
   var node = createClass(rangeToString(name.range));
+  node.flags = flags;
 
   while (!peek(context, TOKEN_END_OF_FILE) && !peek(context, TOKEN_RIGHT_BRACE)) {
-    if (parseVariables(context, node) == null) {
+    if (parseVariables(context, 0, node) == null) {
       return null;
     }
   }
@@ -482,7 +483,7 @@ function parseClass(context: ParserContext): Node {
   return withRange(node, spanRanges(token.range, close.range));
 }
 
-function parseFunction(context: ParserContext): Node {
+function parseFunction(context: ParserContext, flags: int): Node {
   var token = context.current;
   assert(token.kind == TOKEN_FUNCTION);
   advance(context);
@@ -493,6 +494,7 @@ function parseFunction(context: ParserContext): Node {
   }
 
   var node = createFunction(rangeToString(name.range));
+  node.flags = flags;
 
   if (!peek(context, TOKEN_RIGHT_PARENTHESIS)) {
     while (true) {
@@ -543,7 +545,7 @@ function parseFunction(context: ParserContext): Node {
   return withInternalRange(withRange(node, spanRanges(token.range, block.range)), name.range);
 }
 
-function parseVariables(context: ParserContext, parent: Node): Node {
+function parseVariables(context: ParserContext, flags: int, parent: Node): Node {
   var token = context.current;
 
   // Variables inside class declarations don't use "var"
@@ -587,6 +589,7 @@ function parseVariables(context: ParserContext, parent: Node): Node {
       name.range;
 
     var variable = createVariable(rangeToString(name.range), type, value);
+    variable.flags = flags;
     appendChild(parent != null ? parent : node, withInternalRange(withRange(variable, range), name.range));
 
     if (!eat(context, TOKEN_COMMA)) {
@@ -616,6 +619,30 @@ function parseLoopJump(context: ParserContext, kind: int): Node {
 }
 
 function parseStatement(context: ParserContext): Node {
+  var flags = 0;
+
+  if (eat(context, TOKEN_EXTERN)) {
+    flags = flags | NODE_FLAG_EXTERN;
+  }
+
+  if (peek(context, TOKEN_CONST) || peek(context, TOKEN_VAR)) {
+    return parseVariables(context, flags, null);
+  }
+
+  if (peek(context, TOKEN_FUNCTION)) {
+    return parseFunction(context, flags);
+  }
+
+  if (peek(context, TOKEN_CLASS)) {
+    return parseClass(context, flags);
+  }
+
+  // Definition modifiers need to be attached to a definition
+  if (flags != 0) {
+    unexpectedToken(context);
+    return null;
+  }
+
   if (peek(context, TOKEN_LEFT_BRACE)) {
     return parseBlock(context);
   }
@@ -628,14 +655,6 @@ function parseStatement(context: ParserContext): Node {
     return parseLoopJump(context, NODE_CONTINUE);
   }
 
-  if (peek(context, TOKEN_CLASS)) {
-    return parseClass(context);
-  }
-
-  if (peek(context, TOKEN_FUNCTION)) {
-    return parseFunction(context);
-  }
-
   if (peek(context, TOKEN_IF)) {
     return parseIf(context);
   }
@@ -646,10 +665,6 @@ function parseStatement(context: ParserContext): Node {
 
   if (peek(context, TOKEN_RETURN)) {
     return parseReturn(context);
-  }
-
-  if (peek(context, TOKEN_CONST) || peek(context, TOKEN_VAR)) {
-    return parseVariables(context, null);
   }
 
   if (peek(context, TOKEN_SEMICOLON)) {

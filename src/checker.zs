@@ -47,6 +47,10 @@ class Symbol {
   offset: int;
 }
 
+function isExternSymbol(symbol: Symbol): bool {
+  return (symbol.node.flags & NODE_FLAG_EXTERN) != 0;
+}
+
 class Scope {
   parent: Scope;
   symbol: Symbol;

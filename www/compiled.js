@@ -15,6 +15,9 @@ function Symbol() {
   this.state = 0;
   this.offset = 0;
 }
+function isExternSymbol(symbol) {
+  return (symbol.node.flags & 1) !== 0;
+}
 function Scope() {
   this.parent = null;
   this.symbol = null;
@@ -530,7 +533,7 @@ function CompileResult() {
   this.wasm = null;
   this.js = null;
 }
-function main(text) {
+var main = exports.main = function(text) {
   var source = new Source();
   source.name = __imports.String_new("<stdin>");
   source.contents = text;
@@ -549,16 +552,16 @@ function main(text) {
     }
   }
   return result;
-}
-function CompileResult_wasm(result) {
+};
+var CompileResult_wasm = exports.CompileResult_wasm = function(result) {
   return result.wasm;
-}
-function CompileResult_js(result) {
+};
+var CompileResult_js = exports.CompileResult_js = function(result) {
   return result.js;
-}
-function CompileResult_log(result) {
+};
+var CompileResult_log = exports.CompileResult_log = function(result) {
   return logToString(result.log);
-}
+};
 function JsResult() {
   this.context = null;
   this.code = null;
@@ -733,8 +736,16 @@ function jsEmitStatement(result, node) {
       return;
     }
     jsAppendIndent(result);
-    jsAppendText(result, "function ");
-    jsAppendString(result, node.symbol.name);
+    if (isExternSymbol(node.symbol)) {
+      jsAppendText(result, "var ");
+      jsAppendString(result, node.symbol.name);
+      jsAppendText(result, " = exports.");
+      jsAppendString(result, node.symbol.name);
+      jsAppendText(result, " = function");
+    } else {
+      jsAppendText(result, "function ");
+      jsAppendString(result, node.symbol.name);
+    }
     jsAppendText(result, "(");
     var returnType = functionReturnType(node);
     var child = node.firstChild;
@@ -748,7 +759,7 @@ function jsEmitStatement(result, node) {
     }
     jsAppendText(result, ") ");
     jsEmitBlock(result, functionBody(node));
-    jsAppendText(result, "\n");
+    jsAppendText(result, isExternSymbol(node.symbol) ? ";\n" : "\n");
   } else if (node.kind === 10) {
     jsAppendIndent(result);
     while (true) {
@@ -913,12 +924,15 @@ function tokenToString(token) {
     return "EXPORT";
   }
   if (token === 43) {
-    return "EXTERN";
+    return "EXTENDS";
   }
   if (token === 44) {
-    return "FALSE";
+    return "EXTERN";
   }
   if (token === 45) {
+    return "FALSE";
+  }
+  if (token === 46) {
     return "FUNCTION";
   }
   if (token === 15) {
@@ -930,14 +944,20 @@ function tokenToString(token) {
   if (token === 2) {
     return "IDENTIFIER";
   }
-  if (token === 46) {
+  if (token === 47) {
     return "IF";
   }
-  if (token === 47) {
+  if (token === 48) {
+    return "IMPLEMENTS";
+  }
+  if (token === 49) {
     return "IMPORT";
   }
   if (token === 3) {
     return "INT";
+  }
+  if (token === 50) {
+    return "INTERFACE";
   }
   if (token === 17) {
     return "LEFT_BRACE";
@@ -966,7 +986,7 @@ function tokenToString(token) {
   if (token === 25) {
     return "MULTIPLY";
   }
-  if (token === 48) {
+  if (token === 51) {
     return "NEW";
   }
   if (token === 26) {
@@ -975,7 +995,7 @@ function tokenToString(token) {
   if (token === 27) {
     return "NOT_EQUAL";
   }
-  if (token === 49) {
+  if (token === 52) {
     return "NULL";
   }
   if (token === 28) {
@@ -990,7 +1010,7 @@ function tokenToString(token) {
   if (token === 31) {
     return "REMAINDER";
   }
-  if (token === 50) {
+  if (token === 53) {
     return "RETURN";
   }
   if (token === 32) {
@@ -1011,16 +1031,16 @@ function tokenToString(token) {
   if (token === 4) {
     return "STRING";
   }
-  if (token === 51) {
+  if (token === 54) {
     return "THIS";
   }
-  if (token === 52) {
+  if (token === 55) {
     return "TRUE";
   }
-  if (token === 53) {
+  if (token === 56) {
     return "VAR";
   }
-  if (token === 54) {
+  if (token === 57) {
     return "WHILE";
   }
   return null;
@@ -1063,30 +1083,36 @@ function tokenize(source, log) {
         kind = 41;
       } else if (__imports.String_equalNew(text, "export")) {
         kind = 42;
-      } else if (__imports.String_equalNew(text, "extern")) {
+      } else if (__imports.String_equalNew(text, "extends")) {
         kind = 43;
-      } else if (__imports.String_equalNew(text, "false")) {
+      } else if (__imports.String_equalNew(text, "extern")) {
         kind = 44;
-      } else if (__imports.String_equalNew(text, "function")) {
+      } else if (__imports.String_equalNew(text, "false")) {
         kind = 45;
-      } else if (__imports.String_equalNew(text, "if")) {
+      } else if (__imports.String_equalNew(text, "function")) {
         kind = 46;
-      } else if (__imports.String_equalNew(text, "import")) {
+      } else if (__imports.String_equalNew(text, "if")) {
         kind = 47;
-      } else if (__imports.String_equalNew(text, "new")) {
+      } else if (__imports.String_equalNew(text, "implements")) {
         kind = 48;
-      } else if (__imports.String_equalNew(text, "null")) {
+      } else if (__imports.String_equalNew(text, "import")) {
         kind = 49;
-      } else if (__imports.String_equalNew(text, "return")) {
+      } else if (__imports.String_equalNew(text, "interface")) {
         kind = 50;
-      } else if (__imports.String_equalNew(text, "this")) {
+      } else if (__imports.String_equalNew(text, "new")) {
         kind = 51;
-      } else if (__imports.String_equalNew(text, "true")) {
+      } else if (__imports.String_equalNew(text, "null")) {
         kind = 52;
-      } else if (__imports.String_equalNew(text, "var")) {
+      } else if (__imports.String_equalNew(text, "return")) {
         kind = 53;
-      } else if (__imports.String_equalNew(text, "while")) {
+      } else if (__imports.String_equalNew(text, "this")) {
         kind = 54;
+      } else if (__imports.String_equalNew(text, "true")) {
+        kind = 55;
+      } else if (__imports.String_equalNew(text, "var")) {
+        kind = 56;
+      } else if (__imports.String_equalNew(text, "while")) {
+        kind = 57;
       }
     } else if (isNumber(c)) {
       kind = 3;
@@ -1249,6 +1275,7 @@ function isExpression(node) {
 }
 function Node() {
   this.kind = 0;
+  this.flags = 0;
   this.range = null;
   this.internalRange = null;
   this.parent = null;
@@ -1594,7 +1621,7 @@ function advance(context) {
   }
 }
 function unexpectedToken(context) {
-  error(context.log, context.current.range, __imports.String_append(__imports.String_new("Unexpected "), __imports.String_toString(context.current.kind)));
+  error(context.log, context.current.range, __imports.String_append(__imports.String_new("Unexpected "), __imports.String_new(tokenToString(context.current.kind))));
 }
 function expect(context, kind) {
   if (!peek(context, kind)) {
@@ -1685,7 +1712,7 @@ function parseQuotedString(context, range) {
 }
 function parsePrefix(context) {
   var token = context.current;
-  if (eat(context, 49)) {
+  if (eat(context, 52)) {
     return withRange(createNull(), token.range);
   }
   if (peek(context, 1)) {
@@ -1713,10 +1740,10 @@ function parsePrefix(context) {
     advance(context);
     return withRange(createInt(value), token.range);
   }
-  if (eat(context, 52)) {
+  if (eat(context, 55)) {
     return withRange(createBool(true), token.range);
   }
-  if (eat(context, 44)) {
+  if (eat(context, 45)) {
     return withRange(createBool(false), token.range);
   }
   if (peek(context, 2)) {
@@ -1724,7 +1751,7 @@ function parsePrefix(context) {
     advance(context);
     return withRange(createName(value), token.range);
   }
-  if (eat(context, 48)) {
+  if (eat(context, 51)) {
     var type = parseType(context);
     if (type === null || !expect(context, 18)) {
       return null;
@@ -1895,7 +1922,7 @@ function parseType(context) {
 }
 function parseIf(context) {
   var token = context.current;
-  __imports.assert(token.kind === 46);
+  __imports.assert(token.kind === 47);
   advance(context);
   if (!expect(context, 18)) {
     return null;
@@ -1919,7 +1946,7 @@ function parseIf(context) {
 }
 function parseWhile(context) {
   var token = context.current;
-  __imports.assert(token.kind === 54);
+  __imports.assert(token.kind === 57);
   advance(context);
   if (!expect(context, 18)) {
     return null;
@@ -1963,7 +1990,7 @@ function parseBlock(context) {
 }
 function parseReturn(context) {
   var token = context.current;
-  __imports.assert(token.kind === 50);
+  __imports.assert(token.kind === 53);
   advance(context);
   var value = null;
   if (!peek(context, 34)) {
@@ -1978,7 +2005,7 @@ function parseReturn(context) {
   }
   return withRange(createReturn(value), spanRanges(token.range, semicolon.range));
 }
-function parseClass(context) {
+function parseClass(context, flags) {
   var token = context.current;
   __imports.assert(token.kind === 38);
   advance(context);
@@ -1987,8 +2014,9 @@ function parseClass(context) {
     return null;
   }
   var node = createClass(rangeToString(name.range));
+  node.flags = flags;
   while (!peek(context, 0) && !peek(context, 32)) {
-    if (parseVariables(context, node) === null) {
+    if (parseVariables(context, 0, node) === null) {
       return null;
     }
   }
@@ -1998,15 +2026,16 @@ function parseClass(context) {
   }
   return withRange(node, spanRanges(token.range, close.range));
 }
-function parseFunction(context) {
+function parseFunction(context, flags) {
   var token = context.current;
-  __imports.assert(token.kind === 45);
+  __imports.assert(token.kind === 46);
   advance(context);
   var name = context.current;
   if (!expect(context, 2) || !expect(context, 18)) {
     return null;
   }
   var node = createFunction(rangeToString(name.range));
+  node.flags = flags;
   if (!peek(context, 33)) {
     while (true) {
       name = context.current;
@@ -2044,10 +2073,10 @@ function parseFunction(context) {
   appendChild(node, block);
   return withInternalRange(withRange(node, spanRanges(token.range, block.range)), name.range);
 }
-function parseVariables(context, parent) {
+function parseVariables(context, flags, parent) {
   var token = context.current;
   if (parent === null) {
-    __imports.assert(token.kind === 53 || token.kind === 39);
+    __imports.assert(token.kind === 56 || token.kind === 39);
     advance(context);
   }
   var node = token.kind === 39 ? createConstants() : createVariables();
@@ -2075,6 +2104,7 @@ function parseVariables(context, parent) {
     }
     var range = value !== null ? spanRanges(name.range, value.range) : type !== null ? spanRanges(name.range, type.range) : name.range;
     var variable = createVariable(rangeToString(name.range), type, value);
+    variable.flags = flags;
     appendChild(parent !== null ? parent : node, withInternalRange(withRange(variable, range), name.range));
     if (!eat(context, 10)) {
       break;
@@ -2097,6 +2127,23 @@ function parseLoopJump(context, kind) {
   return withRange(node, token.range);
 }
 function parseStatement(context) {
+  var flags = 0;
+  if (eat(context, 44)) {
+    flags = flags | 1;
+  }
+  if (peek(context, 39) || peek(context, 56)) {
+    return parseVariables(context, flags, null);
+  }
+  if (peek(context, 46)) {
+    return parseFunction(context, flags);
+  }
+  if (peek(context, 38)) {
+    return parseClass(context, flags);
+  }
+  if (flags !== 0) {
+    unexpectedToken(context);
+    return null;
+  }
   if (peek(context, 17)) {
     return parseBlock(context);
   }
@@ -2106,23 +2153,14 @@ function parseStatement(context) {
   if (peek(context, 40)) {
     return parseLoopJump(context, 6);
   }
-  if (peek(context, 38)) {
-    return parseClass(context);
-  }
-  if (peek(context, 45)) {
-    return parseFunction(context);
-  }
-  if (peek(context, 46)) {
+  if (peek(context, 47)) {
     return parseIf(context);
   }
-  if (peek(context, 54)) {
+  if (peek(context, 57)) {
     return parseWhile(context);
   }
-  if (peek(context, 50)) {
+  if (peek(context, 53)) {
     return parseReturn(context);
-  }
-  if (peek(context, 39) || peek(context, 53)) {
-    return parseVariables(context, null);
   }
   if (peek(context, 34)) {
     var token = context.current;
@@ -2915,7 +2953,7 @@ function wasmEmit(global, context, array) {
       }
       child.symbol.offset = module.functionCount;
       var fn = wasmAllocateFunction(module, child.symbol.name, signatureIndex, body);
-      if (__imports.String_equalNew(child.symbol.name, "main") || __imports.String_equalNew(child.symbol.name, "CompileResult_js") || __imports.String_equalNew(child.symbol.name, "CompileResult_log") || __imports.String_equalNew(child.symbol.name, "CompileResult_wasm")) {
+      if (isExternSymbol(child.symbol)) {
         fn.isExported = true;
       }
       wasmAssignLocalVariableOffsets(body, shared);

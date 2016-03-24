@@ -75,8 +75,11 @@ function isExpression(node: Node): bool {
   return node.kind >= NODE_BOOL && node.kind <= NODE_SUBTRACT;
 }
 
+const NODE_FLAG_EXTERN = 1;
+
 class Node {
   kind: int;
+  flags: int;
   range: Range;
   internalRange: Range;
   parent: Node;

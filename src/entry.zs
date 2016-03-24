@@ -7,7 +7,7 @@ class CompileResult {
   js: String;
 }
 
-function main(text: String): CompileResult {
+extern function main(text: String): CompileResult {
   var source = new Source();
   source.name = String_new("<stdin>");
   source.contents = text;
@@ -34,14 +34,14 @@ function main(text: String): CompileResult {
   return result;
 }
 
-function CompileResult_wasm(result: CompileResult): ByteArray {
+extern function CompileResult_wasm(result: CompileResult): ByteArray {
   return result.wasm;
 }
 
-function CompileResult_js(result: CompileResult): String {
+extern function CompileResult_js(result: CompileResult): String {
   return result.js;
 }
 
-function CompileResult_log(result: CompileResult): String {
+extern function CompileResult_log(result: CompileResult): String {
   return logToString(result.log);
 }

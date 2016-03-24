@@ -1008,11 +1008,8 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
       child.symbol.offset = module.functionCount;
       var fn = wasmAllocateFunction(module, child.symbol.name, signatureIndex, body);
 
-      // Only export the main function
-      if (String_equalNew(child.symbol.name, "main") ||
-          String_equalNew(child.symbol.name, "CompileResult_js") ||
-          String_equalNew(child.symbol.name, "CompileResult_log") ||
-          String_equalNew(child.symbol.name, "CompileResult_wasm")) {
+      // Only export "extern" functions
+      if (isExternSymbol(child.symbol)) {
         fn.isExported = true;
       }
 
