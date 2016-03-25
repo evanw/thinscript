@@ -87,7 +87,7 @@ function logToString(log: Log): String {
       result = String_appendNew(result, "^");
     } else {
       i = d.range.start;
-      while (i < d.range.end) {
+      while (i < d.range.end && i < lineRange.end) {
         result = String_appendNew(result, "~");
         i = i + 1;
       }

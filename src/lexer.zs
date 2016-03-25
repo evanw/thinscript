@@ -207,16 +207,39 @@ function tokenize(source: Source, log: Log): Token {
     }
 
     // Character or string
-    else if (c == '"' || c == '\'') {
+    else if (c == '"' || c == '\'' || c == '`') {
       while (i < limit) {
         var next = String_get(contents, i);
-        i = i + 1;
+
+        // Escape any character including newlines
         if (i + 1 < limit && next == '\\') {
-          i = i + 1;
-        } else if (next == c) {
-          kind = c == '"' ? TOKEN_STRING : TOKEN_CHARACTER;
+          i = i + 2;
+        }
+
+        // Only allow newlines in template literals
+        else if (next == '\n' && c != '`') {
           break;
         }
+
+        // Handle a normal character
+        else {
+          i = i + 1;
+
+          // End the string with a matching quote character
+          if (next == c) {
+            kind = c == '\'' ? TOKEN_CHARACTER : TOKEN_STRING;
+            break;
+          }
+        }
+      }
+
+      // It's an error if we didn't find a matching quote character
+      if (kind == TOKEN_END_OF_FILE) {
+        error(log, createRange(source, start, i), String_new(
+          c == '\'' ? "Unterminated character literal" :
+          c == '`' ? "Unterminated template literal" :
+          "Unterminated string literal"));
+        return null;
       }
     }
 
@@ -237,15 +260,41 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '}') kind = TOKEN_RIGHT_BRACE;
     else if (c == '~') kind = TOKEN_COMPLEMENT;
 
-    // / or //
+    // / or // or /*
     else if (c == '/') {
       kind = TOKEN_DIVIDE;
 
+      // Single-line comments
       if (i < limit && String_get(contents, i) == '/') {
         i = i + 1;
 
         while (i < limit && String_get(contents, i) != '\n') {
           i = i + 1;
+        }
+
+        continue;
+      }
+
+      // Multi-line comments
+      if (i < limit && String_get(contents, i) == '*') {
+        i = i + 1;
+        var foundEnd = false;
+
+        while (i < limit) {
+          var next = String_get(contents, i);
+
+          if (next == '*' && i + 1 < limit && String_get(contents, i + 1) == '/') {
+            foundEnd = true;
+            i = i + 2;
+            break;
+          }
+
+          i = i + 1;
+        }
+
+        if (!foundEnd) {
+          error(log, createRange(source, start, start + 2), String_new("Unterminated multi-line comment"));
+          return null;
         }
 
         continue;

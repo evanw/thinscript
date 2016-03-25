@@ -1151,16 +1151,24 @@ function tokenize(source, log) {
       while (i < limit && isNumber(__imports.String_get(contents, i))) {
         i = i + 1;
       }
-    } else if (c === 34 || c === 39) {
+    } else if (c === 34 || c === 39 || c === 96) {
       while (i < limit) {
         var next = __imports.String_get(contents, i);
-        i = i + 1;
         if (i + 1 < limit && next === 92) {
-          i = i + 1;
-        } else if (next === c) {
-          kind = c === 34 ? 4 : 1;
+          i = i + 2;
+        } else if (next === 10 && c !== 96) {
           break;
+        } else {
+          i = i + 1;
+          if (next === c) {
+            kind = c === 39 ? 1 : 4;
+            break;
+          }
         }
+      }
+      if (kind === 0) {
+        error(log, createRange(source, start, i), __imports.String_new(c === 39 ? "Unterminated character literal" : c === 96 ? "Unterminated template literal" : "Unterminated string literal"));
+        return null;
       }
     } else if (c === 37) {
       kind = 32;
@@ -1198,6 +1206,24 @@ function tokenize(source, log) {
         i = i + 1;
         while (i < limit && __imports.String_get(contents, i) !== 10) {
           i = i + 1;
+        }
+        continue;
+      }
+      if (i < limit && __imports.String_get(contents, i) === 42) {
+        i = i + 1;
+        var foundEnd = false;
+        while (i < limit) {
+          var next = __imports.String_get(contents, i);
+          if (next === 42 && i + 1 < limit && __imports.String_get(contents, i + 1) === 47) {
+            foundEnd = true;
+            i = i + 2;
+            break;
+          }
+          i = i + 1;
+        }
+        if (!foundEnd) {
+          error(log, createRange(source, start, start + 2), __imports.String_new("Unterminated multi-line comment"));
+          return null;
         }
         continue;
       }
@@ -1736,6 +1762,7 @@ function parseQuotedString(context, range) {
     if (c === 92) {
       result = __imports.String_append(result, __imports.String_slice(text, start, end));
       end = end + 1;
+      start = end + 1;
       c = __imports.String_get(text, end);
       if (c === 48) {
         result = __imports.String_appendNew(result, "");
@@ -1745,18 +1772,13 @@ function parseQuotedString(context, range) {
         result = __imports.String_appendNew(result, "\n");
       } else if (c === 114) {
         result = __imports.String_appendNew(result, "\r");
-      } else if (c === 34) {
-        result = __imports.String_appendNew(result, "\"");
-      } else if (c === 39) {
-        result = __imports.String_appendNew(result, "'");
-      } else if (c === 92) {
-        result = __imports.String_appendNew(result, "\\");
+      } else if (c === 34 || c === 39 || c === 96 || c === 10 || c === 92) {
+        start = end;
       } else {
         var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
         error(context.log, escape, __imports.String_append(__imports.String_append(__imports.String_new("Invalid escape code '"), rangeToString(escape)), __imports.String_new("'")));
         return null;
       }
-      start = end + 1;
     }
     end = end + 1;
   }
@@ -2309,7 +2331,7 @@ function logToString(log) {
       result = __imports.String_appendNew(result, "^");
     } else {
       i = d.range.start;
-      while (i < d.range.end) {
+      while (i < d.range.end && i < lineRange.end) {
         result = __imports.String_appendNew(result, "~");
         i = i + 1;
       }

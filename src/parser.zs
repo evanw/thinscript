@@ -123,15 +123,14 @@ function parseQuotedString(context: ParserContext, range: Range): String {
     if (c == '\\') {
       result = String_append(result, String_slice(text, start, end));
       end = end + 1;
+      start = end + 1;
       c = String_get(text, end);
 
       if (c == '0') result = String_appendNew(result, "\0");
       else if (c == 't') result = String_appendNew(result, "\t");
       else if (c == 'n') result = String_appendNew(result, "\n");
       else if (c == 'r') result = String_appendNew(result, "\r");
-      else if (c == '"') result = String_appendNew(result, "\"");
-      else if (c == '\'') result = String_appendNew(result,  "'");
-      else if (c == '\\') result = String_appendNew(result, "\\");
+      else if (c == '"' || c == '\'' || c == '`' || c == '\n' || c == '\\') start = end;
       else {
         var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
         error(context.log, escape, String_append(String_append(
@@ -140,8 +139,6 @@ function parseQuotedString(context: ParserContext, range: Range): String {
           String_new("'")));
         return null;
       }
-
-      start = end + 1;
     }
 
     end = end + 1;
