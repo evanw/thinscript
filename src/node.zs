@@ -27,37 +27,38 @@ const NODE_NAME = 20;
 const NODE_NEW = 21;
 const NODE_NULL = 22;
 const NODE_STRING = 23;
+const NODE_THIS = 24;
 
 // Unary expressions
-const NODE_COMPLEMENT = 24;
-const NODE_NEGATIVE = 25;
-const NODE_NOT = 26;
-const NODE_POSITIVE = 27;
-const NODE_POSTFIX_DECREMENT = 28;
-const NODE_POSTFIX_INCREMENT = 29;
-const NODE_PREFIX_DECREMENT = 30;
-const NODE_PREFIX_INCREMENT = 31;
+const NODE_COMPLEMENT = 25;
+const NODE_NEGATIVE = 26;
+const NODE_NOT = 27;
+const NODE_POSITIVE = 28;
+const NODE_POSTFIX_DECREMENT = 29;
+const NODE_POSTFIX_INCREMENT = 30;
+const NODE_PREFIX_DECREMENT = 31;
+const NODE_PREFIX_INCREMENT = 32;
 
 // Binary expressions
-const NODE_ADD = 32;
-const NODE_ASSIGN = 33;
-const NODE_BITWISE_AND = 34;
-const NODE_BITWISE_OR = 35;
-const NODE_BITWISE_XOR = 36;
-const NODE_DIVIDE = 37;
-const NODE_EQUAL = 38;
-const NODE_GREATER_THAN = 39;
-const NODE_GREATER_THAN_EQUAL = 40;
-const NODE_LESS_THAN = 41;
-const NODE_LESS_THAN_EQUAL = 42;
-const NODE_LOGICAL_AND = 43;
-const NODE_LOGICAL_OR = 44;
-const NODE_MULTIPLY = 45;
-const NODE_NOT_EQUAL = 46;
-const NODE_REMAINDER = 47;
-const NODE_SHIFT_LEFT = 48;
-const NODE_SHIFT_RIGHT = 49;
-const NODE_SUBTRACT = 50;
+const NODE_ADD = 33;
+const NODE_ASSIGN = 34;
+const NODE_BITWISE_AND = 35;
+const NODE_BITWISE_OR = 36;
+const NODE_BITWISE_XOR = 37;
+const NODE_DIVIDE = 38;
+const NODE_EQUAL = 39;
+const NODE_GREATER_THAN = 40;
+const NODE_GREATER_THAN_EQUAL = 41;
+const NODE_LESS_THAN = 42;
+const NODE_LESS_THAN_EQUAL = 43;
+const NODE_LOGICAL_AND = 44;
+const NODE_LOGICAL_OR = 45;
+const NODE_MULTIPLY = 46;
+const NODE_NOT_EQUAL = 47;
+const NODE_REMAINDER = 48;
+const NODE_SHIFT_LEFT = 49;
+const NODE_SHIFT_RIGHT = 50;
+const NODE_SUBTRACT = 51;
 
 function isUnary(kind: int): bool {
   return kind >= NODE_COMPLEMENT && kind <= NODE_PREFIX_INCREMENT;
@@ -176,6 +177,12 @@ function createHook(test: Node, primary: Node, secondary: Node): Node {
 function createNull(): Node {
   var node = new Node();
   node.kind = NODE_NULL;
+  return node;
+}
+
+function createThis(): Node {
+  var node = new Node();
+  node.kind = NODE_THIS;
   return node;
 }
 

@@ -154,6 +154,10 @@ function parsePrefix(context: ParserContext): Node {
     return withRange(createNull(), token.range);
   }
 
+  if (eat(context, TOKEN_THIS)) {
+    return withRange(createThis(), token.range);
+  }
+
   if (peek(context, TOKEN_CHARACTER)) {
     var text = parseQuotedString(context, token.range);
     if (text == null) {
@@ -465,8 +469,24 @@ function parseClass(context: ParserContext, flags: int): Node {
   node.flags = flags;
 
   while (!peek(context, TOKEN_END_OF_FILE) && !peek(context, TOKEN_RIGHT_BRACE)) {
-    if (parseVariables(context, 0, node) == null) {
+    var start = context.current;
+
+    if (!expect(context, TOKEN_IDENTIFIER)) {
       return null;
+    }
+
+    if (peek(context, TOKEN_LEFT_PARENTHESIS)) {
+      context.current = start;
+      if (parseFunction(context, 0, node) == null) {
+        return null;
+      }
+    }
+
+    else {
+      context.current = start;
+      if (parseVariables(context, 0, node) == null) {
+        return null;
+      }
     }
   }
 
@@ -478,10 +498,14 @@ function parseClass(context: ParserContext, flags: int): Node {
   return withInternalRange(withRange(node, spanRanges(token.range, close.range)), name.range);
 }
 
-function parseFunction(context: ParserContext, flags: int): Node {
+function parseFunction(context: ParserContext, flags: int, parent: Node): Node {
   var token = context.current;
-  assert(token.kind == TOKEN_FUNCTION);
-  advance(context);
+
+  // Functions inside class declarations don't use "function"
+  if (parent == null) {
+    assert(token.kind == TOKEN_FUNCTION);
+    advance(context);
+  }
 
   var name = context.current;
   if (!expect(context, TOKEN_IDENTIFIER) || !expect(context, TOKEN_LEFT_PARENTHESIS)) {
@@ -535,6 +559,11 @@ function parseFunction(context: ParserContext, flags: int): Node {
     if (block == null) {
       return null;
     }
+  }
+
+  // Add this function to the enclosing class
+  if (parent != null) {
+    appendChild(parent, node);
   }
 
   appendChild(node, block);
@@ -598,7 +627,7 @@ function parseVariables(context: ParserContext, flags: int, parent: Node): Node 
     return null;
   }
 
-  return parent != null ? parent : withRange(node, spanRanges(token.range, semicolon.range));
+  return withRange(node, spanRanges(token.range, semicolon.range));
 }
 
 function parseLoopJump(context: ParserContext, kind: int): Node {
@@ -626,7 +655,7 @@ function parseStatement(context: ParserContext): Node {
   }
 
   if (peek(context, TOKEN_FUNCTION)) {
-    return parseFunction(context, flags);
+    return parseFunction(context, flags, null);
   }
 
   if (peek(context, TOKEN_CLASS)) {

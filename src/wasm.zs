@@ -657,7 +657,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   else if (node.kind == NODE_CALL) {
     var value = callValue(node);
     var symbol = value.symbol;
-    assert(symbol.kind == FUNCTION_GLOBAL);
+    assert(isFunction(symbol.kind));
 
     if (functionBody(symbol.node) == null) {
       ByteArray_appendByte(array, WASM_OPCODE_CALL_IMPORT);

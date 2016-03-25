@@ -187,7 +187,12 @@ function jsEmitStatement(result: JsResult, node: Node): void {
     }
 
     jsAppendIndent(result);
-    if (isExternSymbol(node.symbol)) {
+    if (node.parent.kind == NODE_CLASS) {
+      jsAppendString(result, node.parent.symbol.name);
+      jsAppendText(result, ".prototype.");
+      jsAppendString(result, node.symbol.name);
+      jsAppendText(result, " = function");
+    } else if (isExternSymbol(node.symbol)) {
       jsAppendText(result, "var ");
       jsAppendString(result, node.symbol.name);
       jsAppendText(result, " = exports.");
@@ -308,21 +313,32 @@ function jsEmitStatement(result: JsResult, node: Node): void {
     jsAppendText(result, "() {\n");
     result.indent = result.indent + 1;
 
+    // Emit constructor body
     var child = node.firstChild;
     while (child != null) {
-      assert(child.kind == NODE_VARIABLE);
-      jsAppendIndent(result);
-      jsAppendText(result, "this.");
-      jsAppendString(result, child.symbol.name);
-      jsAppendText(result, " = ");
-      jsEmitExpression(result, variableValue(child), PRECEDENCE_LOWEST);
-      jsAppendText(result, ";\n");
+      if (child.kind == NODE_VARIABLE) {
+        jsAppendIndent(result);
+        jsAppendText(result, "this.");
+        jsAppendString(result, child.symbol.name);
+        jsAppendText(result, " = ");
+        jsEmitExpression(result, variableValue(child), PRECEDENCE_LOWEST);
+        jsAppendText(result, ";\n");
+      }
       child = child.nextSibling;
     }
 
     result.indent = result.indent - 1;
     jsAppendIndent(result);
     jsAppendText(result, "}\n");
+
+    // Emit instance functions
+    child = node.firstChild;
+    while (child != null) {
+      if (child.kind == NODE_FUNCTION) {
+        jsEmitStatement(result, child);
+      }
+      child = child.nextSibling;
+    }
   }
 
   else if (node.kind == NODE_CONSTANTS) {

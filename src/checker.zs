@@ -2,19 +2,24 @@ const TYPE_CLASS = 0;
 const TYPE_GLOBAL = 1;
 const TYPE_NATIVE = 2;
 
-const FUNCTION_GLOBAL = 3;
+const FUNCTION_INSTANCE = 3;
+const FUNCTION_GLOBAL = 4;
 
-const VARIABLE_ARGUMENT = 4;
-const VARIABLE_CONSTANT = 5;
-const VARIABLE_INSTANCE = 6;
-const VARIABLE_LOCAL = 7;
+const VARIABLE_ARGUMENT = 5;
+const VARIABLE_CONSTANT = 6;
+const VARIABLE_INSTANCE = 7;
+const VARIABLE_LOCAL = 8;
 
-function isType(symbolKind: int): bool {
-  return symbolKind >= TYPE_CLASS && symbolKind <= TYPE_NATIVE;
+function isType(kind: int): bool {
+  return kind >= TYPE_CLASS && kind <= TYPE_NATIVE;
 }
 
-function isVariable(symbolKind: int): bool {
-  return symbolKind >= VARIABLE_ARGUMENT && symbolKind <= VARIABLE_LOCAL;
+function isFunction(kind: int): bool {
+  return kind >= FUNCTION_INSTANCE && kind <= FUNCTION_GLOBAL;
+}
+
+function isVariable(kind: int): bool {
+  return kind >= VARIABLE_ARGUMENT && kind <= VARIABLE_LOCAL;
 }
 
 const SYMBOL_STATE_UNINITIALIZED = 0;
@@ -37,6 +42,7 @@ class Symbol {
   //   TYPE_GLOBAL: N/A
   //   TYPE_NATIVE: N/A
   //
+  //   FUNCTION_INSTANCE: N/A
   //   FUNCTION_GLOBAL: N/A
   //
   //   VARIABLE_ARGUMENT: Argument index
@@ -96,11 +102,16 @@ function findLocal(scope: Scope, name: String): Symbol {
   return null;
 }
 
-function findNested(scope: Scope, name: String): Symbol {
+const FIND_NESTED_NORMAL = 0;
+const FIND_NESTED_ALLOW_INSTANCE_ERRORS = 1;
+
+function findNested(scope: Scope, name: String, mode: int): Symbol {
   while (scope != null) {
-    var local = findLocal(scope, name);
-    if (local != null) {
-      return local;
+    if (scope.symbol == null || scope.symbol.kind != TYPE_CLASS || mode == FIND_NESTED_ALLOW_INSTANCE_ERRORS) {
+      var local = findLocal(scope, name);
+      if (local != null) {
+        return local;
+      }
     }
     scope = scope.parent;
   }
@@ -150,10 +161,9 @@ function linkSymbolToNode(symbol: Symbol, node: Node): void {
 
 function initialize(context: CheckContext, node: Node, parentScope: Scope): void {
   // Validate node placement
-  if (node.parent != null && node.kind != NODE_VARIABLE) {
-    if ((node.kind == NODE_CLASS || node.kind == NODE_FUNCTION || node.kind == NODE_CONSTANTS) != (node.parent.kind == NODE_GLOBAL)) {
-      error(context.log, node.range, String_new("This statement is not allowed here"));
-    }
+  if (node.parent != null && node.kind != NODE_VARIABLE && (node.kind != NODE_FUNCTION || node.parent.kind != NODE_CLASS) &&
+      (node.kind == NODE_CLASS || node.kind == NODE_FUNCTION || node.kind == NODE_CONSTANTS) != (node.parent.kind == NODE_GLOBAL)) {
+    error(context.log, node.range, String_new("This statement is not allowed here"));
   }
 
   // Global
@@ -195,7 +205,9 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   // Function
   else if (node.kind == NODE_FUNCTION) {
     var symbol = new Symbol();
-    symbol.kind = FUNCTION_GLOBAL;
+    symbol.kind =
+      node.parent.kind == NODE_CLASS ? FUNCTION_INSTANCE :
+      FUNCTION_GLOBAL;
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
@@ -256,7 +268,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   }
 
   // Function
-  else if (symbol.kind == FUNCTION_GLOBAL) {
+  else if (isFunction(symbol.kind)) {
     var returnType = functionReturnType(symbol.node);
     resolveAsType(context, returnType, symbol.scope.parent);
 
@@ -470,9 +482,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var offset = 0;
     var child = node.firstChild;
     while (child != null) {
-      assert(child.kind == NODE_VARIABLE);
-      child.symbol.offset = offset;
-      offset = offset + 4;
+      if (child.kind == NODE_VARIABLE) {
+        child.symbol.offset = offset;
+        offset = offset + 4;
+      }
       child = child.nextSibling;
     }
     node.symbol.offset = offset > 0 ? offset : 1;
@@ -544,14 +557,30 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = context.nullType;
   }
 
+  else if (node.kind == NODE_THIS) {
+    error(context.log, node.range, String_new("TODO: support 'this'"));
+  }
+
   else if (node.kind == NODE_NAME) {
-    var symbol = findNested(parentScope, node.stringValue);
+    var symbol = findNested(parentScope, node.stringValue, FIND_NESTED_NORMAL);
 
     if (symbol == null) {
-      error(context.log, node.range, String_appendNew(String_append(
+      var message = String_appendNew(String_append(
         String_new("No symbol named '"),
         node.stringValue),
-        "' here"));
+        "' here");
+
+      // In JavaScript, "this." before instance symbols is required
+      symbol = findNested(parentScope, node.stringValue, FIND_NESTED_ALLOW_INSTANCE_ERRORS);
+      if (symbol != null) {
+        message = String_appendNew(String_append(String_appendNew(
+          message,
+          ", did you mean 'this."),
+          symbol.name),
+          "'?");
+      }
+
+      error(context.log, node.range, message);
     }
 
     else if (symbol.state == SYMBOL_STATE_INITIALIZING) {
@@ -561,7 +590,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         "' here"));
     }
 
-    else if (symbol.kind == FUNCTION_GLOBAL && (node.parent.kind != NODE_CALL || node != callValue(node.parent))) {
+    else if (isFunction(symbol.kind) && (node.parent.kind != NODE_CALL || node != callValue(node.parent))) {
       error(context.log, node.range, String_new("Bare function references are not allowed"));
     }
 
@@ -587,7 +616,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         var child = target.resolvedType.symbol.node.firstChild;
 
         while (child != null) {
-          assert(child.kind == NODE_VARIABLE);
+          assert(child.kind == NODE_VARIABLE || child.kind == NODE_FUNCTION);
 
           if (String_equal(child.symbol.name, node.stringValue)) {
             initializeSymbol(context, child.symbol);
@@ -627,7 +656,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (value.resolvedType != context.errorType) {
       var symbol = value.symbol;
-      if (symbol == null || symbol.kind != FUNCTION_GLOBAL) {
+
+      // Only functions are callable
+      if (symbol == null || !isFunction(symbol.kind)) {
         error(context.log, value.range, String_appendNew(String_append(
           String_new("Cannot call value of type '"),
           typeToString(value.resolvedType)),
