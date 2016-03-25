@@ -119,15 +119,19 @@ function error(log: Log, range: Range, message: String): void {
   appendDiagnostic(log, diagnostic);
 }
 
+function createRange(source: Source, start: int, end: int): Range {
+  assert(start <= end);
+  var range = new Range();
+  range.source = source;
+  range.start = start;
+  range.end = end;
+  return range;
+}
+
 function spanRanges(left: Range, right: Range): Range {
   assert(left.source == right.source);
   assert(left.end <= right.start);
-
-  var range = new Range();
-  range.source = left.source;
-  range.start = left.start;
-  range.end = right.end;
-  return range;
+  return createRange(left.source, left.start, right.end);
 }
 
 function enclosingLine(range: Range): Range {
@@ -143,9 +147,5 @@ function enclosingLine(range: Range): Range {
     end = end + 1;
   }
 
-  var result = new Range();
-  result.source = range.source;
-  result.start = start;
-  result.end = end;
-  return result;
+  return createRange(range.source, start, end);
 }

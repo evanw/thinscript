@@ -253,6 +253,12 @@ function tokenize(source: Source, log: Log): Token {
       if (i < limit && String_get(contents, i) == '=') {
         kind = TOKEN_NOT_EQUAL;
         i = i + 1;
+
+        // Recover from !==
+        if (i < limit && String_get(contents, i) == '=') {
+          i = i + 1;
+          error(log, createRange(source, start, i), String_new("Use '!=' instead of '!=='"));
+        }
       }
     }
 
@@ -263,6 +269,12 @@ function tokenize(source: Source, log: Log): Token {
       if (i < limit && String_get(contents, i) == '=') {
         kind = TOKEN_EQUAL;
         i = i + 1;
+
+        // Recover from ===
+        if (i < limit && String_get(contents, i) == '=') {
+          i = i + 1;
+          error(log, createRange(source, start, i), String_new("Use '==' instead of '==='"));
+        }
       }
     }
 
@@ -344,10 +356,7 @@ function tokenize(source: Source, log: Log): Token {
       }
     }
 
-    var range = new Range();
-    range.source = source;
-    range.start = start;
-    range.end = i;
+    var range = createRange(source, start, i);
 
     if (kind == TOKEN_END_OF_FILE) {
       error(log, range,
@@ -374,14 +383,9 @@ function tokenize(source: Source, log: Log): Token {
     }
   }
 
-  var range = new Range();
-  range.source = source;
-  range.start = limit;
-  range.end = limit;
-
   var token = new Token();
   token.kind = TOKEN_END_OF_FILE;
-  token.range = range;
+  token.range = createRange(source, limit, limit);
 
   if (first == null) {
     first = token;

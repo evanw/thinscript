@@ -133,10 +133,7 @@ function parseQuotedString(context: ParserContext, range: Range): String {
       else if (c == '\'') result = String_appendNew(result,  "'");
       else if (c == '\\') result = String_appendNew(result, "\\");
       else {
-        var escape = new Range();
-        escape.source = range.source;
-        escape.start = range.start + end - 1;
-        escape.end = range.start + end + 1;
+        var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
         error(context.log, escape, String_append(String_append(
           String_new("Invalid escape code '"),
           rangeToString(escape)),

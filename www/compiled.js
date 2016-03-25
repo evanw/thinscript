@@ -1170,12 +1170,20 @@ function tokenize(source, log) {
       if (i < limit && __imports.String_get(contents, i) === 61) {
         kind = 27;
         i = i + 1;
+        if (i < limit && __imports.String_get(contents, i) === 61) {
+          i = i + 1;
+          error(log, createRange(source, start, i), __imports.String_new("Use '!=' instead of '!=='"));
+        }
       }
     } else if (c === 61) {
       kind = 5;
       if (i < limit && __imports.String_get(contents, i) === 61) {
         kind = 14;
         i = i + 1;
+        if (i < limit && __imports.String_get(contents, i) === 61) {
+          i = i + 1;
+          error(log, createRange(source, start, i), __imports.String_new("Use '==' instead of '==='"));
+        }
       }
     } else if (c === 43) {
       kind = 28;
@@ -1226,10 +1234,7 @@ function tokenize(source, log) {
         }
       }
     }
-    var range = new Range();
-    range.source = source;
-    range.start = start;
-    range.end = i;
+    var range = createRange(source, start, i);
     if (kind === 0) {
       error(log, range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Syntax error: '"), __imports.String_slice(contents, start, start + 1)), "'"));
       return null;
@@ -1245,13 +1250,9 @@ function tokenize(source, log) {
       last = token;
     }
   }
-  var range = new Range();
-  range.source = source;
-  range.start = limit;
-  range.end = limit;
   var token = new Token();
   token.kind = 0;
-  token.range = range;
+  token.range = createRange(source, limit, limit);
   if (first === null) {
     first = token;
     last = token;
@@ -1697,10 +1698,7 @@ function parseQuotedString(context, range) {
       } else if (c === 92) {
         result = __imports.String_appendNew(result, "\\");
       } else {
-        var escape = new Range();
-        escape.source = range.source;
-        escape.start = range.start + end - 1;
-        escape.end = range.start + end + 1;
+        var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
         error(context.log, escape, __imports.String_append(__imports.String_append(__imports.String_new("Invalid escape code '"), rangeToString(escape)), __imports.String_new("'")));
         return null;
       }
@@ -2281,14 +2279,18 @@ function error(log, range, message) {
   diagnostic.message = message;
   appendDiagnostic(log, diagnostic);
 }
+function createRange(source, start, end) {
+  __imports.assert(start <= end);
+  var range = new Range();
+  range.source = source;
+  range.start = start;
+  range.end = end;
+  return range;
+}
 function spanRanges(left, right) {
   __imports.assert(left.source === right.source);
   __imports.assert(left.end <= right.start);
-  var range = new Range();
-  range.source = left.source;
-  range.start = left.start;
-  range.end = right.end;
-  return range;
+  return createRange(left.source, left.start, right.end);
 }
 function enclosingLine(range) {
   var contents = range.source.contents;
@@ -2300,11 +2302,7 @@ function enclosingLine(range) {
   while (end + 1 < __imports.String_length(contents) && __imports.String_get(contents, end) !== 10) {
     end = end + 1;
   }
-  var result = new Range();
-  result.source = range.source;
-  result.start = start;
-  result.end = end;
-  return result;
+  return createRange(range.source, start, end);
 }
 function WasmType() {
   this.id = 0;
