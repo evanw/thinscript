@@ -478,7 +478,7 @@ function parseClass(context: ParserContext, flags: int): Node {
     return null;
   }
 
-  return withRange(node, spanRanges(token.range, close.range));
+  return withInternalRange(withRange(node, spanRanges(token.range, close.range)), name.range);
 }
 
 function parseFunction(context: ParserContext, flags: int): Node {
@@ -496,7 +496,7 @@ function parseFunction(context: ParserContext, flags: int): Node {
 
   if (!peek(context, TOKEN_RIGHT_PARENTHESIS)) {
     while (true) {
-      name = context.current;
+      var argument = context.current;
       if (!expect(context, TOKEN_IDENTIFIER) || !expect(context, TOKEN_COLON)) {
         return null;
       }
@@ -506,7 +506,8 @@ function parseFunction(context: ParserContext, flags: int): Node {
         return null;
       }
 
-      appendChild(node, createVariable(rangeToString(name.range), type, null));
+      var variable = createVariable(rangeToString(argument.range), type, null);
+      appendChild(node, withInternalRange(withRange(variable, spanRanges(argument.range, type.range)), argument.range));
 
       if (!eat(context, TOKEN_COMMA)) {
         break;

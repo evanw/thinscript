@@ -114,15 +114,9 @@ function define(log: Log, scope: Scope, symbol: Symbol): bool {
     return false;
   }
 
-  if (scope.firstSymbol == null) {
-    scope.firstSymbol = symbol;
-    scope.lastSymbol = symbol;
-  }
-
-  else {
-    scope.lastSymbol.next = symbol;
-    scope.lastSymbol = symbol;
-  }
+  if (scope.firstSymbol == null) scope.firstSymbol = symbol;
+  else scope.lastSymbol.next = symbol;
+  scope.lastSymbol = symbol;
 
   return true;
 }
@@ -333,6 +327,27 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
       else {
         error(context.log, symbol.node.internalRange, String_new("Constants must be initialized"));
+      }
+    }
+
+    // Disallow shadowing at function scope
+    if (symbol.scope.symbol == null) {
+      var scope = symbol.scope.parent;
+      while (scope != null) {
+        var shadowed = findLocal(scope, symbol.name);
+        if (shadowed != null) {
+          error(context.log, symbol.node.internalRange, String_appendNew(String_append(
+            String_new("The symbol '"),
+            symbol.name),
+            "' shadows another symbol with the same name in a parent scope"));
+          break;
+        }
+
+        // Stop when we pass through a function scope
+        if (scope.symbol != null) {
+          break;
+        }
+        scope = scope.parent;
       }
     }
   }

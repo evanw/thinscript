@@ -74,11 +74,10 @@ function define(log, scope, symbol) {
   }
   if (scope.firstSymbol === null) {
     scope.firstSymbol = symbol;
-    scope.lastSymbol = symbol;
   } else {
     scope.lastSymbol.next = symbol;
-    scope.lastSymbol = symbol;
   }
+  scope.lastSymbol = symbol;
   return true;
 }
 function defineNativeType(log, scope, name) {
@@ -221,6 +220,20 @@ function initializeSymbol(context, symbol) {
         }
       } else {
         error(context.log, symbol.node.internalRange, __imports.String_new("Constants must be initialized"));
+      }
+    }
+    if (symbol.scope.symbol === null) {
+      var scope = symbol.scope.parent;
+      while (scope !== null) {
+        var shadowed = findLocal(scope, symbol.name);
+        if (shadowed !== null) {
+          error(context.log, symbol.node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
+          break;
+        }
+        if (scope.symbol !== null) {
+          break;
+        }
+        scope = scope.parent;
       }
     }
   } else {
@@ -797,6 +810,7 @@ function jsEmitStatement(result, node) {
     jsAppendIndent(result);
     jsEmitExpression(result, expressionValue(node), 0);
     jsAppendText(result, ";\n");
+  } else if (node.kind === 7) {
   } else if (node.kind === 11) {
     var value = returnValue(node);
     jsAppendIndent(result);
@@ -1254,22 +1268,20 @@ function tokenize(source, log) {
     token.range = range;
     if (first === null) {
       first = token;
-      last = token;
     } else {
       last.next = token;
-      last = token;
     }
+    last = token;
   }
-  var token = new Token();
-  token.kind = 0;
-  token.range = createRange(source, limit, limit);
+  var eof = new Token();
+  eof.kind = 0;
+  eof.range = createRange(source, limit, limit);
   if (first === null) {
-    first = token;
-    last = token;
+    first = eof;
   } else {
-    last.next = token;
-    last = token;
+    last.next = eof;
   }
+  last = eof;
   return first;
 }
 function isUnary(kind) {
@@ -2032,7 +2044,7 @@ function parseClass(context, flags) {
   if (!expect(context, 33)) {
     return null;
   }
-  return withRange(node, spanRanges(token.range, close.range));
+  return withInternalRange(withRange(node, spanRanges(token.range, close.range)), name.range);
 }
 function parseFunction(context, flags) {
   var token = context.current;
@@ -2046,7 +2058,7 @@ function parseFunction(context, flags) {
   node.flags = flags;
   if (!peek(context, 35)) {
     while (true) {
-      name = context.current;
+      var argument = context.current;
       if (!expect(context, 2) || !expect(context, 9)) {
         return null;
       }
@@ -2054,7 +2066,8 @@ function parseFunction(context, flags) {
       if (type === null) {
         return null;
       }
-      appendChild(node, createVariable(rangeToString(name.range), type, null));
+      var variable = createVariable(rangeToString(argument.range), type, null);
+      appendChild(node, withInternalRange(withRange(variable, spanRanges(argument.range, type.range)), argument.range));
       if (!eat(context, 10)) {
         break;
       }
@@ -2378,11 +2391,10 @@ function wasmAllocateImport(module, signatureIndex, mod, name) {
   result.name = name;
   if (module.firstImport === null) {
     module.firstImport = result;
-    module.lastImport = result;
   } else {
     module.lastImport.next = result;
-    module.lastImport = result;
   }
+  module.lastImport = result;
   module.importCount = module.importCount + 1;
   return result;
 }
@@ -2393,11 +2405,10 @@ function wasmAllocateFunction(module, name, signatureIndex, body) {
   fn.body = body;
   if (module.firstFunction === null) {
     module.firstFunction = fn;
-    module.lastFunction = fn;
   } else {
     module.lastFunction.next = fn;
-    module.lastFunction = fn;
   }
+  module.lastFunction = fn;
   module.functionCount = module.functionCount + 1;
   return fn;
 }
@@ -2418,11 +2429,10 @@ function wasmAllocateSignature(module, argumentTypes, returnType) {
   }
   if (module.firstSignature === null) {
     module.firstSignature = signature;
-    module.lastSignature = signature;
   } else {
     module.lastSignature.next = signature;
-    module.lastSignature = signature;
   }
+  module.lastSignature = signature;
   module.signatureCount = module.signatureCount + 1;
   return i;
 }
@@ -2943,15 +2953,14 @@ function wasmEmit(global, context, array) {
         var type = wasmWrapType(wasmGetType(context, variableType(argument).resolvedType));
         if (argumentTypesFirst === null) {
           argumentTypesFirst = type;
-          argumentTypesLast = type;
         } else {
           argumentTypesLast.next = type;
-          argumentTypesLast = type;
         }
+        argumentTypesLast = type;
         shared.nextLocalOffset = shared.nextLocalOffset + 1;
         argument = argument.nextSibling;
       }
-      var signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+      signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
       var body = functionBody(child);
       if (body === null) {
         child.symbol.offset = module.importCount;

@@ -264,15 +264,9 @@ function wasmAllocateImport(module: WasmModule, signatureIndex: int, mod: String
   result.module = mod;
   result.name = name;
 
-  if (module.firstImport == null) {
-    module.firstImport = result;
-    module.lastImport = result;
-  }
-
-  else {
-    module.lastImport.next = result;
-    module.lastImport = result;
-  }
+  if (module.firstImport == null) module.firstImport = result;
+  else module.lastImport.next = result;
+  module.lastImport = result;
 
   module.importCount = module.importCount + 1;
   return result;
@@ -284,15 +278,9 @@ function wasmAllocateFunction(module: WasmModule, name: String, signatureIndex: 
   fn.signatureIndex = signatureIndex;
   fn.body = body;
 
-  if (module.firstFunction == null) {
-    module.firstFunction = fn;
-    module.lastFunction = fn;
-  }
-
-  else {
-    module.lastFunction.next = fn;
-    module.lastFunction = fn;
-  }
+  if (module.firstFunction == null) module.firstFunction = fn;
+  else module.lastFunction.next = fn;
+  module.lastFunction = fn;
 
   module.functionCount = module.functionCount + 1;
   return fn;
@@ -318,15 +306,9 @@ function wasmAllocateSignature(module: WasmModule, argumentTypes: WasmType, retu
     i = i + 1;
   }
 
-  if (module.firstSignature == null) {
-    module.firstSignature = signature;
-    module.lastSignature = signature;
-  }
-
-  else {
-    module.lastSignature.next = signature;
-    module.lastSignature = signature;
-  }
+  if (module.firstSignature == null) module.firstSignature = signature;
+  else module.lastSignature.next = signature;
+  module.lastSignature = signature;
 
   module.signatureCount = module.signatureCount + 1;
   return i;
@@ -981,20 +963,14 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
       while (argument != returnType) {
         var type = wasmWrapType(wasmGetType(context, variableType(argument).resolvedType));
 
-        if (argumentTypesFirst == null) {
-          argumentTypesFirst = type;
-          argumentTypesLast = type;
-        }
-
-        else {
-          argumentTypesLast.next = type;
-          argumentTypesLast = type;
-        }
+        if (argumentTypesFirst == null) argumentTypesFirst = type;
+        else argumentTypesLast.next = type;
+        argumentTypesLast = type;
 
         shared.nextLocalOffset = shared.nextLocalOffset + 1;
         argument = argument.nextSibling;
       }
-      var signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+      signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
       var body = functionBody(child);
 
       // Functions without bodies are imports

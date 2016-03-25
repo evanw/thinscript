@@ -378,30 +378,18 @@ function tokenize(source: Source, log: Log): Token {
     token.kind = kind;
     token.range = range;
 
-    if (first == null) {
-      first = token;
-      last = token;
-    }
-
-    else {
-      last.next = token;
-      last = token;
-    }
-  }
-
-  var token = new Token();
-  token.kind = TOKEN_END_OF_FILE;
-  token.range = createRange(source, limit, limit);
-
-  if (first == null) {
-    first = token;
+    if (first == null) first = token;
+    else last.next = token;
     last = token;
   }
 
-  else {
-    last.next = token;
-    last = token;
-  }
+  var eof = new Token();
+  eof.kind = TOKEN_END_OF_FILE;
+  eof.range = createRange(source, limit, limit);
+
+  if (first == null) first = eof;
+  else last.next = eof;
+  last = eof;
 
   return first;
 }

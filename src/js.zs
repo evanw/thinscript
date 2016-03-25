@@ -262,6 +262,9 @@ function jsEmitStatement(result: JsResult, node: Node): void {
     jsAppendText(result, ";\n");
   }
 
+  else if (node.kind == NODE_EMPTY) {
+  }
+
   else if (node.kind == NODE_RETURN) {
     var value = returnValue(node);
     jsAppendIndent(result);
