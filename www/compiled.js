@@ -540,31 +540,43 @@ function check(global, log) {
 }
 function CompileResult() {
   this.log = null;
-  this.token = null;
   this.global = null;
   this.context = null;
   this.wasm = null;
   this.js = null;
 }
-var main = exports.main = function(text) {
-  var source = new Source();
-  source.name = __imports.String_new("<stdin>");
-  source.contents = text;
+var CompileResult_new = exports.CompileResult_new = function() {
   var result = new CompileResult();
   result.log = new Log();
-  result.token = tokenize(source, result.log);
-  if (result.token !== null) {
-    result.global = parse(result.token, result.log);
-    if (result.global !== null) {
-      result.context = check(result.global, result.log);
-      if (result.log.first === null) {
-        result.wasm = __imports.ByteArray_new();
-        wasmEmit(result.global, result.context, result.wasm);
-        result.js = jsEmit(result.global, result.context);
+  result.global = new Node();
+  result.global.kind = 0;
+  return result;
+};
+var CompileResult_addInput = exports.CompileResult_addInput = function(result, name, contents) {
+  var source = new Source();
+  source.name = name;
+  source.contents = contents;
+  var token = tokenize(source, result.log);
+  if (token !== null) {
+    var file = parse(token, result.log);
+    if (file !== null) {
+      while (file.firstChild !== null) {
+        var child = file.firstChild;
+        remove(child);
+        appendChild(result.global, child);
       }
     }
   }
-  return result;
+};
+var CompileResult_finish = exports.CompileResult_finish = function(result) {
+  if (result.log.first === null) {
+    result.context = check(result.global, result.log);
+    if (result.log.first === null) {
+      result.wasm = __imports.ByteArray_new();
+      wasmEmit(result.global, result.context, result.wasm);
+      result.js = jsEmit(result.global, result.context);
+    }
+  }
 };
 var CompileResult_wasm = exports.CompileResult_wasm = function(result) {
   return result.wasm;
@@ -1331,6 +1343,26 @@ function appendChild(node, child) {
     node.lastChild.nextSibling = child;
     node.lastChild = child;
   }
+}
+function remove(node) {
+  __imports.assert(node.parent !== null);
+  if (node.previousSibling !== null) {
+    __imports.assert(node.previousSibling.nextSibling === node);
+    node.previousSibling.nextSibling = node.nextSibling;
+  } else {
+    __imports.assert(node.parent.firstChild === node);
+    node.parent.firstChild = node.nextSibling;
+  }
+  if (node.nextSibling !== null) {
+    __imports.assert(node.nextSibling.previousSibling === node);
+    node.nextSibling.previousSibling = node.previousSibling;
+  } else {
+    __imports.assert(node.parent.lastChild === node);
+    node.parent.lastChild = node.previousSibling;
+  }
+  node.parent = null;
+  node.previousSibling = null;
+  node.nextSibling = null;
 }
 function withRange(node, range) {
   node.range = range;

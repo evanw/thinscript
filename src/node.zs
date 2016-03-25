@@ -119,6 +119,30 @@ function appendChild(node: Node, child: Node): void {
   }
 }
 
+function remove(node: Node): void {
+  assert(node.parent != null);
+
+  if (node.previousSibling != null) {
+    assert(node.previousSibling.nextSibling == node);
+    node.previousSibling.nextSibling = node.nextSibling;
+  } else {
+    assert(node.parent.firstChild == node);
+    node.parent.firstChild = node.nextSibling;
+  }
+
+  if (node.nextSibling != null) {
+    assert(node.nextSibling.previousSibling == node);
+    node.nextSibling.previousSibling = node.previousSibling;
+  } else {
+    assert(node.parent.lastChild == node);
+    node.parent.lastChild = node.previousSibling;
+  }
+
+  node.parent = null;
+  node.previousSibling = null;
+  node.nextSibling = null;
+}
+
 function withRange(node: Node, range: Range): Node {
   node.range = range;
   return node;

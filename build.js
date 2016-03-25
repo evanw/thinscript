@@ -70,11 +70,15 @@ function loadStdlibForJavaScript() {
   };
 }
 
-function compileAndRunJavaScript(code, input) {
+function compileAndRunJavaScript(code, sources) {
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
   new Function('__imports', 'exports', code)(stdlib, exports);
-  var result = exports.main(input);
+  var result = exports.CompileResult_new();
+  sources.forEach(function(source) {
+    exports.CompileResult_addInput(result, source.name, source.contents);
+  });
+  exports.CompileResult_finish(result);
   var wasm = exports.CompileResult_wasm(result);
   return {
     wasm: wasm ? new Uint8Array(wasm) : null,
@@ -83,40 +87,39 @@ function compileAndRunJavaScript(code, input) {
   };
 }
 
+function compile(compiler, sources) {
+  var result = compileAndRunJavaScript(compiler, sources);
+
+  if (result.log) {
+    process.stdout.write(result.log);
+    process.exit(1);
+  }
+
+  return result;
+}
+
 var sourceDir = __dirname + '/src';
-var sourceCode = '';
+var sources = [];
 
 fs.readdirSync(sourceDir).forEach(function(entry) {
   if (/\.zs$/.test(entry)) {
-    sourceCode += fs.readFileSync(sourceDir + '/' + entry, 'utf8');
+    sources.push({
+      name: entry,
+      contents: fs.readFileSync(sourceDir + '/' + entry, 'utf8'),
+    });
   }
 });
 
 var compiler = fs.readFileSync(__dirname + '/www/compiled.js', 'utf8');
 
 console.log('compiling...');
-var result = compileAndRunJavaScript(compiler, sourceCode);
-
-if (result.log) {
-  process.stdout.write(result.log);
-  process.exit(1);
-}
+var result = compile(compiler, sources);
 
 console.log('compiling again...');
-var result = compileAndRunJavaScript(result.js, sourceCode);
-
-if (result.log) {
-  process.stdout.write(result.log);
-  process.exit(1);
-}
+var result = compile(result.js, sources);
 
 console.log('compiling again...');
-var result = compileAndRunJavaScript(result.js, sourceCode);
-
-if (result.log) {
-  process.stdout.write(result.log);
-  process.exit(1);
-}
+var result = compile(result.js, sources);
 
 fs.writeFileSync(__dirname + '/www/compiled.wasm', Buffer(result.wasm));
 console.log('wrote to "www/compiled.wasm"');

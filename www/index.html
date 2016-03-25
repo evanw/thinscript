@@ -313,10 +313,20 @@
     var module = Wasm.instantiateModule(code, {imports: stdlib});
     var exports = module.exports;
     var memory = exports.memory;
+
     stdlib.bytes = new Uint8Array(memory);
     stdlib.heapOffset = new Int32Array(memory)[2];
+
+    stdlib.strings.push('<stdin>');
+    var nameString = stdlib.strings.length;
+
     stdlib.strings.push(input);
-    var result = exports.main(stdlib.strings.length);
+    var contentsString = stdlib.strings.length;
+
+    var result = exports.CompileResult_new();
+    exports.CompileResult_addInput(result, nameString, contentsString);
+    exports.CompileResult_finish(result);
+
     var wasm = stdlib.arrays[exports.CompileResult_wasm(result) - 1];
     return {
       wasm: wasm ? new Uint8Array(wasm) : null,
@@ -329,7 +339,11 @@
     var stdlib = loadStdlibForJavaScript();
     var exports = {};
     new Function('__imports', 'exports', code)(stdlib, exports);
-    var result = exports.main(input);
+
+    var result = exports.CompileResult_new();
+    exports.CompileResult_addInput(result, '<stdin>', input);
+    exports.CompileResult_finish(result);
+
     var wasm = exports.CompileResult_wasm(result);
     return {
       wasm: wasm ? new Uint8Array(wasm) : null,
