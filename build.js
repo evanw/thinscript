@@ -102,6 +102,22 @@ if (result.log) {
   process.exit(1);
 }
 
+console.log('compiling again...');
+var result = compileAndRunJavaScript(result.js, sourceCode);
+
+if (result.log) {
+  process.stdout.write(result.log);
+  process.exit(1);
+}
+
+console.log('compiling again...');
+var result = compileAndRunJavaScript(result.js, sourceCode);
+
+if (result.log) {
+  process.stdout.write(result.log);
+  process.exit(1);
+}
+
 fs.writeFileSync(__dirname + '/www/compiled.wasm', Buffer(result.wasm));
 console.log('wrote to "www/compiled.wasm"');
 
