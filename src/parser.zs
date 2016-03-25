@@ -232,6 +232,8 @@ function parsePrefix(context: ParserContext): Node {
 }
 
 function parseInfix(context: ParserContext, precedence: int, node: Node): Node {
+  var token = context.current;
+
   // Binary
   if (peek(context, TOKEN_ASSIGN)) return parseBinary(context, NODE_ASSIGN, node, precedence, PRECEDENCE_ASSIGN);
   if (peek(context, TOKEN_BITWISE_AND)) return parseBinary(context, NODE_BITWISE_AND, node, precedence, PRECEDENCE_BITWISE_AND);
@@ -258,7 +260,6 @@ function parseInfix(context: ParserContext, precedence: int, node: Node): Node {
   if (peek(context, TOKEN_MINUS_MINUS)) return parseUnaryPostfix(context, NODE_POSTFIX_DECREMENT, node, precedence);
 
   // Call
-  var open = context.current;
   if (peek(context, TOKEN_LEFT_PARENTHESIS) && precedence < PRECEDENCE_UNARY_POSTFIX) {
     advance(context);
     var call = createCall(node);
@@ -282,7 +283,7 @@ function parseInfix(context: ParserContext, precedence: int, node: Node): Node {
       return null;
     }
 
-    return withInternalRange(withRange(call, spanRanges(node.range, close.range)), spanRanges(open.range, close.range));
+    return withInternalRange(withRange(call, spanRanges(node.range, close.range)), spanRanges(token.range, close.range));
   }
 
   // Hook
@@ -306,12 +307,12 @@ function parseInfix(context: ParserContext, precedence: int, node: Node): Node {
   if (peek(context, TOKEN_DOT) && precedence < PRECEDENCE_MEMBER) {
     advance(context);
 
-    var token = context.current;
+    var name = context.current;
     if (!expect(context, TOKEN_IDENTIFIER)) {
       return null;
     }
 
-    return withInternalRange(withRange(createDot(node, rangeToString(token.range)), spanRanges(node.range, token.range)), token.range);
+    return withInternalRange(withRange(createDot(node, rangeToString(name.range)), spanRanges(node.range, name.range)), name.range);
   }
 
   return node;

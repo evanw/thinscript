@@ -881,13 +881,13 @@ function tokenToString(token) {
   if (token === 8) {
     return "BITWISE_XOR";
   }
-  if (token === 37) {
+  if (token === 39) {
     return "BREAK";
   }
   if (token === 1) {
     return "CHARACTER";
   }
-  if (token === 38) {
+  if (token === 40) {
     return "CLASS";
   }
   if (token === 9) {
@@ -899,10 +899,10 @@ function tokenToString(token) {
   if (token === 11) {
     return "COMPLEMENT";
   }
-  if (token === 39) {
+  if (token === 41) {
     return "CONST";
   }
-  if (token === 40) {
+  if (token === 42) {
     return "CONTINUE";
   }
   if (token === 12) {
@@ -911,7 +911,7 @@ function tokenToString(token) {
   if (token === 13) {
     return "DOT";
   }
-  if (token === 41) {
+  if (token === 43) {
     return "ELSE";
   }
   if (token === 0) {
@@ -920,19 +920,19 @@ function tokenToString(token) {
   if (token === 14) {
     return "EQUAL";
   }
-  if (token === 42) {
+  if (token === 44) {
     return "EXPORT";
   }
-  if (token === 43) {
+  if (token === 45) {
     return "EXTENDS";
   }
-  if (token === 44) {
+  if (token === 46) {
     return "EXTERN";
   }
-  if (token === 45) {
+  if (token === 47) {
     return "FALSE";
   }
-  if (token === 46) {
+  if (token === 48) {
     return "FUNCTION";
   }
   if (token === 15) {
@@ -944,103 +944,109 @@ function tokenToString(token) {
   if (token === 2) {
     return "IDENTIFIER";
   }
-  if (token === 47) {
+  if (token === 49) {
     return "IF";
   }
-  if (token === 48) {
+  if (token === 50) {
     return "IMPLEMENTS";
   }
-  if (token === 49) {
+  if (token === 51) {
     return "IMPORT";
   }
   if (token === 3) {
     return "INT";
   }
-  if (token === 50) {
+  if (token === 52) {
     return "INTERFACE";
   }
   if (token === 17) {
     return "LEFT_BRACE";
   }
   if (token === 18) {
-    return "LEFT_PARENTHESIS";
+    return "LEFT_BRACKET";
   }
   if (token === 19) {
-    return "LESS_THAN";
+    return "LEFT_PARENTHESIS";
   }
   if (token === 20) {
-    return "LESS_THAN_EQUAL";
+    return "LESS_THAN";
   }
   if (token === 21) {
-    return "LOGICAL_AND";
+    return "LESS_THAN_EQUAL";
   }
   if (token === 22) {
-    return "LOGICAL_OR";
+    return "LOGICAL_AND";
   }
   if (token === 23) {
-    return "MINUS";
+    return "LOGICAL_OR";
   }
   if (token === 24) {
-    return "MINUS_MINUS";
+    return "MINUS";
   }
   if (token === 25) {
-    return "MULTIPLY";
-  }
-  if (token === 51) {
-    return "NEW";
+    return "MINUS_MINUS";
   }
   if (token === 26) {
-    return "NOT";
-  }
-  if (token === 27) {
-    return "NOT_EQUAL";
-  }
-  if (token === 52) {
-    return "NULL";
-  }
-  if (token === 28) {
-    return "PLUS";
-  }
-  if (token === 29) {
-    return "PLUS_PLUS";
-  }
-  if (token === 30) {
-    return "QUESTION_MARK";
-  }
-  if (token === 31) {
-    return "REMAINDER";
+    return "MULTIPLY";
   }
   if (token === 53) {
-    return "RETURN";
+    return "NEW";
+  }
+  if (token === 27) {
+    return "NOT";
+  }
+  if (token === 28) {
+    return "NOT_EQUAL";
+  }
+  if (token === 54) {
+    return "NULL";
+  }
+  if (token === 29) {
+    return "PLUS";
+  }
+  if (token === 30) {
+    return "PLUS_PLUS";
+  }
+  if (token === 31) {
+    return "QUESTION_MARK";
   }
   if (token === 32) {
-    return "RIGHT_BRACE";
+    return "REMAINDER";
+  }
+  if (token === 55) {
+    return "RETURN";
   }
   if (token === 33) {
-    return "RIGHT_PARENTHESIS";
+    return "RIGHT_BRACE";
   }
   if (token === 34) {
-    return "SEMICOLON";
+    return "RIGHT_BRACKET";
   }
   if (token === 35) {
-    return "SHIFT_LEFT";
+    return "RIGHT_PARENTHESIS";
   }
   if (token === 36) {
+    return "SEMICOLON";
+  }
+  if (token === 37) {
+    return "SHIFT_LEFT";
+  }
+  if (token === 38) {
     return "SHIFT_RIGHT";
   }
   if (token === 4) {
     return "STRING";
   }
-  if (token === 54) {
+  if (token === 56) {
     return "THIS";
   }
-  if (token === 55) {
+  if (token === 57) {
     return "TRUE";
   }
-  if (token === 56) {
+  if (token === 58) {
     return "VAR";
   }
-  if (token === 57) {
+  if (token === 59) {
     return "WHILE";
   }
   return null;
@@ -1072,47 +1078,47 @@ function tokenize(source, log) {
       }
       var text = __imports.String_slice(contents, start, i);
       if (__imports.String_equalNew(text, "break")) {
-        kind = 37;
-      } else if (__imports.String_equalNew(text, "class")) {
-        kind = 38;
-      } else if (__imports.String_equalNew(text, "const")) {
         kind = 39;
-      } else if (__imports.String_equalNew(text, "continue")) {
+      } else if (__imports.String_equalNew(text, "class")) {
         kind = 40;
-      } else if (__imports.String_equalNew(text, "else")) {
+      } else if (__imports.String_equalNew(text, "const")) {
         kind = 41;
-      } else if (__imports.String_equalNew(text, "export")) {
+      } else if (__imports.String_equalNew(text, "continue")) {
         kind = 42;
-      } else if (__imports.String_equalNew(text, "extends")) {
+      } else if (__imports.String_equalNew(text, "else")) {
         kind = 43;
-      } else if (__imports.String_equalNew(text, "extern")) {
+      } else if (__imports.String_equalNew(text, "export")) {
         kind = 44;
-      } else if (__imports.String_equalNew(text, "false")) {
+      } else if (__imports.String_equalNew(text, "extends")) {
         kind = 45;
-      } else if (__imports.String_equalNew(text, "function")) {
+      } else if (__imports.String_equalNew(text, "extern")) {
         kind = 46;
-      } else if (__imports.String_equalNew(text, "if")) {
+      } else if (__imports.String_equalNew(text, "false")) {
         kind = 47;
-      } else if (__imports.String_equalNew(text, "implements")) {
+      } else if (__imports.String_equalNew(text, "function")) {
         kind = 48;
-      } else if (__imports.String_equalNew(text, "import")) {
+      } else if (__imports.String_equalNew(text, "if")) {
         kind = 49;
-      } else if (__imports.String_equalNew(text, "interface")) {
+      } else if (__imports.String_equalNew(text, "implements")) {
         kind = 50;
-      } else if (__imports.String_equalNew(text, "new")) {
+      } else if (__imports.String_equalNew(text, "import")) {
         kind = 51;
-      } else if (__imports.String_equalNew(text, "null")) {
+      } else if (__imports.String_equalNew(text, "interface")) {
         kind = 52;
-      } else if (__imports.String_equalNew(text, "return")) {
+      } else if (__imports.String_equalNew(text, "new")) {
         kind = 53;
-      } else if (__imports.String_equalNew(text, "this")) {
+      } else if (__imports.String_equalNew(text, "null")) {
         kind = 54;
-      } else if (__imports.String_equalNew(text, "true")) {
+      } else if (__imports.String_equalNew(text, "return")) {
         kind = 55;
-      } else if (__imports.String_equalNew(text, "var")) {
+      } else if (__imports.String_equalNew(text, "this")) {
         kind = 56;
-      } else if (__imports.String_equalNew(text, "while")) {
+      } else if (__imports.String_equalNew(text, "true")) {
         kind = 57;
+      } else if (__imports.String_equalNew(text, "var")) {
+        kind = 58;
+      } else if (__imports.String_equalNew(text, "while")) {
+        kind = 59;
       }
     } else if (isNumber(c)) {
       kind = 3;
@@ -1131,13 +1137,13 @@ function tokenize(source, log) {
         }
       }
     } else if (c === 37) {
-      kind = 31;
+      kind = 32;
     } else if (c === 40) {
-      kind = 18;
+      kind = 19;
     } else if (c === 41) {
-      kind = 33;
+      kind = 35;
     } else if (c === 42) {
-      kind = 25;
+      kind = 26;
     } else if (c === 44) {
       kind = 10;
     } else if (c === 46) {
@@ -1145,15 +1151,19 @@ function tokenize(source, log) {
     } else if (c === 58) {
       kind = 9;
     } else if (c === 59) {
-      kind = 34;
+      kind = 36;
     } else if (c === 63) {
-      kind = 30;
+      kind = 31;
+    } else if (c === 91) {
+      kind = 18;
+    } else if (c === 93) {
+      kind = 34;
     } else if (c === 94) {
       kind = 8;
     } else if (c === 123) {
       kind = 17;
     } else if (c === 125) {
-      kind = 32;
+      kind = 33;
     } else if (c === 126) {
       kind = 11;
     } else if (c === 47) {
@@ -1166,9 +1176,9 @@ function tokenize(source, log) {
         continue;
       }
     } else if (c === 33) {
-      kind = 26;
+      kind = 27;
       if (i < limit && __imports.String_get(contents, i) === 61) {
-        kind = 27;
+        kind = 28;
         i = i + 1;
         if (i < limit && __imports.String_get(contents, i) === 61) {
           i = i + 1;
@@ -1186,38 +1196,38 @@ function tokenize(source, log) {
         }
       }
     } else if (c === 43) {
-      kind = 28;
+      kind = 29;
       if (i < limit && __imports.String_get(contents, i) === 43) {
-        kind = 29;
+        kind = 30;
         i = i + 1;
       }
     } else if (c === 45) {
-      kind = 23;
+      kind = 24;
       if (i < limit && __imports.String_get(contents, i) === 45) {
-        kind = 24;
+        kind = 25;
         i = i + 1;
       }
     } else if (c === 38) {
       kind = 6;
       if (i < limit && __imports.String_get(contents, i) === 38) {
-        kind = 21;
+        kind = 22;
         i = i + 1;
       }
     } else if (c === 124) {
       kind = 7;
       if (i < limit && __imports.String_get(contents, i) === 124) {
-        kind = 22;
+        kind = 23;
         i = i + 1;
       }
     } else if (c === 60) {
-      kind = 19;
+      kind = 20;
       if (i < limit) {
         c = __imports.String_get(contents, i);
         if (c === 60) {
-          kind = 35;
+          kind = 37;
           i = i + 1;
         } else if (c === 61) {
-          kind = 20;
+          kind = 21;
           i = i + 1;
         }
       }
@@ -1226,7 +1236,7 @@ function tokenize(source, log) {
       if (i < limit) {
         c = __imports.String_get(contents, i);
         if (c === 62) {
-          kind = 36;
+          kind = 38;
           i = i + 1;
         } else if (c === 61) {
           kind = 16;
@@ -1710,7 +1720,7 @@ function parseQuotedString(context, range) {
 }
 function parsePrefix(context) {
   var token = context.current;
-  if (eat(context, 52)) {
+  if (eat(context, 54)) {
     return withRange(createNull(), token.range);
   }
   if (peek(context, 1)) {
@@ -1738,10 +1748,10 @@ function parsePrefix(context) {
     advance(context);
     return withRange(createInt(value), token.range);
   }
-  if (eat(context, 55)) {
+  if (eat(context, 57)) {
     return withRange(createBool(true), token.range);
   }
-  if (eat(context, 45)) {
+  if (eat(context, 47)) {
     return withRange(createBool(false), token.range);
   }
   if (peek(context, 2)) {
@@ -1749,37 +1759,37 @@ function parsePrefix(context) {
     advance(context);
     return withRange(createName(value), token.range);
   }
-  if (eat(context, 51)) {
+  if (eat(context, 53)) {
     var type = parseType(context);
-    if (type === null || !expect(context, 18)) {
+    if (type === null || !expect(context, 19)) {
       return null;
     }
     var close = context.current;
-    if (!expect(context, 33)) {
+    if (!expect(context, 35)) {
       return null;
     }
     return withRange(createNew(type), spanRanges(token.range, close.range));
   }
-  if (eat(context, 18)) {
+  if (eat(context, 19)) {
     var value = parseExpression(context, 0);
-    if (value === null || !expect(context, 33)) {
+    if (value === null || !expect(context, 35)) {
       return null;
     }
     return value;
   }
-  if (peek(context, 26)) {
+  if (peek(context, 27)) {
     return parseUnaryPrefix(context, 26);
   }
-  if (peek(context, 23)) {
+  if (peek(context, 24)) {
     return parseUnaryPrefix(context, 25);
   }
-  if (peek(context, 24)) {
+  if (peek(context, 25)) {
     return parseUnaryPrefix(context, 30);
   }
-  if (peek(context, 28)) {
+  if (peek(context, 29)) {
     return parseUnaryPrefix(context, 27);
   }
-  if (peek(context, 29)) {
+  if (peek(context, 30)) {
     return parseUnaryPrefix(context, 31);
   }
   if (peek(context, 11)) {
@@ -1789,6 +1799,7 @@ function parsePrefix(context) {
   return null;
 }
 function parseInfix(context, precedence, node) {
+  var token = context.current;
   if (peek(context, 5)) {
     return parseBinary(context, 33, node, precedence, 1);
   }
@@ -1813,50 +1824,49 @@ function parseInfix(context, precedence, node) {
   if (peek(context, 16)) {
     return parseBinary(context, 40, node, precedence, 8);
   }
-  if (peek(context, 19)) {
+  if (peek(context, 20)) {
     return parseBinary(context, 41, node, precedence, 8);
   }
-  if (peek(context, 20)) {
+  if (peek(context, 21)) {
     return parseBinary(context, 42, node, precedence, 8);
   }
-  if (peek(context, 21)) {
+  if (peek(context, 22)) {
     return parseBinary(context, 43, node, precedence, 3);
   }
-  if (peek(context, 22)) {
+  if (peek(context, 23)) {
     return parseBinary(context, 44, node, precedence, 2);
   }
-  if (peek(context, 23)) {
+  if (peek(context, 24)) {
     return parseBinary(context, 50, node, precedence, 10);
   }
-  if (peek(context, 25)) {
+  if (peek(context, 26)) {
     return parseBinary(context, 45, node, precedence, 11);
   }
-  if (peek(context, 27)) {
+  if (peek(context, 28)) {
     return parseBinary(context, 46, node, precedence, 7);
   }
-  if (peek(context, 28)) {
+  if (peek(context, 29)) {
     return parseBinary(context, 32, node, precedence, 10);
   }
-  if (peek(context, 31)) {
+  if (peek(context, 32)) {
     return parseBinary(context, 47, node, precedence, 11);
   }
-  if (peek(context, 35)) {
+  if (peek(context, 37)) {
     return parseBinary(context, 48, node, precedence, 9);
   }
-  if (peek(context, 36)) {
+  if (peek(context, 38)) {
     return parseBinary(context, 49, node, precedence, 9);
   }
-  if (peek(context, 29)) {
+  if (peek(context, 30)) {
     return parseUnaryPostfix(context, 29, node, precedence);
   }
-  if (peek(context, 24)) {
+  if (peek(context, 25)) {
     return parseUnaryPostfix(context, 28, node, precedence);
   }
-  var open = context.current;
-  if (peek(context, 18) && precedence < 13) {
+  if (peek(context, 19) && precedence < 13) {
     advance(context);
     var call = createCall(node);
-    if (!peek(context, 33)) {
+    if (!peek(context, 35)) {
       while (true) {
         var value = parseExpression(context, 0);
         if (value === null) {
@@ -1869,12 +1879,12 @@ function parseInfix(context, precedence, node) {
       }
     }
     var close = context.current;
-    if (!expect(context, 33)) {
+    if (!expect(context, 35)) {
       return null;
     }
-    return withInternalRange(withRange(call, spanRanges(node.range, close.range)), spanRanges(open.range, close.range));
+    return withInternalRange(withRange(call, spanRanges(node.range, close.range)), spanRanges(token.range, close.range));
   }
-  if (peek(context, 30) && precedence < 1) {
+  if (peek(context, 31) && precedence < 1) {
     advance(context);
     var middle = parseExpression(context, 0);
     if (middle === null || !expect(context, 9)) {
@@ -1888,11 +1898,11 @@ function parseInfix(context, precedence, node) {
   }
   if (peek(context, 13) && precedence < 14) {
     advance(context);
-    var token = context.current;
+    var name = context.current;
     if (!expect(context, 2)) {
       return null;
     }
-    return withInternalRange(withRange(createDot(node, rangeToString(token.range)), spanRanges(node.range, token.range)), token.range);
+    return withInternalRange(withRange(createDot(node, rangeToString(name.range)), spanRanges(node.range, name.range)), name.range);
   }
   return node;
 }
@@ -1920,13 +1930,13 @@ function parseType(context) {
 }
 function parseIf(context) {
   var token = context.current;
-  __imports.assert(token.kind === 47);
+  __imports.assert(token.kind === 49);
   advance(context);
-  if (!expect(context, 18)) {
+  if (!expect(context, 19)) {
     return null;
   }
   var value = parseExpression(context, 0);
-  if (value === null || !expect(context, 33)) {
+  if (value === null || !expect(context, 35)) {
     return null;
   }
   var trueBranch = parseBody(context);
@@ -1934,7 +1944,7 @@ function parseIf(context) {
     return null;
   }
   var falseBranch = null;
-  if (eat(context, 41)) {
+  if (eat(context, 43)) {
     falseBranch = parseBody(context);
     if (falseBranch === null) {
       return null;
@@ -1944,13 +1954,13 @@ function parseIf(context) {
 }
 function parseWhile(context) {
   var token = context.current;
-  __imports.assert(token.kind === 57);
+  __imports.assert(token.kind === 59);
   advance(context);
-  if (!expect(context, 18)) {
+  if (!expect(context, 19)) {
     return null;
   }
   var value = parseExpression(context, 0);
-  if (value === null || !expect(context, 33)) {
+  if (value === null || !expect(context, 35)) {
     return null;
   }
   var body = parseBody(context);
@@ -1981,31 +1991,31 @@ function parseBlock(context) {
     return null;
   }
   var close = context.current;
-  if (!expect(context, 32)) {
+  if (!expect(context, 33)) {
     return null;
   }
   return withRange(block, spanRanges(open.range, close.range));
 }
 function parseReturn(context) {
   var token = context.current;
-  __imports.assert(token.kind === 53);
+  __imports.assert(token.kind === 55);
   advance(context);
   var value = null;
-  if (!peek(context, 34)) {
+  if (!peek(context, 36)) {
     value = parseExpression(context, 0);
     if (value === null) {
       return null;
     }
   }
   var semicolon = context.current;
-  if (!expect(context, 34)) {
+  if (!expect(context, 36)) {
     return null;
   }
   return withRange(createReturn(value), spanRanges(token.range, semicolon.range));
 }
 function parseClass(context, flags) {
   var token = context.current;
-  __imports.assert(token.kind === 38);
+  __imports.assert(token.kind === 40);
   advance(context);
   var name = context.current;
   if (!expect(context, 2) || !expect(context, 17)) {
@@ -2013,28 +2023,28 @@ function parseClass(context, flags) {
   }
   var node = createClass(rangeToString(name.range));
   node.flags = flags;
-  while (!peek(context, 0) && !peek(context, 32)) {
+  while (!peek(context, 0) && !peek(context, 33)) {
     if (parseVariables(context, 0, node) === null) {
       return null;
     }
   }
   var close = context.current;
-  if (!expect(context, 32)) {
+  if (!expect(context, 33)) {
     return null;
   }
   return withRange(node, spanRanges(token.range, close.range));
 }
 function parseFunction(context, flags) {
   var token = context.current;
-  __imports.assert(token.kind === 46);
+  __imports.assert(token.kind === 48);
   advance(context);
   var name = context.current;
-  if (!expect(context, 2) || !expect(context, 18)) {
+  if (!expect(context, 2) || !expect(context, 19)) {
     return null;
   }
   var node = createFunction(rangeToString(name.range));
   node.flags = flags;
-  if (!peek(context, 33)) {
+  if (!peek(context, 35)) {
     while (true) {
       name = context.current;
       if (!expect(context, 2) || !expect(context, 9)) {
@@ -2050,7 +2060,7 @@ function parseFunction(context, flags) {
       }
     }
   }
-  if (!expect(context, 33) || !expect(context, 9)) {
+  if (!expect(context, 35) || !expect(context, 9)) {
     return null;
   }
   var returnType = parseType(context);
@@ -2060,7 +2070,7 @@ function parseFunction(context, flags) {
   appendChild(node, returnType);
   var block = null;
   var semicolon = context.current;
-  if (eat(context, 34)) {
+  if (eat(context, 36)) {
     block = withRange(createEmpty(), semicolon.range);
   } else {
     block = parseBlock(context);
@@ -2074,10 +2084,10 @@ function parseFunction(context, flags) {
 function parseVariables(context, flags, parent) {
   var token = context.current;
   if (parent === null) {
-    __imports.assert(token.kind === 56 || token.kind === 39);
+    __imports.assert(token.kind === 58 || token.kind === 41);
     advance(context);
   }
-  var node = token.kind === 39 ? createConstants() : createVariables();
+  var node = token.kind === 41 ? createConstants() : createVariables();
   while (true) {
     var name = context.current;
     if (!expect(context, 2)) {
@@ -2109,7 +2119,7 @@ function parseVariables(context, flags, parent) {
     }
   }
   var semicolon = context.current;
-  if (!expect(context, 34)) {
+  if (!expect(context, 36)) {
     return null;
   }
   return parent !== null ? parent : withRange(node, spanRanges(token.range, semicolon.range));
@@ -2117,7 +2127,7 @@ function parseVariables(context, flags, parent) {
 function parseLoopJump(context, kind) {
   var token = context.current;
   advance(context);
-  if (!expect(context, 34)) {
+  if (!expect(context, 36)) {
     return null;
   }
   var node = new Node();
@@ -2126,16 +2136,16 @@ function parseLoopJump(context, kind) {
 }
 function parseStatement(context) {
   var flags = 0;
-  if (eat(context, 44)) {
+  if (eat(context, 46)) {
     flags = flags | 1;
   }
-  if (peek(context, 39) || peek(context, 56)) {
+  if (peek(context, 41) || peek(context, 58)) {
     return parseVariables(context, flags, null);
   }
-  if (peek(context, 46)) {
+  if (peek(context, 48)) {
     return parseFunction(context, flags);
   }
-  if (peek(context, 38)) {
+  if (peek(context, 40)) {
     return parseClass(context, flags);
   }
   if (flags !== 0) {
@@ -2145,22 +2155,22 @@ function parseStatement(context) {
   if (peek(context, 17)) {
     return parseBlock(context);
   }
-  if (peek(context, 37)) {
+  if (peek(context, 39)) {
     return parseLoopJump(context, 3);
   }
-  if (peek(context, 40)) {
+  if (peek(context, 42)) {
     return parseLoopJump(context, 6);
   }
-  if (peek(context, 47)) {
+  if (peek(context, 49)) {
     return parseIf(context);
   }
-  if (peek(context, 57)) {
+  if (peek(context, 59)) {
     return parseWhile(context);
   }
-  if (peek(context, 53)) {
+  if (peek(context, 55)) {
     return parseReturn(context);
   }
-  if (peek(context, 34)) {
+  if (peek(context, 36)) {
     var token = context.current;
     advance(context);
     return withRange(createEmpty(), token.range);
@@ -2170,13 +2180,13 @@ function parseStatement(context) {
     return null;
   }
   var semicolon = context.current;
-  if (!expect(context, 34)) {
+  if (!expect(context, 36)) {
     return null;
   }
   return withRange(createExpression(value), spanRanges(value.range, semicolon.range));
 }
 function parseStatements(context, parent) {
-  while (!peek(context, 0) && !peek(context, 32)) {
+  while (!peek(context, 0) && !peek(context, 33)) {
     var child = parseStatement(context);
     if (child === null) {
       return false;
