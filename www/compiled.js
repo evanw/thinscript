@@ -976,189 +976,190 @@ function Token() {
   this.next = null;
 }
 function tokenToString(token) {
-  if (token === 5) {
-    return "ASSIGN";
-  }
-  if (token === 6) {
-    return "BITWISE_AND";
-  }
-  if (token === 7) {
-    return "BITWISE_OR";
-  }
-  if (token === 8) {
-    return "BITWISE_XOR";
-  }
-  if (token === 39) {
-    return "BREAK";
+  if (token === 0) {
+    return "end of file";
   }
   if (token === 1) {
-    return "CHARACTER";
-  }
-  if (token === 40) {
-    return "CLASS";
-  }
-  if (token === 9) {
-    return "COLON";
-  }
-  if (token === 10) {
-    return "COMMA";
-  }
-  if (token === 11) {
-    return "COMPLEMENT";
-  }
-  if (token === 41) {
-    return "CONST";
-  }
-  if (token === 42) {
-    return "CONTINUE";
-  }
-  if (token === 12) {
-    return "DIVIDE";
-  }
-  if (token === 13) {
-    return "DOT";
-  }
-  if (token === 43) {
-    return "ELSE";
-  }
-  if (token === 0) {
-    return "END_OF_FILE";
-  }
-  if (token === 44) {
-    return "ENUM";
-  }
-  if (token === 14) {
-    return "EQUAL";
-  }
-  if (token === 45) {
-    return "EXPORT";
-  }
-  if (token === 46) {
-    return "EXTENDS";
-  }
-  if (token === 47) {
-    return "EXTERN";
-  }
-  if (token === 48) {
-    return "FALSE";
-  }
-  if (token === 49) {
-    return "FUNCTION";
-  }
-  if (token === 15) {
-    return "GREATER_THAN";
-  }
-  if (token === 16) {
-    return "GREATER_THAN_EQUAL";
+    return "character literal";
   }
   if (token === 2) {
-    return "IDENTIFIER";
-  }
-  if (token === 50) {
-    return "IF";
-  }
-  if (token === 51) {
-    return "IMPLEMENTS";
-  }
-  if (token === 52) {
-    return "IMPORT";
+    return "identifier";
   }
   if (token === 3) {
-    return "INT";
-  }
-  if (token === 53) {
-    return "INTERFACE";
-  }
-  if (token === 17) {
-    return "LEFT_BRACE";
-  }
-  if (token === 18) {
-    return "LEFT_BRACKET";
-  }
-  if (token === 19) {
-    return "LEFT_PARENTHESIS";
-  }
-  if (token === 20) {
-    return "LESS_THAN";
-  }
-  if (token === 21) {
-    return "LESS_THAN_EQUAL";
-  }
-  if (token === 22) {
-    return "LOGICAL_AND";
-  }
-  if (token === 23) {
-    return "LOGICAL_OR";
-  }
-  if (token === 24) {
-    return "MINUS";
-  }
-  if (token === 25) {
-    return "MINUS_MINUS";
-  }
-  if (token === 26) {
-    return "MULTIPLY";
-  }
-  if (token === 54) {
-    return "NEW";
-  }
-  if (token === 27) {
-    return "NOT";
-  }
-  if (token === 28) {
-    return "NOT_EQUAL";
-  }
-  if (token === 55) {
-    return "NULL";
-  }
-  if (token === 29) {
-    return "PLUS";
-  }
-  if (token === 30) {
-    return "PLUS_PLUS";
-  }
-  if (token === 31) {
-    return "QUESTION_MARK";
-  }
-  if (token === 32) {
-    return "REMAINDER";
-  }
-  if (token === 56) {
-    return "RETURN";
-  }
-  if (token === 33) {
-    return "RIGHT_BRACE";
-  }
-  if (token === 34) {
-    return "RIGHT_BRACKET";
-  }
-  if (token === 35) {
-    return "RIGHT_PARENTHESIS";
-  }
-  if (token === 36) {
-    return "SEMICOLON";
-  }
-  if (token === 37) {
-    return "SHIFT_LEFT";
-  }
-  if (token === 38) {
-    return "SHIFT_RIGHT";
+    return "int literal";
   }
   if (token === 4) {
-    return "STRING";
+    return "string literal";
+  }
+  if (token === 5) {
+    return "'='";
+  }
+  if (token === 6) {
+    return "'&'";
+  }
+  if (token === 7) {
+    return "'|'";
+  }
+  if (token === 8) {
+    return "'^'";
+  }
+  if (token === 9) {
+    return "':'";
+  }
+  if (token === 10) {
+    return "','";
+  }
+  if (token === 11) {
+    return "'~'";
+  }
+  if (token === 12) {
+    return "'/'";
+  }
+  if (token === 13) {
+    return "'.'";
+  }
+  if (token === 14) {
+    return "'=='";
+  }
+  if (token === 15) {
+    return "'>'";
+  }
+  if (token === 16) {
+    return "'>='";
+  }
+  if (token === 17) {
+    return "'{'";
+  }
+  if (token === 18) {
+    return "'['";
+  }
+  if (token === 19) {
+    return "'('";
+  }
+  if (token === 20) {
+    return "'<'";
+  }
+  if (token === 21) {
+    return "'<='";
+  }
+  if (token === 22) {
+    return "'&&'";
+  }
+  if (token === 23) {
+    return "'||'";
+  }
+  if (token === 24) {
+    return "'-'";
+  }
+  if (token === 25) {
+    return "'--'";
+  }
+  if (token === 26) {
+    return "'*'";
+  }
+  if (token === 27) {
+    return "'!'";
+  }
+  if (token === 28) {
+    return "'!='";
+  }
+  if (token === 29) {
+    return "'+'";
+  }
+  if (token === 30) {
+    return "'++'";
+  }
+  if (token === 31) {
+    return "'?'";
+  }
+  if (token === 32) {
+    return "'%'";
+  }
+  if (token === 33) {
+    return "'}'";
+  }
+  if (token === 34) {
+    return "']'";
+  }
+  if (token === 35) {
+    return "')'";
+  }
+  if (token === 36) {
+    return "';'";
+  }
+  if (token === 37) {
+    return "'<<'";
+  }
+  if (token === 38) {
+    return "'>>'";
+  }
+  if (token === 39) {
+    return "'break'";
+  }
+  if (token === 40) {
+    return "'class'";
+  }
+  if (token === 41) {
+    return "'const'";
+  }
+  if (token === 42) {
+    return "'continue'";
+  }
+  if (token === 43) {
+    return "'else'";
+  }
+  if (token === 44) {
+    return "'enum'";
+  }
+  if (token === 45) {
+    return "'export'";
+  }
+  if (token === 46) {
+    return "'extends'";
+  }
+  if (token === 47) {
+    return "'extern'";
+  }
+  if (token === 48) {
+    return "'false'";
+  }
+  if (token === 49) {
+    return "'function'";
+  }
+  if (token === 50) {
+    return "'if'";
+  }
+  if (token === 51) {
+    return "'implements'";
+  }
+  if (token === 52) {
+    return "'import'";
+  }
+  if (token === 53) {
+    return "'interface'";
+  }
+  if (token === 54) {
+    return "'new'";
+  }
+  if (token === 55) {
+    return "'null'";
+  }
+  if (token === 56) {
+    return "'return'";
   }
   if (token === 57) {
-    return "THIS";
+    return "'this'";
   }
   if (token === 58) {
-    return "TRUE";
+    return "'true'";
   }
   if (token === 59) {
-    return "VAR";
+    return "'var'";
   }
   if (token === 60) {
-    return "WHILE";
+    return "'while'";
   }
+  __imports.assert(false);
   return null;
 }
 function isAlpha(c) {
