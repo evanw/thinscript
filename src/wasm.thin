@@ -174,7 +174,7 @@ const WASM_OPCODE_F64_REINTERPRET_I64 = 179;
 const WASM_OPCODE_I32_REINTERPRET_F32 = 180;
 const WASM_OPCODE_I64_REINTERPRET_F64 = 181;
 
-const WASM_MAGIC = 1836278016;
+const WASM_MAGIC = 0x6D736100;
 const WASM_VERSION = 10;
 const WASM_I32_LOAD_STORE_ALIGNMENT = 2; // 1 << 2 is 4, and 4 is sizeof(int)
 const WASM_SIZE_IN_PAGES = 256;
@@ -576,8 +576,8 @@ class WasmModule {
 function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValue: int): void {
   while (true) {
     var byte = value & 127;
-    value = (value >> 7) & 33554431;
-    maxValue = (maxValue >> 7) & 33554431;
+    value = (value >> 7) & 0x1FFFFFF;
+    maxValue = (maxValue >> 7) & 0x1FFFFFF;
     if (maxValue != 0) {
       byte = byte | 128;
     }
@@ -592,7 +592,7 @@ function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValu
 function wasmWriteVarUnsigned(array: ByteArray, value: int): void {
   while (true) {
     var byte = value & 127;
-    value = (value >> 7) & 33554431; // Unsigned right shift
+    value = (value >> 7) & 0x1FFFFFF; // Unsigned right shift
     if (value != 0) {
       byte = byte | 128;
     }

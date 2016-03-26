@@ -1174,6 +1174,12 @@ function isAlpha(c) {
 function isNumber(c) {
   return c >= 48 && c <= 57;
 }
+function isDigit(c, base) {
+  if (base === 16) {
+    return isNumber(c) || c >= 65 && c <= 70 || c >= 97 && c <= 102;
+  }
+  return c >= 48 && c < (48 + base | 0);
+}
 function tokenize(source, log) {
   var first = null;
   var last = null;
@@ -1243,8 +1249,36 @@ function tokenize(source, log) {
       }
     } else if (isNumber(c)) {
       kind = 3;
-      while (i < limit && isNumber(__imports.String_get(contents, i))) {
-        i = i + 1 | 0;
+      if (i < limit) {
+        var next = __imports.String_get(contents, i);
+        var base = 10;
+        if (c === 48 && (i + 1 | 0) < limit) {
+          if (next === 98 || next === 66) {
+            base = 2;
+          } else if (next === 111 || next === 79) {
+            base = 8;
+          } else if (next === 120 || next === 88) {
+            base = 16;
+          }
+          if (base !== 10) {
+            if (isDigit(__imports.String_get(contents, i + 1 | 0), base)) {
+              i = i + 2 | 0;
+            } else {
+              base = 10;
+            }
+          }
+        }
+        while (i < limit && isDigit(__imports.String_get(contents, i), base)) {
+          i = i + 1 | 0;
+        }
+        if (i < limit && (isAlpha(__imports.String_get(contents, i)) || isNumber(__imports.String_get(contents, i)))) {
+          i = i + 1 | 0;
+          while (i < limit && (isAlpha(__imports.String_get(contents, i)) || isNumber(__imports.String_get(contents, i)))) {
+            i = i + 1 | 0;
+          }
+          log.error(createRange(source, start, i), __imports.String_appendNew(__imports.String_append(__imports.String_new("Invalid integer literal: '"), __imports.String_slice(contents, start, i)), "'"));
+          return null;
+        }
       }
     } else if (c === 34 || c === 39 || c === 96) {
       while (i < limit) {
@@ -1973,10 +2007,27 @@ function createDot(value, name) {
   return node;
 }
 function parseInt(range) {
+  var source = range.source;
   var i = range.start;
+  var limit = range.end;
   var value = 0;
-  while (i < range.end) {
-    value = ((value * 10 | 0) + __imports.String_get(range.source.contents, i) | 0) - 48 | 0;
+  var base = 10;
+  if (__imports.String_get(source.contents, i) === 48 && (i + 1 | 0) < limit) {
+    var c = __imports.String_get(source.contents, i + 1 | 0);
+    if (c === 98 || c === 66) {
+      base = 2;
+    } else if (c === 111 || c === 79) {
+      base = 8;
+    } else if (c === 120 || c === 88) {
+      base = 16;
+    }
+    if (base !== 10) {
+      i = i + 2 | 0;
+    }
+  }
+  while (i < limit) {
+    var c = __imports.String_get(source.contents, i);
+    value = (value * base | 0) + (c >= 65 && c <= 70 ? c + (10 - 65 | 0) | 0 : c >= 97 && c <= 102 ? c + (10 - 97 | 0) | 0 : c - 48 | 0) | 0;
     i = i + 1 | 0;
   }
   return value;

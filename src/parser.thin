@@ -22,11 +22,27 @@ enum ParseKind {
 }
 
 function parseInt(range: Range): int {
+  var source = range.source;
   var i = range.start;
+  var limit = range.end;
   var value = 0;
+  var base = 10;
 
-  while (i < range.end) {
-    value = value * 10 + String_get(range.source.contents, i) - '0';
+  // Handle binary, octal, and hexadecimal prefixes
+  if (String_get(source.contents, i) == '0' && i + 1 < limit) {
+    var c = String_get(source.contents, i + 1);
+    if (c == 'b' || c == 'B') base = 2;
+    else if (c == 'o' || c == 'O') base = 8;
+    else if (c == 'x' || c == 'X') base = 16;
+    if (base != 10) i = i + 2;
+  }
+
+  while (i < limit) {
+    var c = String_get(source.contents, i);
+    value = value * base + (
+      c >= 'A' && c <= 'F' ? c + (10 - 'A') :
+      c >= 'a' && c <= 'f' ? c + (10 - 'a') :
+      c - '0');
     i = i + 1;
   }
 

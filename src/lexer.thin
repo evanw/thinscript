@@ -160,6 +160,13 @@ function isNumber(c: int): bool {
   return c >= '0' && c <= '9';
 }
 
+function isDigit(c: int, base: int): bool {
+  if (base == 16) {
+    return isNumber(c) || c >= 'A' && c <= 'F' || c >= 'a' && c <= 'f';
+  }
+  return c >= '0' && c < '0' + base;
+}
+
 function tokenize(source: Source, log: Log): Token {
   var first: Token = null;
   var last: Token = null;
@@ -217,8 +224,40 @@ function tokenize(source: Source, log: Log): Token {
     else if (isNumber(c)) {
       kind = TokenKind.INT;
 
-      while (i < limit && isNumber(String_get(contents, i))) {
-        i = i + 1;
+      if (i < limit) {
+        var next = String_get(contents, i);
+        var base = 10;
+
+        // Handle binary, octal, and hexadecimal prefixes
+        if (c == '0' && i + 1 < limit) {
+          if (next == 'b' || next == 'B') base = 2;
+          else if (next == 'o' || next == 'O') base = 8;
+          else if (next == 'x' || next == 'X') base = 16;
+          if (base != 10) {
+            if (isDigit(String_get(contents, i + 1), base)) i = i + 2;
+            else base = 10;
+          }
+        }
+
+        // Scan the payload
+        while (i < limit && isDigit(String_get(contents, i), base)) {
+          i = i + 1;
+        }
+
+        // Extra letters after the end is an error
+        if (i < limit && (isAlpha(String_get(contents, i)) || isNumber(String_get(contents, i)))) {
+          i = i + 1;
+
+          while (i < limit && (isAlpha(String_get(contents, i)) || isNumber(String_get(contents, i)))) {
+            i = i + 1;
+          }
+
+          log.error(createRange(source, start, i), String_appendNew(String_append(
+            String_new("Invalid integer literal: '"),
+            String_slice(contents, start, i)),
+            "'"));
+          return null;
+        }
       }
     }
 
