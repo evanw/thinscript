@@ -755,6 +755,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger() ? left.resolvedType : context.intType;
     checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
     checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
+    node.resolvedType = context.boolType;
   }
 
   else if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {

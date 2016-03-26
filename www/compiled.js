@@ -123,7 +123,7 @@ function initializeSymbol(context, symbol) {
       __imports.assert(child.symbol.kind === 6);
       initializeSymbol(context, child.symbol);
       child.symbol.offset = offset;
-      offset = offset + 1;
+      offset = offset + 1 | 0;
       child = child.nextSibling;
     }
     symbol.resolvedType = new Type();
@@ -162,7 +162,7 @@ function initializeSymbol(context, symbol) {
         if (symbol.node.previousSibling !== null) {
           var previousSymbol = symbol.node.previousSibling.symbol;
           initializeSymbol(context, previousSymbol);
-          symbol.offset = previousSymbol.offset + 1;
+          symbol.offset = previousSymbol.offset + 1 | 0;
         } else {
           symbol.offset = 0;
         }
@@ -303,7 +303,7 @@ function resolve(context, node, parentScope) {
     while (child !== null) {
       if (child.kind === 1) {
         child.symbol.offset = offset;
-        offset = offset + 4;
+        offset = offset + 4 | 0;
       }
       child = child.nextSibling;
     }
@@ -501,6 +501,7 @@ function resolve(context, node, parentScope) {
     var expectedType = left.resolvedType === right.resolvedType && left.resolvedType.isInteger() ? left.resolvedType : context.intType;
     checkConversion(context, left, expectedType, 0);
     checkConversion(context, right, expectedType, 0);
+    node.resolvedType = context.boolType;
   } else if (node.kind === 47 || node.kind === 46) {
     resolveBinary(context, node, parentScope);
     checkBinary(context, node, context.boolType, context.boolType);
@@ -603,7 +604,7 @@ JsResult.prototype.appendIndent = function() {
   var i = this.indent;
   while (i > 0) {
     this.code = __imports.String_appendNew(this.code, "  ");
-    i = i - 1;
+    i = i - 1 | 0;
   }
 };
 JsResult.prototype.emitText = function(text) {
@@ -614,13 +615,13 @@ JsResult.prototype.emitString = function(text) {
 };
 JsResult.prototype.emitBlock = function(node) {
   this.emitText("{\n");
-  this.indent = this.indent + 1;
+  this.indent = this.indent + 1 | 0;
   var child = node.firstChild;
   while (child !== null) {
     this.emitStatement(child);
     child = child.nextSibling;
   }
-  this.indent = this.indent - 1;
+  this.indent = this.indent - 1 | 0;
   this.appendIndent();
   this.emitText("}");
 };
@@ -641,15 +642,27 @@ JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
     this.emitText(")");
   }
 };
-JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence) {
+JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
   var isRightAssociative = node.kind === 36;
-  if (parentPrecedence > operatorPrecedence) {
+  var parentKind = node.parent.kind;
+  var shouldCastToInt = mode === 1 && parentKind !== 51 && parentKind !== 52 && parentKind !== 38 && parentKind !== 37 && parentKind !== 39;
+  var selfPrecedence = shouldCastToInt ? 4 : parentPrecedence;
+  if (parentPrecedence > selfPrecedence) {
     this.emitText("(");
   }
-  this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 : operatorPrecedence);
+  if (selfPrecedence > operatorPrecedence) {
+    this.emitText("(");
+  }
+  this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 | 0 : operatorPrecedence);
   this.emitText(operator);
-  this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1);
-  if (parentPrecedence > operatorPrecedence) {
+  this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1 | 0);
+  if (selfPrecedence > operatorPrecedence) {
+    this.emitText(")");
+  }
+  if (shouldCastToInt) {
+    this.emitText(" | 0");
+  }
+  if (parentPrecedence > selfPrecedence) {
     this.emitText(")");
   }
 };
@@ -675,7 +688,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
       if (parentPrecedence > 9) {
         this.emitText("(");
       }
-      var shift = __imports.String_toString(32 - type.symbol.byteSize * 8);
+      var shift = __imports.String_toString(32 - (type.symbol.byteSize * 8 | 0) | 0);
       this.emitExpression(value, 9);
       this.emitText(" << ");
       this.emitString(shift);
@@ -768,43 +781,43 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   } else if (node.kind === 31) {
     this.emitUnary(node, parentPrecedence, "--");
   } else if (node.kind === 35) {
-    this.emitBinary(node, parentPrecedence, " + ", 10);
+    this.emitBinary(node, parentPrecedence, " + ", 10, 1);
   } else if (node.kind === 36) {
-    this.emitBinary(node, parentPrecedence, " = ", 1);
+    this.emitBinary(node, parentPrecedence, " = ", 1, 0);
   } else if (node.kind === 37) {
-    this.emitBinary(node, parentPrecedence, " & ", 6);
+    this.emitBinary(node, parentPrecedence, " & ", 6, 0);
   } else if (node.kind === 38) {
-    this.emitBinary(node, parentPrecedence, " | ", 4);
+    this.emitBinary(node, parentPrecedence, " | ", 4, 0);
   } else if (node.kind === 39) {
-    this.emitBinary(node, parentPrecedence, " ^ ", 5);
+    this.emitBinary(node, parentPrecedence, " ^ ", 5, 0);
   } else if (node.kind === 40) {
-    this.emitBinary(node, parentPrecedence, " / ", 11);
+    this.emitBinary(node, parentPrecedence, " / ", 11, 1);
   } else if (node.kind === 41) {
-    this.emitBinary(node, parentPrecedence, " === ", 7);
+    this.emitBinary(node, parentPrecedence, " === ", 7, 0);
   } else if (node.kind === 42) {
-    this.emitBinary(node, parentPrecedence, " > ", 8);
+    this.emitBinary(node, parentPrecedence, " > ", 8, 0);
   } else if (node.kind === 43) {
-    this.emitBinary(node, parentPrecedence, " >= ", 8);
+    this.emitBinary(node, parentPrecedence, " >= ", 8, 0);
   } else if (node.kind === 44) {
-    this.emitBinary(node, parentPrecedence, " < ", 8);
+    this.emitBinary(node, parentPrecedence, " < ", 8, 0);
   } else if (node.kind === 45) {
-    this.emitBinary(node, parentPrecedence, " <= ", 8);
+    this.emitBinary(node, parentPrecedence, " <= ", 8, 0);
   } else if (node.kind === 46) {
-    this.emitBinary(node, parentPrecedence, " && ", 3);
+    this.emitBinary(node, parentPrecedence, " && ", 3, 0);
   } else if (node.kind === 47) {
-    this.emitBinary(node, parentPrecedence, " || ", 2);
+    this.emitBinary(node, parentPrecedence, " || ", 2, 0);
   } else if (node.kind === 48) {
-    this.emitBinary(node, parentPrecedence, " * ", 11);
+    this.emitBinary(node, parentPrecedence, " * ", 11, 1);
   } else if (node.kind === 49) {
-    this.emitBinary(node, parentPrecedence, " !== ", 7);
+    this.emitBinary(node, parentPrecedence, " !== ", 7, 0);
   } else if (node.kind === 50) {
-    this.emitBinary(node, parentPrecedence, " % ", 11);
+    this.emitBinary(node, parentPrecedence, " % ", 11, 1);
   } else if (node.kind === 51) {
-    this.emitBinary(node, parentPrecedence, " << ", 9);
+    this.emitBinary(node, parentPrecedence, " << ", 9, 0);
   } else if (node.kind === 52) {
-    this.emitBinary(node, parentPrecedence, " >> ", 9);
+    this.emitBinary(node, parentPrecedence, " >> ", 9, 0);
   } else if (node.kind === 53) {
-    this.emitBinary(node, parentPrecedence, " - ", 10);
+    this.emitBinary(node, parentPrecedence, " - ", 10, 1);
   } else {
     __imports.assert(false);
   }
@@ -921,7 +934,7 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitText("function ");
     this.emitString(node.symbol.name);
     this.emitText("() {\n");
-    this.indent = this.indent + 1;
+    this.indent = this.indent + 1 | 0;
     var child = node.firstChild;
     while (child !== null) {
       if (child.kind === 1) {
@@ -934,7 +947,7 @@ JsResult.prototype.emitStatement = function(node) {
       }
       child = child.nextSibling;
     }
-    this.indent = this.indent - 1;
+    this.indent = this.indent - 1 | 0;
     this.appendIndent();
     this.emitText("}\n");
     child = node.firstChild;
@@ -1170,7 +1183,7 @@ function tokenize(source, log) {
   while (i < limit) {
     var start = i;
     var c = __imports.String_get(contents, i);
-    i = i + 1;
+    i = i + 1 | 0;
     if (c === 32 || c === 9 || c === 13 || c === 10) {
       continue;
     }
@@ -1178,7 +1191,7 @@ function tokenize(source, log) {
     if (isAlpha(c)) {
       kind = 2;
       while (i < limit && (isAlpha(__imports.String_get(contents, i)) || isNumber(__imports.String_get(contents, i)))) {
-        i = i + 1;
+        i = i + 1 | 0;
       }
       var text = __imports.String_slice(contents, start, i);
       if (__imports.String_equalNew(text, "as")) {
@@ -1231,17 +1244,17 @@ function tokenize(source, log) {
     } else if (isNumber(c)) {
       kind = 3;
       while (i < limit && isNumber(__imports.String_get(contents, i))) {
-        i = i + 1;
+        i = i + 1 | 0;
       }
     } else if (c === 34 || c === 39 || c === 96) {
       while (i < limit) {
         var next = __imports.String_get(contents, i);
-        if (i + 1 < limit && next === 92) {
-          i = i + 2;
+        if ((i + 1 | 0) < limit && next === 92) {
+          i = i + 2 | 0;
         } else if (next === 10 && c !== 96) {
           break;
         } else {
-          i = i + 1;
+          i = i + 1 | 0;
           if (next === c) {
             kind = c === 39 ? 1 : 4;
             break;
@@ -1285,26 +1298,26 @@ function tokenize(source, log) {
     } else if (c === 47) {
       kind = 12;
       if (i < limit && __imports.String_get(contents, i) === 47) {
-        i = i + 1;
+        i = i + 1 | 0;
         while (i < limit && __imports.String_get(contents, i) !== 10) {
-          i = i + 1;
+          i = i + 1 | 0;
         }
         continue;
       }
       if (i < limit && __imports.String_get(contents, i) === 42) {
-        i = i + 1;
+        i = i + 1 | 0;
         var foundEnd = false;
         while (i < limit) {
           var next = __imports.String_get(contents, i);
-          if (next === 42 && i + 1 < limit && __imports.String_get(contents, i + 1) === 47) {
+          if (next === 42 && (i + 1 | 0) < limit && __imports.String_get(contents, i + 1 | 0) === 47) {
             foundEnd = true;
-            i = i + 2;
+            i = i + 2 | 0;
             break;
           }
-          i = i + 1;
+          i = i + 1 | 0;
         }
         if (!foundEnd) {
-          log.error(createRange(source, start, start + 2), __imports.String_new("Unterminated multi-line comment"));
+          log.error(createRange(source, start, start + 2 | 0), __imports.String_new("Unterminated multi-line comment"));
           return null;
         }
         continue;
@@ -1313,9 +1326,9 @@ function tokenize(source, log) {
       kind = 27;
       if (i < limit && __imports.String_get(contents, i) === 61) {
         kind = 28;
-        i = i + 1;
+        i = i + 1 | 0;
         if (i < limit && __imports.String_get(contents, i) === 61) {
-          i = i + 1;
+          i = i + 1 | 0;
           log.error(createRange(source, start, i), __imports.String_new("Use '!=' instead of '!=='"));
         }
       }
@@ -1323,9 +1336,9 @@ function tokenize(source, log) {
       kind = 5;
       if (i < limit && __imports.String_get(contents, i) === 61) {
         kind = 14;
-        i = i + 1;
+        i = i + 1 | 0;
         if (i < limit && __imports.String_get(contents, i) === 61) {
-          i = i + 1;
+          i = i + 1 | 0;
           log.error(createRange(source, start, i), __imports.String_new("Use '==' instead of '==='"));
         }
       }
@@ -1333,25 +1346,25 @@ function tokenize(source, log) {
       kind = 29;
       if (i < limit && __imports.String_get(contents, i) === 43) {
         kind = 30;
-        i = i + 1;
+        i = i + 1 | 0;
       }
     } else if (c === 45) {
       kind = 24;
       if (i < limit && __imports.String_get(contents, i) === 45) {
         kind = 25;
-        i = i + 1;
+        i = i + 1 | 0;
       }
     } else if (c === 38) {
       kind = 6;
       if (i < limit && __imports.String_get(contents, i) === 38) {
         kind = 22;
-        i = i + 1;
+        i = i + 1 | 0;
       }
     } else if (c === 124) {
       kind = 7;
       if (i < limit && __imports.String_get(contents, i) === 124) {
         kind = 23;
-        i = i + 1;
+        i = i + 1 | 0;
       }
     } else if (c === 60) {
       kind = 20;
@@ -1359,10 +1372,10 @@ function tokenize(source, log) {
         c = __imports.String_get(contents, i);
         if (c === 60) {
           kind = 37;
-          i = i + 1;
+          i = i + 1 | 0;
         } else if (c === 61) {
           kind = 21;
-          i = i + 1;
+          i = i + 1 | 0;
         }
       }
     } else if (c === 62) {
@@ -1371,16 +1384,16 @@ function tokenize(source, log) {
         c = __imports.String_get(contents, i);
         if (c === 62) {
           kind = 38;
-          i = i + 1;
+          i = i + 1 | 0;
         } else if (c === 61) {
           kind = 16;
-          i = i + 1;
+          i = i + 1 | 0;
         }
       }
     }
     var range = createRange(source, start, i);
     if (kind === 0) {
-      log.error(range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Syntax error: '"), __imports.String_slice(contents, start, start + 1)), "'"));
+      log.error(range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Syntax error: '"), __imports.String_slice(contents, start, start + 1 | 0)), "'"));
       return null;
     }
     var token = new Token();
@@ -1423,11 +1436,11 @@ Range.prototype.enclosingLine = function() {
   var contents = this.source.contents;
   var start = this.start;
   var end = this.start;
-  while (start > 0 && __imports.String_get(contents, start - 1) !== 10) {
-    start = start - 1;
+  while (start > 0 && __imports.String_get(contents, start - 1 | 0) !== 10) {
+    start = start - 1 | 0;
   }
-  while (end + 1 < __imports.String_length(contents) && __imports.String_get(contents, end) !== 10) {
-    end = end + 1;
+  while ((end + 1 | 0) < __imports.String_length(contents) && __imports.String_get(contents, end) !== 10) {
+    end = end + 1 | 0;
   }
   return createRange(this.source, start, end);
 };
@@ -1472,20 +1485,20 @@ Log.prototype.toString = function() {
   var d = this.first;
   while (d !== null) {
     var lineRange = d.range.enclosingLine();
-    var column = d.range.start - lineRange.start;
+    var column = d.range.start - lineRange.start | 0;
     var line = 0;
     var i = 0;
     while (i < lineRange.start) {
       if (__imports.String_get(lineRange.source.contents, i) === 10) {
-        line = line + 1;
+        line = line + 1 | 0;
       }
-      i = i + 1;
+      i = i + 1 | 0;
     }
     result = __imports.String_append(result, d.range.source.name);
     result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(line + 1));
+    result = __imports.String_append(result, __imports.String_toString(line + 1 | 0));
     result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(column + 1));
+    result = __imports.String_append(result, __imports.String_toString(column + 1 | 0));
     result = __imports.String_appendNew(result, ": error: ");
     result = __imports.String_append(result, d.message);
     result = __imports.String_appendNew(result, "\n");
@@ -1494,15 +1507,15 @@ Log.prototype.toString = function() {
     i = 0;
     while (i < column) {
       result = __imports.String_appendNew(result, " ");
-      i = i + 1;
+      i = i + 1 | 0;
     }
-    if (d.range.end - d.range.start <= 1) {
+    if ((d.range.end - d.range.start | 0) <= 1) {
       result = __imports.String_appendNew(result, "^");
     } else {
       i = d.range.start;
       while (i < d.range.end && i < lineRange.end) {
         result = __imports.String_appendNew(result, "~");
-        i = i + 1;
+        i = i + 1 | 0;
       }
     }
     result = __imports.String_appendNew(result, "\n");
@@ -1542,7 +1555,7 @@ Node.prototype.childCount = function() {
   var count = 0;
   var child = this.firstChild;
   while (child !== null) {
-    count = count + 1;
+    count = count + 1 | 0;
     child = child.nextSibling;
   }
   return count;
@@ -1963,8 +1976,8 @@ function parseInt(range) {
   var i = range.start;
   var value = 0;
   while (i < range.end) {
-    value = value * 10 + __imports.String_get(range.source.contents, i) - 48;
-    i = i + 1;
+    value = ((value * 10 | 0) + __imports.String_get(range.source.contents, i) | 0) - 48 | 0;
+    i = i + 1 | 0;
   }
   return value;
 }
@@ -2037,18 +2050,18 @@ ParserContext.prototype.parseUnaryPostfix = function(kind, value, localPrecedenc
   return createUnary(kind, value).withRange(spanRanges(value.range, token.range));
 };
 ParserContext.prototype.parseQuotedString = function(range) {
-  __imports.assert(range.end - range.start >= 2);
+  __imports.assert((range.end - range.start | 0) >= 2);
   var text = range.toString();
   var end = 1;
-  var limit = __imports.String_length(text) - 1;
+  var limit = __imports.String_length(text) - 1 | 0;
   var start = end;
   var result = __imports.String_new("");
   while (end < limit) {
     var c = __imports.String_get(text, end);
     if (c === 92) {
       result = __imports.String_append(result, __imports.String_slice(text, start, end));
-      end = end + 1;
-      start = end + 1;
+      end = end + 1 | 0;
+      start = end + 1 | 0;
       c = __imports.String_get(text, end);
       if (c === 48) {
         result = __imports.String_appendNew(result, "");
@@ -2061,12 +2074,12 @@ ParserContext.prototype.parseQuotedString = function(range) {
       } else if (c === 34 || c === 39 || c === 96 || c === 10 || c === 92) {
         start = end;
       } else {
-        var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
+        var escape = createRange(range.source, (range.start + end | 0) - 1 | 0, (range.start + end | 0) + 1 | 0);
         this.log.error(escape, __imports.String_append(__imports.String_append(__imports.String_new("Invalid escape code '"), escape.toString()), __imports.String_new("'")));
         return null;
       }
     }
-    end = end + 1;
+    end = end + 1 | 0;
   }
   return __imports.String_append(result, __imports.String_slice(text, start, end));
 };
@@ -2745,7 +2758,7 @@ Type.prototype.underlyingType = function(context) {
   return this.isEnum() ? context.intType : this;
 };
 Type.prototype.integerBitMask = function() {
-  return (1 << this.symbol.byteSize * 8) - 1;
+  return (1 << this.symbol.byteSize * 8) - 1 | 0;
 };
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
@@ -2832,7 +2845,7 @@ WasmModule.prototype.allocateImport = function(signatureIndex, mod, name) {
     this.lastImport.next = result;
   }
   this.lastImport = result;
-  this.importCount = this.importCount + 1;
+  this.importCount = this.importCount + 1 | 0;
   return result;
 };
 WasmModule.prototype.allocateFunction = function(name, signatureIndex, body) {
@@ -2846,7 +2859,7 @@ WasmModule.prototype.allocateFunction = function(name, signatureIndex, body) {
     this.lastFunction.next = fn;
   }
   this.lastFunction = fn;
-  this.functionCount = this.functionCount + 1;
+  this.functionCount = this.functionCount + 1 | 0;
   return fn;
 };
 WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
@@ -2862,7 +2875,7 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
       return i;
     }
     check = check.next;
-    i = i + 1;
+    i = i + 1 | 0;
   }
   if (this.firstSignature === null) {
     this.firstSignature = signature;
@@ -2870,7 +2883,7 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
     this.lastSignature.next = signature;
   }
   this.lastSignature = signature;
-  this.signatureCount = this.signatureCount + 1;
+  this.signatureCount = this.signatureCount + 1 | 0;
   return i;
 };
 WasmModule.prototype.emitModule = function(array, context) {
@@ -2898,7 +2911,7 @@ WasmModule.prototype.emitSignatures = function(array) {
     var count = 0;
     var type = signature.argumentTypes;
     while (type !== null) {
-      count = count + 1;
+      count = count + 1 | 0;
       type = type.next;
     }
     wasmWriteVarUnsigned(array, count);
@@ -2952,7 +2965,7 @@ WasmModule.prototype.emitExportTable = function(array) {
   var fn = this.firstFunction;
   while (fn !== null) {
     if (fn.isExported) {
-      exportedCount = exportedCount + 1;
+      exportedCount = exportedCount + 1 | 0;
     }
     fn = fn.next;
   }
@@ -2969,7 +2982,7 @@ WasmModule.prototype.emitExportTable = function(array) {
       wasmWriteLengthPrefixedString(array, fn.name);
     }
     fn = fn.next;
-    i = i + 1;
+    i = i + 1 | 0;
   }
   wasmFinishSection(array, section);
 };
@@ -2995,7 +3008,7 @@ WasmModule.prototype.emitFunctionBodies = function(array, context) {
       wasmEmitNode(array, child, context);
       child = child.nextSibling;
     }
-    wasmPatchVarUnsigned(array, bodyLength, __imports.ByteArray_length(array) - bodyLength - 5, -1);
+    wasmPatchVarUnsigned(array, bodyLength, (__imports.ByteArray_length(array) - bodyLength | 0) - 5 | 0, -1);
     fn = fn.next;
   }
   wasmFinishSection(array, section);
@@ -3006,7 +3019,7 @@ WasmModule.prototype.emitDataSegments = function(array) {
   var memoryInitializer = this.memoryInitializer;
   var byteOffset = 8;
   var byteCount = __imports.ByteArray_length(memoryInitializer);
-  var initialHeapOffset = byteOffset + byteCount + 7 & -8;
+  var initialHeapOffset = (byteOffset + byteCount | 0) + 7 & -8;
   __imports.assert(byteCount >= 4);
   wasmWriteVarUnsigned(array, byteOffset);
   wasmWriteVarUnsigned(array, byteCount);
@@ -3017,20 +3030,20 @@ WasmModule.prototype.emitDataSegments = function(array) {
   var i = 0;
   while (i < byteCount) {
     __imports.ByteArray_appendByte(array, __imports.ByteArray_getByte(memoryInitializer, i));
-    i = i + 1;
+    i = i + 1 | 0;
   }
   wasmFinishSection(array, section);
 };
 WasmModule.prototype.collectStrings = function(node) {
   if (node.kind === 24) {
     var memoryInitializer = this.memoryInitializer;
-    node.intValue = 8 + __imports.ByteArray_length(memoryInitializer);
+    node.intValue = 8 + __imports.ByteArray_length(memoryInitializer) | 0;
     var text = node.stringValue;
     var i = 0;
     var count = __imports.String_length(text);
     while (i < count) {
       __imports.ByteArray_appendByte(memoryInitializer, __imports.String_get(text, i));
-      i = i + 1;
+      i = i + 1 | 0;
     }
     __imports.ByteArray_appendByte(memoryInitializer, 0);
   }
@@ -3061,7 +3074,7 @@ WasmModule.prototype.prepareFunctions = function(node, context) {
         argumentTypesLast.next = type;
       }
       argumentTypesLast = type;
-      shared.nextLocalOffset = shared.nextLocalOffset + 1;
+      shared.nextLocalOffset = shared.nextLocalOffset + 1 | 0;
       argument = argument.nextSibling;
     }
     var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
@@ -3090,7 +3103,7 @@ function wasmPatchVarUnsigned(array, offset, value, maxValue) {
       byte = byte | 128;
     }
     __imports.ByteArray_setByte(array, offset, byte);
-    offset = offset + 1;
+    offset = offset + 1 | 0;
     if (maxValue === 0) {
       break;
     }
@@ -3129,7 +3142,7 @@ function wasmWriteLengthPrefixedString(array, value) {
   var i = 0;
   while (i < length) {
     __imports.ByteArray_appendByte(array, __imports.String_get(value, i));
-    i = i + 1;
+    i = i + 1 | 0;
   }
 }
 function wasmStartSection(array, name) {
@@ -3139,7 +3152,7 @@ function wasmStartSection(array, name) {
   return offset;
 }
 function wasmFinishSection(array, offset) {
-  wasmPatchVarUnsigned(array, offset, __imports.ByteArray_length(array) - offset - 5, -1);
+  wasmPatchVarUnsigned(array, offset, (__imports.ByteArray_length(array) - offset | 0) - 5 | 0, -1);
 }
 function emitBinaryExpression(array, node, opcode, context) {
   __imports.ByteArray_appendByte(array, opcode);
@@ -3154,7 +3167,7 @@ function wasmEmitNode(array, node, context) {
     var count = 0;
     var child = node.firstChild;
     while (child !== null) {
-      count = count + wasmEmitNode(array, child, context);
+      count = count + wasmEmitNode(array, child, context) | 0;
       child = child.nextSibling;
     }
     wasmPatchVarUnsigned(array, offset, count, -1);
@@ -3174,30 +3187,30 @@ function wasmEmitNode(array, node, context) {
       __imports.ByteArray_appendByte(array, 0);
       __imports.ByteArray_appendByte(array, 90);
       wasmEmitNode(array, value, context);
-      count = count + 1;
+      count = count + 1 | 0;
     }
     var child = body.firstChild;
     while (child !== null) {
-      count = count + wasmEmitNode(array, child, context);
+      count = count + wasmEmitNode(array, child, context) | 0;
       child = child.nextSibling;
     }
     __imports.ByteArray_appendByte(array, 6);
     wasmWriteVarUnsigned(array, 0);
     __imports.ByteArray_appendByte(array, 0);
-    count = count + 1;
+    count = count + 1 | 0;
     wasmPatchVarUnsigned(array, offset, count, -1);
   } else if (node.kind === 3 || node.kind === 6) {
     var label = 0;
     var parent = node.parent;
     while (parent !== null && parent.kind !== 14) {
       if (parent.kind === 2) {
-        label = label + 1;
+        label = label + 1 | 0;
       }
       parent = parent.parent;
     }
     __imports.assert(label > 0);
     __imports.ByteArray_appendByte(array, 6);
-    wasmWriteVarUnsigned(array, label - (node.kind === 3 ? 0 : 1));
+    wasmWriteVarUnsigned(array, label - (node.kind === 3 ? 0 : 1) | 0);
     __imports.ByteArray_appendByte(array, 0);
   } else if (node.kind === 7) {
     return 0;
@@ -3214,7 +3227,7 @@ function wasmEmitNode(array, node, context) {
     var child = node.firstChild;
     while (child !== null) {
       __imports.assert(child.kind === 1);
-      count = count + wasmEmitNode(array, child, context);
+      count = count + wasmEmitNode(array, child, context) | 0;
       child = child.nextSibling;
     }
     return count;
@@ -3304,7 +3317,7 @@ function wasmEmitNode(array, node, context) {
     if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
       wasmEmitNode(array, value, context);
     } else if (type === context.byteType || type === context.shortType) {
-      var shift = 32 - type.symbol.byteSize * 8;
+      var shift = 32 - (type.symbol.byteSize * 8 | 0) | 0;
       __imports.ByteArray_appendByte(array, 76);
       __imports.ByteArray_appendByte(array, 74);
       wasmEmitNode(array, value, context);
@@ -3420,8 +3433,8 @@ function wasmAssignLocalVariableOffsets(node, shared) {
   if (node.kind === 1) {
     __imports.assert(node.symbol.kind === 9);
     node.symbol.offset = shared.nextLocalOffset;
-    shared.nextLocalOffset = shared.nextLocalOffset + 1;
-    shared.intLocalCount = shared.intLocalCount + 1;
+    shared.nextLocalOffset = shared.nextLocalOffset + 1 | 0;
+    shared.intLocalCount = shared.intLocalCount + 1 | 0;
   }
   var child = node.firstChild;
   while (child !== null) {

@@ -1,3 +1,8 @@
+enum EmitBinary {
+  NORMAL,
+  CAST_TO_INT,
+}
+
 class JsResult {
   context: CheckContext;
   code: String;
@@ -57,10 +62,18 @@ class JsResult {
     }
   }
 
-  emitBinary(node: Node, parentPrecedence: Precedence, operator: string, operatorPrecedence: Precedence): void {
+  emitBinary(node: Node, parentPrecedence: Precedence, operator: string, operatorPrecedence: Precedence, mode: EmitBinary): void {
     var isRightAssociative = node.kind == NodeKind.ASSIGN;
+    var parentKind = node.parent.kind;
+    var shouldCastToInt = mode == EmitBinary.CAST_TO_INT && parentKind != NodeKind.SHIFT_LEFT && parentKind != NodeKind.SHIFT_RIGHT &&
+      parentKind != NodeKind.BITWISE_OR && parentKind != NodeKind.BITWISE_AND && parentKind != NodeKind.BITWISE_XOR;
+    var selfPrecedence = shouldCastToInt ? Precedence.BITWISE_OR : parentPrecedence;
 
-    if (parentPrecedence > operatorPrecedence) {
+    if (parentPrecedence > selfPrecedence) {
+      this.emitText("(");
+    }
+
+    if (selfPrecedence > operatorPrecedence) {
       this.emitText("(");
     }
 
@@ -68,7 +81,15 @@ class JsResult {
     this.emitText(operator);
     this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : (operatorPrecedence as int + 1) as Precedence);
 
-    if (parentPrecedence > operatorPrecedence) {
+    if (selfPrecedence > operatorPrecedence) {
+      this.emitText(")");
+    }
+
+    if (shouldCastToInt) {
+      this.emitText(" | 0");
+    }
+
+    if (parentPrecedence > selfPrecedence) {
       this.emitText(")");
     }
   }
@@ -231,25 +252,25 @@ class JsResult {
     else if (node.kind == NodeKind.POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
     else if (node.kind == NodeKind.POSTFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
 
-    else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", Precedence.ADD);
-    else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", Precedence.ASSIGN);
-    else if (node.kind == NodeKind.BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", Precedence.BITWISE_AND);
-    else if (node.kind == NodeKind.BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", Precedence.BITWISE_OR);
-    else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", Precedence.BITWISE_XOR);
-    else if (node.kind == NodeKind.DIVIDE) this.emitBinary(node, parentPrecedence, " / ", Precedence.MULTIPLY); // TODO: This isn't accurate for integer division
-    else if (node.kind == NodeKind.EQUAL) this.emitBinary(node, parentPrecedence, " === ", Precedence.EQUAL);
-    else if (node.kind == NodeKind.GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", Precedence.COMPARE);
-    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", Precedence.COMPARE);
-    else if (node.kind == NodeKind.LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", Precedence.COMPARE);
-    else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", Precedence.COMPARE);
-    else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", Precedence.LOGICAL_AND);
-    else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", Precedence.LOGICAL_OR);
-    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", Precedence.MULTIPLY);
-    else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", Precedence.EQUAL);
-    else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", Precedence.MULTIPLY);
-    else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", Precedence.SHIFT);
-    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", Precedence.SHIFT);
-    else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", Precedence.ADD);
+    else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", Precedence.ADD, EmitBinary.CAST_TO_INT);
+    else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", Precedence.ASSIGN, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", Precedence.BITWISE_AND, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", Precedence.BITWISE_OR, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", Precedence.BITWISE_XOR, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.DIVIDE) this.emitBinary(node, parentPrecedence, " / ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
+    else if (node.kind == NodeKind.EQUAL) this.emitBinary(node, parentPrecedence, " === ", Precedence.EQUAL, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", Precedence.COMPARE, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", Precedence.COMPARE, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", Precedence.COMPARE, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", Precedence.COMPARE, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", Precedence.LOGICAL_AND, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", Precedence.LOGICAL_OR, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
+    else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", Precedence.EQUAL, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
+    else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", Precedence.SHIFT, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", Precedence.SHIFT, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", Precedence.ADD, EmitBinary.CAST_TO_INT);
 
     else {
       assert(false);
