@@ -865,6 +865,10 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
     wasmEmitNode(array, node.unaryValue());
   }
 
+  else if (node.kind == NodeKind.CAST) {
+    wasmEmitNode(array, node.castValue());
+  }
+
   else if (node.kind == NodeKind.DOT) {
     var symbol = node.symbol;
 

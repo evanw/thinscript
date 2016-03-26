@@ -248,6 +248,20 @@ class Node {
     return this.firstChild;
   }
 
+  castValue(): Node {
+    assert(this.kind == NodeKind.CAST);
+    assert(this.childCount() == 2);
+    assert(isExpression(this.firstChild));
+    return this.firstChild;
+  }
+
+  castType(): Node {
+    assert(this.kind == NodeKind.CAST);
+    assert(this.childCount() == 2);
+    assert(isExpression(this.lastChild));
+    return this.lastChild;
+  }
+
   dotTarget(): Node {
     assert(this.kind == NodeKind.DOT);
     assert(this.childCount() == 1);
@@ -557,6 +571,16 @@ function createCall(value: Node): Node {
   var node = new Node();
   node.kind = NodeKind.CALL;
   node.appendChild(value);
+  return node;
+}
+
+function createCast(value: Node, type: Node): Node {
+  assert(isExpression(value));
+  assert(isExpression(type));
+  var node = new Node();
+  node.kind = NodeKind.CAST;
+  node.appendChild(value);
+  node.appendChild(type);
   return node;
 }
 

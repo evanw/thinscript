@@ -34,9 +34,9 @@ class JsResult {
     this.emitText("}");
   }
 
-  emitUnary(node: Node, parentPrecedence: int, operator: string): void {
+  emitUnary(node: Node, parentPrecedence: Precedence, operator: string): void {
     var isPostfix = isUnaryPostfix(node.kind);
-    var operatorPrecedence = isPostfix ? PRECEDENCE_UNARY_POSTFIX : PRECEDENCE_UNARY_PREFIX;
+    var operatorPrecedence = isPostfix ? Precedence.UNARY_POSTFIX : Precedence.UNARY_PREFIX;
 
     if (parentPrecedence > operatorPrecedence) {
       this.emitText("(");
@@ -57,23 +57,23 @@ class JsResult {
     }
   }
 
-  emitBinary(node: Node, parentPrecedence: int, operator: string, operatorPrecedence: int): void {
+  emitBinary(node: Node, parentPrecedence: Precedence, operator: string, operatorPrecedence: Precedence): void {
     var isRightAssociative = node.kind == NodeKind.ASSIGN;
 
     if (parentPrecedence > operatorPrecedence) {
       this.emitText("(");
     }
 
-    this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 : operatorPrecedence);
+    this.emitExpression(node.binaryLeft(), isRightAssociative ? (operatorPrecedence as int + 1) as Precedence : operatorPrecedence);
     this.emitText(operator);
-    this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1);
+    this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : (operatorPrecedence as int + 1) as Precedence);
 
     if (parentPrecedence > operatorPrecedence) {
       this.emitText(")");
     }
   }
 
-  emitExpression(node: Node, parentPrecedence: int): void {
+  emitExpression(node: Node, parentPrecedence: Precedence): void {
     if (node.kind == NodeKind.NAME) {
       this.emitString(node.symbol.name);
     }
@@ -94,24 +94,28 @@ class JsResult {
       this.emitString(String_quote(node.stringValue));
     }
 
+    else if (node.kind == NodeKind.CAST) {
+      this.emitExpression(node.castValue(), parentPrecedence);
+    }
+
     else if (node.kind == NodeKind.DOT) {
-      this.emitExpression(node.dotTarget(), PRECEDENCE_MEMBER);
+      this.emitExpression(node.dotTarget(), Precedence.MEMBER);
       this.emitText(".");
       this.emitString(node.symbol.name);
     }
 
     else if (node.kind == NodeKind.HOOK) {
-      if (parentPrecedence > PRECEDENCE_ASSIGN) {
+      if (parentPrecedence > Precedence.ASSIGN) {
         this.emitText("(");
       }
 
-      this.emitExpression(node.hookValue(), PRECEDENCE_LOGICAL_OR);
+      this.emitExpression(node.hookValue(), Precedence.LOGICAL_OR);
       this.emitText(" ? ");
-      this.emitExpression(node.hookTrue(), PRECEDENCE_ASSIGN);
+      this.emitExpression(node.hookTrue(), Precedence.ASSIGN);
       this.emitText(" : ");
-      this.emitExpression(node.hookFalse(), PRECEDENCE_ASSIGN);
+      this.emitExpression(node.hookFalse(), Precedence.ASSIGN);
 
-      if (parentPrecedence > PRECEDENCE_ASSIGN) {
+      if (parentPrecedence > Precedence.ASSIGN) {
         this.emitText(")");
       }
     }
@@ -121,12 +125,12 @@ class JsResult {
       if (value.symbol.node.functionBody() == null) {
         this.emitText("__imports.");
       }
-      this.emitExpression(value, PRECEDENCE_UNARY_POSTFIX);
+      this.emitExpression(value, Precedence.UNARY_POSTFIX);
       this.emitText("(");
 
       var child = value.nextSibling;
       while (child != null) {
-        this.emitExpression(child, PRECEDENCE_LOWEST);
+        this.emitExpression(child, Precedence.LOWEST);
         child = child.nextSibling;
         if (child != null) {
           this.emitText(", ");
@@ -138,7 +142,7 @@ class JsResult {
 
     else if (node.kind == NodeKind.NEW) {
       this.emitText("new ");
-      this.emitExpression(node.newType(), PRECEDENCE_UNARY_POSTFIX);
+      this.emitExpression(node.newType(), Precedence.UNARY_POSTFIX);
       this.emitText("()");
     }
 
@@ -151,25 +155,25 @@ class JsResult {
     else if (node.kind == NodeKind.POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
     else if (node.kind == NodeKind.POSTFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
 
-    else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", PRECEDENCE_ADD);
-    else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", PRECEDENCE_ASSIGN);
-    else if (node.kind == NodeKind.BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", PRECEDENCE_BITWISE_AND);
-    else if (node.kind == NodeKind.BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", PRECEDENCE_BITWISE_OR);
-    else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", PRECEDENCE_BITWISE_XOR);
-    else if (node.kind == NodeKind.DIVIDE) this.emitBinary(node, parentPrecedence, " / ", PRECEDENCE_MULTIPLY); // TODO: This isn't accurate for integer division
-    else if (node.kind == NodeKind.EQUAL) this.emitBinary(node, parentPrecedence, " === ", PRECEDENCE_EQUAL);
-    else if (node.kind == NodeKind.GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", PRECEDENCE_COMPARE);
-    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", PRECEDENCE_COMPARE);
-    else if (node.kind == NodeKind.LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", PRECEDENCE_COMPARE);
-    else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", PRECEDENCE_COMPARE);
-    else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", PRECEDENCE_LOGICAL_AND);
-    else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", PRECEDENCE_LOGICAL_OR);
-    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", PRECEDENCE_MULTIPLY);
-    else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", PRECEDENCE_EQUAL);
-    else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", PRECEDENCE_MULTIPLY);
-    else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", PRECEDENCE_SHIFT);
-    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", PRECEDENCE_SHIFT);
-    else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", PRECEDENCE_ADD);
+    else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", Precedence.ADD);
+    else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", Precedence.ASSIGN);
+    else if (node.kind == NodeKind.BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", Precedence.BITWISE_AND);
+    else if (node.kind == NodeKind.BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", Precedence.BITWISE_OR);
+    else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", Precedence.BITWISE_XOR);
+    else if (node.kind == NodeKind.DIVIDE) this.emitBinary(node, parentPrecedence, " / ", Precedence.MULTIPLY); // TODO: This isn't accurate for integer division
+    else if (node.kind == NodeKind.EQUAL) this.emitBinary(node, parentPrecedence, " === ", Precedence.EQUAL);
+    else if (node.kind == NodeKind.GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", Precedence.COMPARE);
+    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", Precedence.COMPARE);
+    else if (node.kind == NodeKind.LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", Precedence.COMPARE);
+    else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", Precedence.COMPARE);
+    else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", Precedence.LOGICAL_AND);
+    else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", Precedence.LOGICAL_OR);
+    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", Precedence.MULTIPLY);
+    else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", Precedence.EQUAL);
+    else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", Precedence.MULTIPLY);
+    else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", Precedence.SHIFT);
+    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", Precedence.SHIFT);
+    else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", Precedence.ADD);
 
     else {
       assert(false);
@@ -231,7 +235,7 @@ class JsResult {
       this.appendIndent();
       while (true) {
         this.emitText("if (");
-        this.emitExpression(node.ifValue(), PRECEDENCE_LOWEST);
+        this.emitExpression(node.ifValue(), Precedence.LOWEST);
         this.emitText(") ");
         this.emitBlock(node.ifTrue());
         var no = node.ifFalse();
@@ -252,7 +256,7 @@ class JsResult {
     else if (node.kind == NodeKind.WHILE) {
       this.appendIndent();
       this.emitText("while (");
-      this.emitExpression(node.whileValue(), PRECEDENCE_LOWEST);
+      this.emitExpression(node.whileValue(), Precedence.LOWEST);
       this.emitText(") ");
       this.emitBlock(node.whileBody());
       this.emitText("\n");
@@ -270,7 +274,7 @@ class JsResult {
 
     else if (node.kind == NodeKind.EXPRESSION) {
       this.appendIndent();
-      this.emitExpression(node.expressionValue(), PRECEDENCE_LOWEST);
+      this.emitExpression(node.expressionValue(), Precedence.LOWEST);
       this.emitText(";\n");
     }
 
@@ -282,7 +286,7 @@ class JsResult {
       this.appendIndent();
       if (value != null) {
         this.emitText("return ");
-        this.emitExpression(value, PRECEDENCE_LOWEST);
+        this.emitExpression(value, Precedence.LOWEST);
         this.emitText(";\n");
       } else {
         this.emitText("return;\n");
@@ -308,7 +312,7 @@ class JsResult {
         }
         assert(value != null);
         this.emitText(" = ");
-        this.emitExpression(value, PRECEDENCE_LOWEST);
+        this.emitExpression(value, Precedence.LOWEST);
       }
       this.emitText(";\n");
     }
@@ -328,7 +332,7 @@ class JsResult {
           this.emitText("this.");
           this.emitString(child.symbol.name);
           this.emitText(" = ");
-          this.emitExpression(child.variableValue(), PRECEDENCE_LOWEST);
+          this.emitExpression(child.variableValue(), Precedence.LOWEST);
           this.emitText(";\n");
         }
         child = child.nextSibling;

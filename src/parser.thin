@@ -1,18 +1,25 @@
-const PRECEDENCE_LOWEST = 0;
-const PRECEDENCE_ASSIGN = 1;
-const PRECEDENCE_LOGICAL_OR = 2;
-const PRECEDENCE_LOGICAL_AND = 3;
-const PRECEDENCE_BITWISE_OR = 4;
-const PRECEDENCE_BITWISE_XOR = 5;
-const PRECEDENCE_BITWISE_AND = 6;
-const PRECEDENCE_EQUAL = 7;
-const PRECEDENCE_COMPARE = 8;
-const PRECEDENCE_SHIFT = 9;
-const PRECEDENCE_ADD = 10;
-const PRECEDENCE_MULTIPLY = 11;
-const PRECEDENCE_UNARY_PREFIX = 12;
-const PRECEDENCE_UNARY_POSTFIX = 13;
-const PRECEDENCE_MEMBER = 14;
+enum Precedence {
+  LOWEST,
+  ASSIGN,
+  LOGICAL_OR,
+  LOGICAL_AND,
+  BITWISE_OR,
+  BITWISE_XOR,
+  BITWISE_AND,
+  EQUAL,
+  COMPARE,
+  SHIFT,
+  ADD,
+  MULTIPLY,
+  UNARY_PREFIX,
+  UNARY_POSTFIX,
+  MEMBER,
+}
+
+enum ParseKind {
+  EXPRESSION,
+  TYPE,
+}
 
 function parseInt(range: Range): int {
   var i = range.start;
@@ -62,18 +69,19 @@ class ParserContext {
       var previousLine = this.previous.range.enclosingLine();
       var currentLine = this.current.range.enclosingLine();
 
-      if (previousLine.equals(currentLine)) {
+      // Show missing terminator errors on the previous line for clarity
+      if ((kind == TokenKind.SEMICOLON || kind == TokenKind.COMMA) && !previousLine.equals(currentLine)) {
+        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
+          String_new("Expected "),
+          tokenToString(kind)));
+      }
+
+      else {
         this.log.error(this.current.range, String_appendNew(String_appendNew(String_appendNew(
           String_new("Expected "),
           tokenToString(kind)),
           " but found "),
           tokenToString(this.current.kind)));
-      }
-
-      else {
-        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
-          String_new("Expected "),
-          tokenToString(kind)));
       }
 
       return false;
@@ -89,7 +97,7 @@ class ParserContext {
     var token = this.current;
     this.advance();
 
-    var value = this.parseExpression(PRECEDENCE_UNARY_PREFIX);
+    var value = this.parseExpression(Precedence.UNARY_PREFIX, ParseKind.EXPRESSION);
     if (value == null) {
       return null;
     }
@@ -97,13 +105,16 @@ class ParserContext {
     return createUnary(kind, value).withRange(spanRanges(token.range, value.range));
   }
 
-  parseBinary(kind: NodeKind, left: Node, localPrecedence: int, operatorPrecedence: int): Node {
+  parseBinary(kind: NodeKind, left: Node, localPrecedence: Precedence, operatorPrecedence: Precedence): Node {
     if (localPrecedence >= operatorPrecedence) {
       return left;
     }
 
     this.advance();
-    var right = this.parseExpression(operatorPrecedence == PRECEDENCE_ASSIGN ? PRECEDENCE_LOWEST : operatorPrecedence); // PRECEDENCE_ASSIGN is right-associative
+
+    // Reduce the precedence since the assign operator is right-associative
+    var precedence = operatorPrecedence == Precedence.ASSIGN ? Precedence.LOWEST : operatorPrecedence;
+    var right = this.parseExpression(precedence, ParseKind.EXPRESSION);
 
     if (right == null) {
       return null;
@@ -112,8 +123,8 @@ class ParserContext {
     return createBinary(kind, left, right).withRange(spanRanges(left.range, right.range));
   }
 
-  parseUnaryPostfix(kind: NodeKind, value: Node, localPrecedence: int): Node {
-    if (localPrecedence >= PRECEDENCE_UNARY_POSTFIX) {
+  parseUnaryPostfix(kind: NodeKind, value: Node, localPrecedence: Precedence): Node {
+    if (localPrecedence >= Precedence.UNARY_POSTFIX) {
       return value;
     }
 
@@ -160,52 +171,8 @@ class ParserContext {
     return String_append(result, String_slice(text, start, end));
   }
 
-  parsePrefix(): Node {
+  parsePrefix(mode: ParseKind): Node {
     var token = this.current;
-
-    if (this.eat(TokenKind.NULL)) {
-      return createNull().withRange(token.range);
-    }
-
-    if (this.eat(TokenKind.THIS)) {
-      return createThis().withRange(token.range);
-    }
-
-    if (this.peek(TokenKind.CHARACTER)) {
-      var text = this.parseQuotedString(token.range);
-      if (text == null) {
-        return null;
-      }
-      if (String_length(text) != 1) {
-        this.log.error(token.range, String_new("Invalid character literal"));
-        return null;
-      }
-      this.advance();
-      return createInt(String_get(text, 0)).withRange(token.range);
-    }
-
-    if (this.peek(TokenKind.STRING)) {
-      var text = this.parseQuotedString(token.range);
-      if (text == null) {
-        return null;
-      }
-      this.advance();
-      return createString(text).withRange(token.range);
-    }
-
-    if (this.peek(TokenKind.INT)) {
-      var value = parseInt(token.range);
-      this.advance();
-      return createInt(value).withRange(token.range);
-    }
-
-    if (this.eat(TokenKind.TRUE)) {
-      return createBool(true).withRange(token.range);
-    }
-
-    if (this.eat(TokenKind.FALSE)) {
-      return createBool(false).withRange(token.range);
-    }
 
     if (this.peek(TokenKind.IDENTIFIER)) {
       var value = token.range.toString();
@@ -213,112 +180,87 @@ class ParserContext {
       return createName(value).withRange(token.range);
     }
 
-    if (this.eat(TokenKind.NEW)) {
-      var type = this.parseType();
-      if (type == null || !this.expect(TokenKind.LEFT_PARENTHESIS)) {
-        return null;
+    if (mode == ParseKind.EXPRESSION) {
+      if (this.eat(TokenKind.NULL)) {
+        return createNull().withRange(token.range);
       }
-      var close = this.current;
-      if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-        return null;
-      }
-      return createNew(type).withRange(spanRanges(token.range, close.range));
-    }
 
-    if (this.eat(TokenKind.LEFT_PARENTHESIS)) {
-      var value = this.parseExpression(PRECEDENCE_LOWEST);
-      if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-        return null;
+      if (this.eat(TokenKind.THIS)) {
+        return createThis().withRange(token.range);
       }
-      return value;
-    }
 
-    // Unary prefix
-    if (this.peek(TokenKind.NOT)) return this.parseUnaryPrefix(NodeKind.NOT);
-    if (this.peek(TokenKind.MINUS)) return this.parseUnaryPrefix(NodeKind.NEGATIVE);
-    if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_DECREMENT);
-    if (this.peek(TokenKind.PLUS)) return this.parseUnaryPrefix(NodeKind.POSITIVE);
-    if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_INCREMENT);
-    if (this.peek(TokenKind.COMPLEMENT)) return this.parseUnaryPrefix(NodeKind.COMPLEMENT);
+      if (this.peek(TokenKind.CHARACTER)) {
+        var text = this.parseQuotedString(token.range);
+        if (text == null) {
+          return null;
+        }
+        if (String_length(text) != 1) {
+          this.log.error(token.range, String_new("Invalid character literal"));
+          return null;
+        }
+        this.advance();
+        return createInt(String_get(text, 0)).withRange(token.range);
+      }
+
+      if (this.peek(TokenKind.STRING)) {
+        var text = this.parseQuotedString(token.range);
+        if (text == null) {
+          return null;
+        }
+        this.advance();
+        return createString(text).withRange(token.range);
+      }
+
+      if (this.peek(TokenKind.INT)) {
+        var value = parseInt(token.range);
+        this.advance();
+        return createInt(value).withRange(token.range);
+      }
+
+      if (this.eat(TokenKind.TRUE)) {
+        return createBool(true).withRange(token.range);
+      }
+
+      if (this.eat(TokenKind.FALSE)) {
+        return createBool(false).withRange(token.range);
+      }
+
+      if (this.eat(TokenKind.NEW)) {
+        var type = this.parseType();
+        if (type == null || !this.expect(TokenKind.LEFT_PARENTHESIS)) {
+          return null;
+        }
+        var close = this.current;
+        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+          return null;
+        }
+        return createNew(type).withRange(spanRanges(token.range, close.range));
+      }
+
+      if (this.eat(TokenKind.LEFT_PARENTHESIS)) {
+        var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+        if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+          return null;
+        }
+        return value;
+      }
+
+      // Unary prefix
+      if (this.peek(TokenKind.NOT)) return this.parseUnaryPrefix(NodeKind.NOT);
+      if (this.peek(TokenKind.MINUS)) return this.parseUnaryPrefix(NodeKind.NEGATIVE);
+      if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_DECREMENT);
+      if (this.peek(TokenKind.PLUS)) return this.parseUnaryPrefix(NodeKind.POSITIVE);
+      if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_INCREMENT);
+      if (this.peek(TokenKind.COMPLEMENT)) return this.parseUnaryPrefix(NodeKind.COMPLEMENT);
+    }
 
     this.unexpectedToken();
     return null;
   }
 
-  parseInfix(precedence: int, node: Node): Node {
-    var token = this.current;
-
-    // Binary
-    if (this.peek(TokenKind.ASSIGN)) return this.parseBinary(NodeKind.ASSIGN, node, precedence, PRECEDENCE_ASSIGN);
-    if (this.peek(TokenKind.BITWISE_AND)) return this.parseBinary(NodeKind.BITWISE_AND, node, precedence, PRECEDENCE_BITWISE_AND);
-    if (this.peek(TokenKind.BITWISE_OR)) return this.parseBinary(NodeKind.BITWISE_OR, node, precedence, PRECEDENCE_BITWISE_OR);
-    if (this.peek(TokenKind.BITWISE_XOR)) return this.parseBinary(NodeKind.BITWISE_XOR, node, precedence, PRECEDENCE_BITWISE_XOR);
-    if (this.peek(TokenKind.DIVIDE)) return this.parseBinary(NodeKind.DIVIDE, node, precedence, PRECEDENCE_MULTIPLY);
-    if (this.peek(TokenKind.EQUAL)) return this.parseBinary(NodeKind.EQUAL, node, precedence, PRECEDENCE_EQUAL);
-    if (this.peek(TokenKind.GREATER_THAN)) return this.parseBinary(NodeKind.GREATER_THAN, node, precedence, PRECEDENCE_COMPARE);
-    if (this.peek(TokenKind.GREATER_THAN_EQUAL)) return this.parseBinary(NodeKind.GREATER_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
-    if (this.peek(TokenKind.LESS_THAN)) return this.parseBinary(NodeKind.LESS_THAN, node, precedence, PRECEDENCE_COMPARE);
-    if (this.peek(TokenKind.LESS_THAN_EQUAL)) return this.parseBinary(NodeKind.LESS_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
-    if (this.peek(TokenKind.LOGICAL_AND)) return this.parseBinary(NodeKind.LOGICAL_AND, node, precedence, PRECEDENCE_LOGICAL_AND);
-    if (this.peek(TokenKind.LOGICAL_OR)) return this.parseBinary(NodeKind.LOGICAL_OR, node, precedence, PRECEDENCE_LOGICAL_OR);
-    if (this.peek(TokenKind.MINUS)) return this.parseBinary(NodeKind.SUBTRACT, node, precedence, PRECEDENCE_ADD);
-    if (this.peek(TokenKind.MULTIPLY)) return this.parseBinary(NodeKind.MULTIPLY, node, precedence, PRECEDENCE_MULTIPLY);
-    if (this.peek(TokenKind.NOT_EQUAL)) return this.parseBinary(NodeKind.NOT_EQUAL, node, precedence, PRECEDENCE_EQUAL);
-    if (this.peek(TokenKind.PLUS)) return this.parseBinary(NodeKind.ADD, node, precedence, PRECEDENCE_ADD);
-    if (this.peek(TokenKind.REMAINDER)) return this.parseBinary(NodeKind.REMAINDER, node, precedence, PRECEDENCE_MULTIPLY);
-    if (this.peek(TokenKind.SHIFT_LEFT)) return this.parseBinary(NodeKind.SHIFT_LEFT, node, precedence, PRECEDENCE_SHIFT);
-    if (this.peek(TokenKind.SHIFT_RIGHT)) return this.parseBinary(NodeKind.SHIFT_RIGHT, node, precedence, PRECEDENCE_SHIFT);
-
-    // Unary postfix
-    if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPostfix(NodeKind.POSTFIX_INCREMENT, node, precedence);
-    if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPostfix(NodeKind.POSTFIX_DECREMENT, node, precedence);
-
-    // Call
-    if (this.peek(TokenKind.LEFT_PARENTHESIS) && precedence < PRECEDENCE_UNARY_POSTFIX) {
-      this.advance();
-      var call = createCall(node);
-
-      if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
-        while (true) {
-          var value = this.parseExpression(PRECEDENCE_LOWEST);
-          if (value == null) {
-            return null;
-          }
-          call.appendChild(value);
-
-          if (!this.eat(TokenKind.COMMA)) {
-            break;
-          }
-        }
-      }
-
-      var close = this.current;
-      if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-        return null;
-      }
-
-      return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token.range, close.range));
-    }
-
-    // Hook
-    if (this.peek(TokenKind.QUESTION_MARK) && precedence < PRECEDENCE_ASSIGN) {
-      this.advance();
-
-      var middle = this.parseExpression(PRECEDENCE_LOWEST);
-      if (middle == null || !this.expect(TokenKind.COLON)) {
-        return null;
-      }
-
-      var right = this.parseExpression(PRECEDENCE_LOWEST);
-      if (right == null) {
-        return null;
-      }
-
-      return createHook(node, middle, right).withRange(spanRanges(node.range, right.range));
-    }
-
+  parseInfix(precedence: Precedence, node: Node, mode: ParseKind): Node {
     // Dot
-    if (this.peek(TokenKind.DOT) && precedence < PRECEDENCE_MEMBER) {
+    if (this.peek(TokenKind.DOT) && precedence < Precedence.MEMBER) {
       this.advance();
 
       var name = this.current;
@@ -329,12 +271,93 @@ class ParserContext {
       return createDot(node, name.range.toString()).withRange(spanRanges(node.range, name.range)).withInternalRange(name.range);
     }
 
+    if (mode == ParseKind.EXPRESSION) {
+      // Binary
+      if (this.peek(TokenKind.ASSIGN)) return this.parseBinary(NodeKind.ASSIGN, node, precedence, Precedence.ASSIGN);
+      if (this.peek(TokenKind.BITWISE_AND)) return this.parseBinary(NodeKind.BITWISE_AND, node, precedence, Precedence.BITWISE_AND);
+      if (this.peek(TokenKind.BITWISE_OR)) return this.parseBinary(NodeKind.BITWISE_OR, node, precedence, Precedence.BITWISE_OR);
+      if (this.peek(TokenKind.BITWISE_XOR)) return this.parseBinary(NodeKind.BITWISE_XOR, node, precedence, Precedence.BITWISE_XOR);
+      if (this.peek(TokenKind.DIVIDE)) return this.parseBinary(NodeKind.DIVIDE, node, precedence, Precedence.MULTIPLY);
+      if (this.peek(TokenKind.EQUAL)) return this.parseBinary(NodeKind.EQUAL, node, precedence, Precedence.EQUAL);
+      if (this.peek(TokenKind.GREATER_THAN)) return this.parseBinary(NodeKind.GREATER_THAN, node, precedence, Precedence.COMPARE);
+      if (this.peek(TokenKind.GREATER_THAN_EQUAL)) return this.parseBinary(NodeKind.GREATER_THAN_EQUAL, node, precedence, Precedence.COMPARE);
+      if (this.peek(TokenKind.LESS_THAN)) return this.parseBinary(NodeKind.LESS_THAN, node, precedence, Precedence.COMPARE);
+      if (this.peek(TokenKind.LESS_THAN_EQUAL)) return this.parseBinary(NodeKind.LESS_THAN_EQUAL, node, precedence, Precedence.COMPARE);
+      if (this.peek(TokenKind.LOGICAL_AND)) return this.parseBinary(NodeKind.LOGICAL_AND, node, precedence, Precedence.LOGICAL_AND);
+      if (this.peek(TokenKind.LOGICAL_OR)) return this.parseBinary(NodeKind.LOGICAL_OR, node, precedence, Precedence.LOGICAL_OR);
+      if (this.peek(TokenKind.MINUS)) return this.parseBinary(NodeKind.SUBTRACT, node, precedence, Precedence.ADD);
+      if (this.peek(TokenKind.MULTIPLY)) return this.parseBinary(NodeKind.MULTIPLY, node, precedence, Precedence.MULTIPLY);
+      if (this.peek(TokenKind.NOT_EQUAL)) return this.parseBinary(NodeKind.NOT_EQUAL, node, precedence, Precedence.EQUAL);
+      if (this.peek(TokenKind.PLUS)) return this.parseBinary(NodeKind.ADD, node, precedence, Precedence.ADD);
+      if (this.peek(TokenKind.REMAINDER)) return this.parseBinary(NodeKind.REMAINDER, node, precedence, Precedence.MULTIPLY);
+      if (this.peek(TokenKind.SHIFT_LEFT)) return this.parseBinary(NodeKind.SHIFT_LEFT, node, precedence, Precedence.SHIFT);
+      if (this.peek(TokenKind.SHIFT_RIGHT)) return this.parseBinary(NodeKind.SHIFT_RIGHT, node, precedence, Precedence.SHIFT);
+
+      // Unary postfix
+      if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPostfix(NodeKind.POSTFIX_INCREMENT, node, precedence);
+      if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPostfix(NodeKind.POSTFIX_DECREMENT, node, precedence);
+
+      // Cast
+      if (this.eat(TokenKind.AS) && precedence < Precedence.UNARY_PREFIX) {
+        var type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+        return createCast(node, type).withRange(spanRanges(node.range, type.range));
+      }
+
+      // Call
+      if (this.peek(TokenKind.LEFT_PARENTHESIS) && precedence < Precedence.UNARY_POSTFIX) {
+        var token = this.current;
+        this.advance();
+        var call = createCall(node);
+
+        if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+          while (true) {
+            var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+            if (value == null) {
+              return null;
+            }
+            call.appendChild(value);
+
+            if (!this.eat(TokenKind.COMMA)) {
+              break;
+            }
+          }
+        }
+
+        var close = this.current;
+        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+          return null;
+        }
+
+        return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token.range, close.range));
+      }
+
+      // Hook
+      if (this.peek(TokenKind.QUESTION_MARK) && precedence < Precedence.ASSIGN) {
+        this.advance();
+
+        var middle = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+        if (middle == null || !this.expect(TokenKind.COLON)) {
+          return null;
+        }
+
+        var right = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+        if (right == null) {
+          return null;
+        }
+
+        return createHook(node, middle, right).withRange(spanRanges(node.range, right.range));
+      }
+    }
+
     return node;
   }
 
-  parseExpression(precedence: int): Node {
+  parseExpression(precedence: Precedence, mode: ParseKind): Node {
     // Prefix
-    var node = this.parsePrefix();
+    var node = this.parsePrefix(mode);
     if (node == null) {
       return null;
     }
@@ -342,7 +365,7 @@ class ParserContext {
 
     // Infix
     while (true) {
-      var result = this.parseInfix(precedence, node);
+      var result = this.parseInfix(precedence, node, mode);
       if (result == null) {
         return null;
       }
@@ -357,7 +380,7 @@ class ParserContext {
   }
 
   parseType(): Node {
-    return this.parseExpression(PRECEDENCE_UNARY_POSTFIX);
+    return this.parseExpression(Precedence.UNARY_POSTFIX, ParseKind.TYPE);
   }
 
   parseIf(): Node {
@@ -369,7 +392,7 @@ class ParserContext {
       return null;
     }
 
-    var value = this.parseExpression(PRECEDENCE_LOWEST);
+    var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
     if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
       return null;
     }
@@ -400,7 +423,7 @@ class ParserContext {
       return null;
     }
 
-    var value = this.parseExpression(PRECEDENCE_LOWEST);
+    var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
     if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
       return null;
     }
@@ -454,7 +477,7 @@ class ParserContext {
 
     var value: Node = null;
     if (!this.peek(TokenKind.SEMICOLON)) {
-      value = this.parseExpression(PRECEDENCE_LOWEST);
+      value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
       if (value == null) {
         return null;
       }
@@ -497,7 +520,7 @@ class ParserContext {
       }
 
       if (this.eat(TokenKind.ASSIGN)) {
-        value = this.parseExpression(PRECEDENCE_LOWEST);
+        value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
         if (value == null) {
           return null;
         }
@@ -667,7 +690,7 @@ class ParserContext {
 
       var value: Node = null;
       if (this.eat(TokenKind.ASSIGN)) {
-        value = this.parseExpression(PRECEDENCE_LOWEST);
+        value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
         if (value == null) {
           return null;
         }
@@ -740,7 +763,7 @@ class ParserContext {
     if (this.peek(TokenKind.SEMICOLON)) return this.parseEmpty();
 
     // Parse an expression statement
-    var value = this.parseExpression(PRECEDENCE_LOWEST);
+    var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
 
     if (value == null) {
       return null;

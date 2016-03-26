@@ -44,6 +44,7 @@ enum TokenKind {
   SHIFT_RIGHT,
 
   // Keywords
+  AS,
   BREAK,
   CLASS,
   CONST,
@@ -120,6 +121,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.SHIFT_RIGHT) return "'>>'";
 
   // Keywords
+  if (token == TokenKind.AS) return "'as'";
   if (token == TokenKind.BREAK) return "'break'";
   if (token == TokenKind.CLASS) return "'class'";
   if (token == TokenKind.CONST) return "'const'";
@@ -186,7 +188,8 @@ function tokenize(source: Source, log: Log): Token {
 
       // Keywords
       var text = String_slice(contents, start, i);
-      if (String_equalNew(text, "break")) kind = TokenKind.BREAK;
+      if (String_equalNew(text, "as")) kind = TokenKind.AS;
+      else if (String_equalNew(text, "break")) kind = TokenKind.BREAK;
       else if (String_equalNew(text, "class")) kind = TokenKind.CLASS;
       else if (String_equalNew(text, "const")) kind = TokenKind.CONST;
       else if (String_equalNew(text, "continue")) kind = TokenKind.CONTINUE;

@@ -202,7 +202,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
       if (value != null) {
         resolveAsExpression(context, value, symbol.scope);
-        checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context));
+        checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), ConversionKind.IMPLICIT);
 
         // TODO: Constant folding
         if (value.kind == NodeKind.INT) {
@@ -288,20 +288,46 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
   }
 }
 
-function checkConversion(context: CheckContext, from: Node, to: Type): void {
-  assert(isExpression(from));
+enum ConversionKind {
+  IMPLICIT,
+  EXPLICIT,
+}
+
+function checkConversion(context: CheckContext, node: Node, to: Type, kind: ConversionKind): void {
+  var from = node.resolvedType;
+  var canCast = false;
+
+  assert(isExpression(node));
+  assert(from != null);
   assert(to != null);
 
-  if (from.resolvedType != context.errorType && to != context.errorType &&
-      from.resolvedType != to && (from.resolvedType != context.nullType || !to.isReference(context))) {
-    context.log.error(from.range, String_appendNew(String_append(String_appendNew(String_append(
-      String_new("Cannot convert from type '"),
-      from.resolvedType.toString()),
-      "' to type '"),
-      to.toString()),
-      "'"));
-    from.resolvedType = context.errorType;
+  // Early-out if the types are identical or errors
+  if (from == to || from == context.errorType || to == context.errorType) {
+    return;
   }
+
+  // Allow conversions from null
+  if (from == context.nullType && to.isReference(context)) {
+    return;
+  }
+
+  // Check integer conversions
+  if (from.isInteger(context) && to.isInteger(context) && kind == ConversionKind.EXPLICIT) {
+    return;
+    canCast = true;
+  }
+
+  // All other conversions are an error
+  var message = String_appendNew(String_append(String_appendNew(String_append(
+    String_new("Cannot convert from type '"),
+    from.toString()),
+    "' to type '"),
+    to.toString()),
+    "'");
+  context.log.error(node.range, canCast ? String_appendNew(message, " without a cast") : message);
+
+  // Prevent further errors
+  node.resolvedType = context.errorType;
 }
 
 function checkStorage(context: CheckContext, target: Node): void {
@@ -317,7 +343,7 @@ function checkStorage(context: CheckContext, target: Node): void {
 function resolveUnary(context: CheckContext, node: Node, parentScope: Scope, expectedType: Type): void {
   var value = node.unaryValue();
   resolveAsExpression(context, value, parentScope);
-  checkConversion(context, value, expectedType);
+  checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
   node.resolvedType = expectedType;
 }
 
@@ -331,8 +357,8 @@ function resolveBinary(context: CheckContext, node: Node, parentScope: Scope): v
 function checkBinary(context: CheckContext, node: Node, expectedType: Type, resultType: Type): void {
   var left = node.binaryLeft();
   var right = node.binaryRight();
-  checkConversion(context, left, expectedType);
-  checkConversion(context, right, expectedType);
+  checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
+  checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
   node.resolvedType = resultType;
 }
 
@@ -403,7 +429,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var value = node.variableValue();
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
-      checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context));
+      checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), ConversionKind.IMPLICIT);
     }
 
     else {
@@ -504,6 +530,15 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
+  else if (node.kind == NodeKind.CAST) {
+    var value = node.castValue();
+    var type = node.castType();
+    resolveAsExpression(context, value, parentScope);
+    resolveAsType(context, type, parentScope);
+    checkConversion(context, value, type.resolvedType, ConversionKind.EXPLICIT);
+    node.resolvedType = type.resolvedType;
+  }
+
   else if (node.kind == NodeKind.DOT) {
     var target = node.dotTarget();
     resolve(context, target, parentScope);
@@ -568,7 +603,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         // Match argument values with variables
         while (argumentVariable != returnType && argumentValue != null) {
           resolveAsExpression(context, argumentValue, parentScope);
-          checkConversion(context, argumentValue, argumentVariable.symbol.resolvedType);
+          checkConversion(context, argumentValue, argumentVariable.symbol.resolvedType, ConversionKind.IMPLICIT);
           argumentVariable = argumentVariable.nextSibling;
           argumentValue = argumentValue.nextSibling;
         }
@@ -606,7 +641,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       resolveAsExpression(context, value, parentScope);
 
       if (context.currentReturnType != null) {
-        checkConversion(context, value, context.currentReturnType);
+        checkConversion(context, value, context.currentReturnType, ConversionKind.IMPLICIT);
       }
     }
 
@@ -626,7 +661,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var value = node.whileValue();
     var body = node.whileBody();
     resolveAsExpression(context, value, parentScope);
-    checkConversion(context, value, context.boolType);
+    checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
     resolve(context, body, parentScope);
   }
 
@@ -635,7 +670,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var yes = node.ifTrue();
     var no = node.ifFalse();
     resolveAsExpression(context, value, parentScope);
-    checkConversion(context, value, context.boolType);
+    checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
     resolve(context, yes, parentScope);
     if (no != null) {
       resolve(context, no, parentScope);
@@ -647,7 +682,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var yes = node.hookTrue();
     var no = node.hookFalse();
     resolveAsExpression(context, value, parentScope);
-    checkConversion(context, value, context.boolType);
+    checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
     resolve(context, yes, parentScope);
     resolve(context, no, parentScope);
     var commonType = (yes.resolvedType == context.nullType ? no : yes).resolvedType;
@@ -668,7 +703,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
-    checkConversion(context, right, left.resolvedType);
+    checkConversion(context, right, left.resolvedType, ConversionKind.IMPLICIT);
     checkStorage(context, left);
     node.resolvedType = left.resolvedType;
   }
@@ -689,8 +724,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
     var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger(context) ? left.resolvedType : context.intType;
-    checkConversion(context, left, expectedType);
-    checkConversion(context, right, expectedType);
+    checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
+    checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
   }
 
   else if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
