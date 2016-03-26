@@ -46,7 +46,7 @@ class Symbol {
   //   FUNCTION_GLOBAL: N/A
   //
   //   VARIABLE_ARGUMENT: Argument index
-  //   VARIABLE_CONSTANT: N/A
+  //   VARIABLE_CONSTANT: Integer constant value
   //   VARIABLE_INSTANCE: Instance offset
   //   VARIABLE_LOCAL: N/A
   //
@@ -215,6 +215,14 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     define(context.log, parentScope, symbol);
 
     parentScope = symbol.scope;
+
+    // All instance functions have a special "this" type
+    if (symbol.kind == FUNCTION_INSTANCE) {
+      var parent = node.parent.symbol;
+      assert(parent.kind == TYPE_CLASS);
+      initializeSymbol(context, parent);
+      insertChildBefore(node, node.firstChild, createVariable(String_new("this"), createType(parent.resolvedType), null));
+    }
   }
 
   // Variable
@@ -384,7 +392,7 @@ function resolveAsExpression(context: CheckContext, node: Node, parentScope: Sco
   assert(isExpression(node));
   resolve(context, node, parentScope);
 
-  if (node.resolvedType != context.errorType && node.symbol != null && isType(node.symbol.kind)) {
+  if (node.resolvedType != context.errorType && (node.kind == NODE_TYPE || node.symbol != null && isType(node.symbol.kind))) {
     error(context.log, node.range, String_new("Expected expression but found type"));
     node.resolvedType = context.errorType;
   }
@@ -394,7 +402,7 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
   assert(isExpression(node));
   resolve(context, node, parentScope);
 
-  if (node.resolvedType != context.errorType && (node.symbol == null || !isType(node.symbol.kind))) {
+  if (node.resolvedType != context.errorType && node.kind != NODE_TYPE && (node.symbol == null || !isType(node.symbol.kind))) {
     error(context.log, node.range, String_new("Expected type but found expression"));
     node.resolvedType = context.errorType;
   }
@@ -558,7 +566,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NODE_THIS) {
-    error(context.log, node.range, String_new("TODO: support 'this'"));
+    var symbol = findNested(parentScope, String_new("this"), FIND_NESTED_NORMAL);
+    if (symbol == null) {
+      error(context.log, node.range, String_new("Cannot use 'this' here"));
+    } else {
+      node.kind = NODE_NAME;
+      node.symbol = symbol;
+      node.resolvedType = symbol.resolvedType;
+    }
   }
 
   else if (node.kind == NODE_NAME) {
@@ -669,7 +684,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         initializeSymbol(context, symbol);
 
         var returnType = functionReturnType(symbol.node);
-        var argumentVariable = symbol.node.firstChild;
+        var argumentVariable = functionFirstArgumentIgnoringThis(symbol.node);
         var argumentValue = value.nextSibling;
 
         // Match argument values with variables

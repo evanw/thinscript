@@ -659,14 +659,12 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
     var symbol = value.symbol;
     assert(isFunction(symbol.kind));
 
-    if (functionBody(symbol.node) == null) {
-      ByteArray_appendByte(array, WASM_OPCODE_CALL_IMPORT);
-      wasmWriteVarUnsigned(array, symbol.offset);
-    }
+    ByteArray_appendByte(array, functionBody(symbol.node) == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
+    wasmWriteVarUnsigned(array, symbol.offset);
 
-    else {
-      ByteArray_appendByte(array, WASM_OPCODE_CALL);
-      wasmWriteVarUnsigned(array, symbol.offset);
+    // Write out the implicit "this" argument
+    if (symbol.kind == FUNCTION_INSTANCE) {
+      wasmEmitNode(array, dotTarget(value));
     }
 
     var child = value.nextSibling;
@@ -934,6 +932,58 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
   }
 }
 
+function wasmPrepareFunctions(node: Node, module: WasmModule, context: CheckContext): void {
+  if (node.kind == NODE_GLOBAL || node.kind == NODE_CLASS) {
+    var child = node.firstChild;
+    while (child != null) {
+      wasmPrepareFunctions(child, module, context);
+      child = child.nextSibling;
+    }
+  }
+
+  else if (node.kind == NODE_FUNCTION) {
+    var returnType = functionReturnType(node);
+    var shared = new WasmSharedOffset();
+    var argumentTypesFirst: WasmType = null;
+    var argumentTypesLast: WasmType = null;
+
+    // Make sure to include the implicit "this" variable as a normal argument
+    var argument = node.firstChild;
+    while (argument != returnType) {
+      var type = wasmWrapType(wasmGetType(context, variableType(argument).resolvedType));
+
+      if (argumentTypesFirst == null) argumentTypesFirst = type;
+      else argumentTypesLast.next = type;
+      argumentTypesLast = type;
+
+      shared.nextLocalOffset = shared.nextLocalOffset + 1;
+      argument = argument.nextSibling;
+    }
+    var signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+    var body = functionBody(node);
+
+    // Functions without bodies are imports
+    if (body == null) {
+      node.symbol.offset = module.importCount;
+      wasmAllocateImport(module, signatureIndex, String_new("imports"), node.symbol.name);
+      node = node.nextSibling;
+      return;
+    }
+
+    node.symbol.offset = module.functionCount;
+    var fn = wasmAllocateFunction(module, node.symbol.name, signatureIndex, body);
+
+    // Only export "extern" functions
+    if (isExternSymbol(node.symbol)) {
+      fn.isExported = true;
+    }
+
+    // Assign local variable offsets
+    wasmAssignLocalVariableOffsets(body, shared);
+    fn.intLocalCount = shared.intLocalCount;
+  }
+}
+
 function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   var module = new WasmModule();
   module.memoryInitializer = ByteArray_new();
@@ -945,56 +995,11 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   ByteArray_appendByte(module.memoryInitializer, 0);
 
   // The "malloc" equivalent is in the standard library
-  var imports = String_new("imports");
   var signatureIndex = wasmAllocateSignature(module, wasmWrapType(WASM_TYPE_I32), wasmWrapType(WASM_TYPE_I32));
-  wasmAllocateImport(module, signatureIndex, imports, String_new("new"));
+  wasmAllocateImport(module, signatureIndex, String_new("imports"), String_new("new"));
 
   // Build the string table
   wasmCollectStrings(module, global);
-
-  var child = global.firstChild;
-  while (child != null) {
-    if (child.kind == NODE_FUNCTION) {
-      var returnType = functionReturnType(child);
-      var shared = new WasmSharedOffset();
-      var argumentTypesFirst: WasmType = null;
-      var argumentTypesLast: WasmType = null;
-      var argument = child.firstChild;
-      while (argument != returnType) {
-        var type = wasmWrapType(wasmGetType(context, variableType(argument).resolvedType));
-
-        if (argumentTypesFirst == null) argumentTypesFirst = type;
-        else argumentTypesLast.next = type;
-        argumentTypesLast = type;
-
-        shared.nextLocalOffset = shared.nextLocalOffset + 1;
-        argument = argument.nextSibling;
-      }
-      signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
-      var body = functionBody(child);
-
-      // Functions without bodies are imports
-      if (body == null) {
-        child.symbol.offset = module.importCount;
-        wasmAllocateImport(module, signatureIndex, imports, child.symbol.name);
-        child = child.nextSibling;
-        continue;
-      }
-
-      child.symbol.offset = module.functionCount;
-      var fn = wasmAllocateFunction(module, child.symbol.name, signatureIndex, body);
-
-      // Only export "extern" functions
-      if (isExternSymbol(child.symbol)) {
-        fn.isExported = true;
-      }
-
-      // Assign local variable offsets
-      wasmAssignLocalVariableOffsets(body, shared);
-      fn.intLocalCount = shared.intLocalCount;
-    }
-    child = child.nextSibling;
-  }
-
+  wasmPrepareFunctions(global, module, context);
   wasmEmitModule(array, module);
 }

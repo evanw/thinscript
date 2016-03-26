@@ -186,18 +186,21 @@ function jsEmitStatement(result: JsResult, node: Node): void {
       return;
     }
 
+    var needsSemicolon = false;
     jsAppendIndent(result);
     if (node.parent.kind == NODE_CLASS) {
       jsAppendString(result, node.parent.symbol.name);
       jsAppendText(result, ".prototype.");
       jsAppendString(result, node.symbol.name);
       jsAppendText(result, " = function");
+      needsSemicolon = true;
     } else if (isExternSymbol(node.symbol)) {
       jsAppendText(result, "var ");
       jsAppendString(result, node.symbol.name);
       jsAppendText(result, " = exports.");
       jsAppendString(result, node.symbol.name);
       jsAppendText(result, " = function");
+      needsSemicolon = true;
     } else {
       jsAppendText(result, "function ");
       jsAppendString(result, node.symbol.name);
@@ -205,19 +208,19 @@ function jsEmitStatement(result: JsResult, node: Node): void {
     jsAppendText(result, "(");
 
     var returnType = functionReturnType(node);
-    var child = node.firstChild;
+    var child = functionFirstArgumentIgnoringThis(node);
     while (child != returnType) {
       assert(child.kind == NODE_VARIABLE);
-      if (child != node.firstChild) {
-        jsAppendText(result, ", ");
-      }
       jsAppendString(result, child.symbol.name);
       child = child.nextSibling;
+      if (child != returnType) {
+        jsAppendText(result, ", ");
+      }
     }
 
     jsAppendText(result, ") ");
     jsEmitBlock(result, functionBody(node));
-    jsAppendText(result, isExternSymbol(node.symbol) ? ";\n" : "\n");
+    jsAppendText(result, needsSemicolon ? ";\n" : "\n");
   }
 
   else if (node.kind == NODE_IF) {

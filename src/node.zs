@@ -28,37 +28,38 @@ const NODE_NEW = 21;
 const NODE_NULL = 22;
 const NODE_STRING = 23;
 const NODE_THIS = 24;
+const NODE_TYPE = 25;
 
 // Unary expressions
-const NODE_COMPLEMENT = 25;
-const NODE_NEGATIVE = 26;
-const NODE_NOT = 27;
-const NODE_POSITIVE = 28;
-const NODE_POSTFIX_DECREMENT = 29;
-const NODE_POSTFIX_INCREMENT = 30;
-const NODE_PREFIX_DECREMENT = 31;
-const NODE_PREFIX_INCREMENT = 32;
+const NODE_COMPLEMENT = 26;
+const NODE_NEGATIVE = 27;
+const NODE_NOT = 28;
+const NODE_POSITIVE = 29;
+const NODE_POSTFIX_DECREMENT = 30;
+const NODE_POSTFIX_INCREMENT = 31;
+const NODE_PREFIX_DECREMENT = 32;
+const NODE_PREFIX_INCREMENT = 33;
 
 // Binary expressions
-const NODE_ADD = 33;
-const NODE_ASSIGN = 34;
-const NODE_BITWISE_AND = 35;
-const NODE_BITWISE_OR = 36;
-const NODE_BITWISE_XOR = 37;
-const NODE_DIVIDE = 38;
-const NODE_EQUAL = 39;
-const NODE_GREATER_THAN = 40;
-const NODE_GREATER_THAN_EQUAL = 41;
-const NODE_LESS_THAN = 42;
-const NODE_LESS_THAN_EQUAL = 43;
-const NODE_LOGICAL_AND = 44;
-const NODE_LOGICAL_OR = 45;
-const NODE_MULTIPLY = 46;
-const NODE_NOT_EQUAL = 47;
-const NODE_REMAINDER = 48;
-const NODE_SHIFT_LEFT = 49;
-const NODE_SHIFT_RIGHT = 50;
-const NODE_SUBTRACT = 51;
+const NODE_ADD = 34;
+const NODE_ASSIGN = 35;
+const NODE_BITWISE_AND = 36;
+const NODE_BITWISE_OR = 37;
+const NODE_BITWISE_XOR = 38;
+const NODE_DIVIDE = 39;
+const NODE_EQUAL = 40;
+const NODE_GREATER_THAN = 41;
+const NODE_GREATER_THAN_EQUAL = 42;
+const NODE_LESS_THAN = 43;
+const NODE_LESS_THAN_EQUAL = 44;
+const NODE_LOGICAL_AND = 45;
+const NODE_LOGICAL_OR = 46;
+const NODE_MULTIPLY = 47;
+const NODE_NOT_EQUAL = 48;
+const NODE_REMAINDER = 49;
+const NODE_SHIFT_LEFT = 50;
+const NODE_SHIFT_RIGHT = 51;
+const NODE_SUBTRACT = 52;
 
 function isUnary(kind: int): bool {
   return kind >= NODE_COMPLEMENT && kind <= NODE_PREFIX_INCREMENT;
@@ -118,6 +119,37 @@ function appendChild(node: Node, child: Node): void {
     node.lastChild.nextSibling = child;
     node.lastChild = child;
   }
+}
+
+function insertChildBefore(parent: Node, after: Node, before: Node): void {
+  if (before == null) {
+    return;
+  }
+
+  assert(before != after);
+  assert(before.parent == null);
+  assert(before.previousSibling == null);
+  assert(before.nextSibling == null);
+  assert(after == null || after.parent == parent);
+
+  if (after == null) {
+    appendChild(parent, before);
+    return;
+  }
+
+  before.parent = parent;
+  before.previousSibling = after.previousSibling;
+  before.nextSibling = after;
+
+  if (after.previousSibling != null) {
+    assert(after == after.previousSibling.nextSibling);
+    after.previousSibling.nextSibling = before;
+  } else {
+    assert(after == parent.firstChild);
+    parent.firstChild = before;
+  }
+
+  after.previousSibling = before;
 }
 
 function remove(node: Node): void {
@@ -211,6 +243,13 @@ function createName(value: String): Node {
   var node = new Node();
   node.kind = NODE_NAME;
   node.stringValue = value;
+  return node;
+}
+
+function createType(type: Type): Node {
+  var node = new Node();
+  node.kind = NODE_TYPE;
+  node.resolvedType = type;
   return node;
 }
 
@@ -345,6 +384,13 @@ function createDot(value: Node, name: String): Node {
   node.stringValue = name;
   appendChild(node, value);
   return node;
+}
+
+function functionFirstArgumentIgnoringThis(node: Node): Node {
+  assert(node.kind == NODE_FUNCTION);
+  assert(childCount(node) >= 2);
+  assert(node.symbol != null);
+  return node.symbol.kind == FUNCTION_INSTANCE ? node.firstChild.nextSibling : node.firstChild;
 }
 
 function functionReturnType(node: Node): Node {
