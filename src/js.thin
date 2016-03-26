@@ -58,7 +58,7 @@ class JsResult {
   }
 
   emitBinary(node: Node, parentPrecedence: int, operator: string, operatorPrecedence: int): void {
-    var isRightAssociative = node.kind == NODE_ASSIGN;
+    var isRightAssociative = node.kind == NodeKind.ASSIGN;
 
     if (parentPrecedence > operatorPrecedence) {
       this.emitText("(");
@@ -74,33 +74,33 @@ class JsResult {
   }
 
   emitExpression(node: Node, parentPrecedence: int): void {
-    if (node.kind == NODE_NAME) {
+    if (node.kind == NodeKind.NAME) {
       this.emitString(node.symbol.name);
     }
 
-    else if (node.kind == NODE_NULL) {
+    else if (node.kind == NodeKind.NULL) {
       this.emitText("null");
     }
 
-    else if (node.kind == NODE_BOOL) {
+    else if (node.kind == NodeKind.BOOL) {
       this.emitText(node.intValue != 0 ? "true" : "false");
     }
 
-    else if (node.kind == NODE_INT) {
+    else if (node.kind == NodeKind.INT) {
       this.emitString(String_toString(node.intValue));
     }
 
-    else if (node.kind == NODE_STRING) {
+    else if (node.kind == NodeKind.STRING) {
       this.emitString(String_quote(node.stringValue));
     }
 
-    else if (node.kind == NODE_DOT) {
+    else if (node.kind == NodeKind.DOT) {
       this.emitExpression(node.dotTarget(), PRECEDENCE_MEMBER);
       this.emitText(".");
       this.emitString(node.symbol.name);
     }
 
-    else if (node.kind == NODE_HOOK) {
+    else if (node.kind == NodeKind.HOOK) {
       if (parentPrecedence > PRECEDENCE_ASSIGN) {
         this.emitText("(");
       }
@@ -116,7 +116,7 @@ class JsResult {
       }
     }
 
-    else if (node.kind == NODE_CALL) {
+    else if (node.kind == NodeKind.CALL) {
       var value = node.callValue();
       if (value.symbol.node.functionBody() == null) {
         this.emitText("__imports.");
@@ -136,40 +136,40 @@ class JsResult {
       this.emitText(")");
     }
 
-    else if (node.kind == NODE_NEW) {
+    else if (node.kind == NodeKind.NEW) {
       this.emitText("new ");
       this.emitExpression(node.newType(), PRECEDENCE_UNARY_POSTFIX);
       this.emitText("()");
     }
 
-    else if (node.kind == NODE_COMPLEMENT) this.emitUnary(node, parentPrecedence, "~");
-    else if (node.kind == NODE_NEGATIVE) this.emitUnary(node, parentPrecedence, "-");
-    else if (node.kind == NODE_NOT) this.emitUnary(node, parentPrecedence, "!");
-    else if (node.kind == NODE_POSITIVE) this.emitUnary(node, parentPrecedence, "+");
-    else if (node.kind == NODE_PREFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
-    else if (node.kind == NODE_PREFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
-    else if (node.kind == NODE_POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
-    else if (node.kind == NODE_POSTFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
+    else if (node.kind == NodeKind.COMPLEMENT) this.emitUnary(node, parentPrecedence, "~");
+    else if (node.kind == NodeKind.NEGATIVE) this.emitUnary(node, parentPrecedence, "-");
+    else if (node.kind == NodeKind.NOT) this.emitUnary(node, parentPrecedence, "!");
+    else if (node.kind == NodeKind.POSITIVE) this.emitUnary(node, parentPrecedence, "+");
+    else if (node.kind == NodeKind.PREFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
+    else if (node.kind == NodeKind.PREFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
+    else if (node.kind == NodeKind.POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
+    else if (node.kind == NodeKind.POSTFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
 
-    else if (node.kind == NODE_ADD) this.emitBinary(node, parentPrecedence, " + ", PRECEDENCE_ADD);
-    else if (node.kind == NODE_ASSIGN) this.emitBinary(node, parentPrecedence, " = ", PRECEDENCE_ASSIGN);
-    else if (node.kind == NODE_BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", PRECEDENCE_BITWISE_AND);
-    else if (node.kind == NODE_BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", PRECEDENCE_BITWISE_OR);
-    else if (node.kind == NODE_BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", PRECEDENCE_BITWISE_XOR);
-    else if (node.kind == NODE_DIVIDE) this.emitBinary(node, parentPrecedence, " / ", PRECEDENCE_MULTIPLY); // TODO: This isn't accurate for integer division
-    else if (node.kind == NODE_EQUAL) this.emitBinary(node, parentPrecedence, " === ", PRECEDENCE_EQUAL);
-    else if (node.kind == NODE_GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", PRECEDENCE_COMPARE);
-    else if (node.kind == NODE_GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", PRECEDENCE_COMPARE);
-    else if (node.kind == NODE_LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", PRECEDENCE_COMPARE);
-    else if (node.kind == NODE_LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", PRECEDENCE_COMPARE);
-    else if (node.kind == NODE_LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", PRECEDENCE_LOGICAL_AND);
-    else if (node.kind == NODE_LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", PRECEDENCE_LOGICAL_OR);
-    else if (node.kind == NODE_MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", PRECEDENCE_MULTIPLY);
-    else if (node.kind == NODE_NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", PRECEDENCE_EQUAL);
-    else if (node.kind == NODE_REMAINDER) this.emitBinary(node, parentPrecedence, " % ", PRECEDENCE_MULTIPLY);
-    else if (node.kind == NODE_SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", PRECEDENCE_SHIFT);
-    else if (node.kind == NODE_SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", PRECEDENCE_SHIFT);
-    else if (node.kind == NODE_SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", PRECEDENCE_ADD);
+    else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", PRECEDENCE_ADD);
+    else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", PRECEDENCE_ASSIGN);
+    else if (node.kind == NodeKind.BITWISE_AND) this.emitBinary(node, parentPrecedence, " & ", PRECEDENCE_BITWISE_AND);
+    else if (node.kind == NodeKind.BITWISE_OR) this.emitBinary(node, parentPrecedence, " | ", PRECEDENCE_BITWISE_OR);
+    else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinary(node, parentPrecedence, " ^ ", PRECEDENCE_BITWISE_XOR);
+    else if (node.kind == NodeKind.DIVIDE) this.emitBinary(node, parentPrecedence, " / ", PRECEDENCE_MULTIPLY); // TODO: This isn't accurate for integer division
+    else if (node.kind == NodeKind.EQUAL) this.emitBinary(node, parentPrecedence, " === ", PRECEDENCE_EQUAL);
+    else if (node.kind == NodeKind.GREATER_THAN) this.emitBinary(node, parentPrecedence, " > ", PRECEDENCE_COMPARE);
+    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " >= ", PRECEDENCE_COMPARE);
+    else if (node.kind == NodeKind.LESS_THAN) this.emitBinary(node, parentPrecedence, " < ", PRECEDENCE_COMPARE);
+    else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", PRECEDENCE_COMPARE);
+    else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", PRECEDENCE_LOGICAL_AND);
+    else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", PRECEDENCE_LOGICAL_OR);
+    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", PRECEDENCE_MULTIPLY);
+    else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", PRECEDENCE_EQUAL);
+    else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", PRECEDENCE_MULTIPLY);
+    else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", PRECEDENCE_SHIFT);
+    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", PRECEDENCE_SHIFT);
+    else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", PRECEDENCE_ADD);
 
     else {
       assert(false);
@@ -177,7 +177,7 @@ class JsResult {
   }
 
   emitStatement(node: Node): void {
-    if (node.kind == NODE_FUNCTION) {
+    if (node.kind == NodeKind.FUNCTION) {
       var body = node.functionBody();
       if (body == null) {
         return;
@@ -186,7 +186,7 @@ class JsResult {
       var needsSemicolon = false;
       this.appendIndent();
 
-      if (node.parent.kind == NODE_CLASS) {
+      if (node.parent.kind == NodeKind.CLASS) {
         this.emitString(node.parent.symbol.name);
         this.emitText(".prototype.");
         this.emitString(node.symbol.name);
@@ -214,7 +214,7 @@ class JsResult {
       var child = node.functionFirstArgumentIgnoringThis();
 
       while (child != returnType) {
-        assert(child.kind == NODE_VARIABLE);
+        assert(child.kind == NodeKind.VARIABLE);
         this.emitString(child.symbol.name);
         child = child.nextSibling;
         if (child != returnType) {
@@ -227,7 +227,7 @@ class JsResult {
       this.emitText(needsSemicolon ? ";\n" : "\n");
     }
 
-    else if (node.kind == NODE_IF) {
+    else if (node.kind == NodeKind.IF) {
       this.appendIndent();
       while (true) {
         this.emitText("if (");
@@ -240,7 +240,7 @@ class JsResult {
           break;
         }
         this.emitText(" else ");
-        if (no.firstChild == null || no.firstChild != no.lastChild || no.firstChild.kind != NODE_IF) {
+        if (no.firstChild == null || no.firstChild != no.lastChild || no.firstChild.kind != NodeKind.IF) {
           this.emitBlock(no);
           this.emitText("\n");
           break;
@@ -249,7 +249,7 @@ class JsResult {
       }
     }
 
-    else if (node.kind == NODE_WHILE) {
+    else if (node.kind == NodeKind.WHILE) {
       this.appendIndent();
       this.emitText("while (");
       this.emitExpression(node.whileValue(), PRECEDENCE_LOWEST);
@@ -258,26 +258,26 @@ class JsResult {
       this.emitText("\n");
     }
 
-    else if (node.kind == NODE_BREAK) {
+    else if (node.kind == NodeKind.BREAK) {
       this.appendIndent();
       this.emitText("break;\n");
     }
 
-    else if (node.kind == NODE_CONTINUE) {
+    else if (node.kind == NodeKind.CONTINUE) {
       this.appendIndent();
       this.emitText("continue;\n");
     }
 
-    else if (node.kind == NODE_EXPRESSION) {
+    else if (node.kind == NodeKind.EXPRESSION) {
       this.appendIndent();
       this.emitExpression(node.expressionValue(), PRECEDENCE_LOWEST);
       this.emitText(";\n");
     }
 
-    else if (node.kind == NODE_EMPTY) {
+    else if (node.kind == NodeKind.EMPTY) {
     }
 
-    else if (node.kind == NODE_RETURN) {
+    else if (node.kind == NodeKind.RETURN) {
       var value = node.returnValue();
       this.appendIndent();
       if (value != null) {
@@ -289,13 +289,13 @@ class JsResult {
       }
     }
 
-    else if (node.kind == NODE_BLOCK) {
+    else if (node.kind == NodeKind.BLOCK) {
       this.appendIndent();
       this.emitBlock(node);
       this.emitText("\n");
     }
 
-    else if (node.kind == NODE_VARIABLES) {
+    else if (node.kind == NodeKind.VARIABLES) {
       this.appendIndent();
       this.emitText("var ");
       var child = node.firstChild;
@@ -313,7 +313,7 @@ class JsResult {
       this.emitText(";\n");
     }
 
-    else if (node.kind == NODE_CLASS) {
+    else if (node.kind == NodeKind.CLASS) {
       this.appendIndent();
       this.emitText("function ");
       this.emitString(node.symbol.name);
@@ -323,7 +323,7 @@ class JsResult {
       // Emit constructor body
       var child = node.firstChild;
       while (child != null) {
-        if (child.kind == NODE_VARIABLE) {
+        if (child.kind == NodeKind.VARIABLE) {
           this.appendIndent();
           this.emitText("this.");
           this.emitString(child.symbol.name);
@@ -341,14 +341,14 @@ class JsResult {
       // Emit instance functions
       child = node.firstChild;
       while (child != null) {
-        if (child.kind == NODE_FUNCTION) {
+        if (child.kind == NodeKind.FUNCTION) {
           this.emitStatement(child);
         }
         child = child.nextSibling;
       }
     }
 
-    else if (node.kind == NODE_CONSTANTS) {
+    else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.ENUM) {
     }
 
     else {

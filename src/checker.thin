@@ -1,44 +1,50 @@
-const TYPE_CLASS = 0;
-const TYPE_GLOBAL = 1;
-const TYPE_NATIVE = 2;
+enum SymbolKind {
+  TYPE_CLASS,
+  TYPE_ENUM,
+  TYPE_GLOBAL,
+  TYPE_NATIVE,
 
-const FUNCTION_INSTANCE = 3;
-const FUNCTION_GLOBAL = 4;
+  FUNCTION_INSTANCE,
+  FUNCTION_GLOBAL,
 
-const VARIABLE_ARGUMENT = 5;
-const VARIABLE_CONSTANT = 6;
-const VARIABLE_INSTANCE = 7;
-const VARIABLE_LOCAL = 8;
-
-function isType(kind: int): bool {
-  return kind >= TYPE_CLASS && kind <= TYPE_NATIVE;
+  VARIABLE_ARGUMENT,
+  VARIABLE_CONSTANT,
+  VARIABLE_INSTANCE,
+  VARIABLE_LOCAL,
 }
 
-function isFunction(kind: int): bool {
-  return kind >= FUNCTION_INSTANCE && kind <= FUNCTION_GLOBAL;
+function isType(kind: SymbolKind): bool {
+  return kind >= SymbolKind.TYPE_CLASS && kind <= SymbolKind.TYPE_NATIVE;
 }
 
-function isVariable(kind: int): bool {
-  return kind >= VARIABLE_ARGUMENT && kind <= VARIABLE_LOCAL;
+function isFunction(kind: SymbolKind): bool {
+  return kind >= SymbolKind.FUNCTION_INSTANCE && kind <= SymbolKind.FUNCTION_GLOBAL;
 }
 
-const SYMBOL_STATE_UNINITIALIZED = 0;
-const SYMBOL_STATE_INITIALIZING = 1;
-const SYMBOL_STATE_INITIALIZED = 2;
+function isVariable(kind: SymbolKind): bool {
+  return kind >= SymbolKind.VARIABLE_ARGUMENT && kind <= SymbolKind.VARIABLE_LOCAL;
+}
+
+enum SymbolState {
+  UNINITIALIZED,
+  INITIALIZING,
+  INITIALIZED,
+}
 
 class Symbol {
-  kind: int;
+  kind: SymbolKind;
   name: String;
   node: Node;
   range: Range;
   scope: Scope;
   resolvedType: Type;
   next: Symbol;
-  state: int;
+  state: SymbolState;
 
   // The "offset" variable is used to store kind-specific information
   //
   //   TYPE_CLASS: Object size
+  //   TYPE_ENUM: N/A
   //   TYPE_GLOBAL: N/A
   //   TYPE_NATIVE: N/A
   //
@@ -51,6 +57,17 @@ class Symbol {
   //   VARIABLE_LOCAL: N/A
   //
   offset: int;
+
+  isEnumValue(): bool {
+    return this.node.parent.kind == NodeKind.ENUM;
+  }
+
+  resolvedTypeIntIfEnumValue(context: CheckContext): Type {
+    if (this.isEnumValue()) {
+      return context.intType;
+    }
+    return this.resolvedType;
+  }
 }
 
 function isExternSymbol(symbol: Symbol): bool {
@@ -66,14 +83,22 @@ class Scope {
 
 class Type {
   symbol: Symbol;
-}
 
-function typeIsClass(type: Type): bool {
-  return type.symbol.kind == TYPE_CLASS;
+  isClass(): bool {
+    return this.symbol.kind == SymbolKind.TYPE_CLASS;
+  }
+
+  isEnum(): bool {
+    return this.symbol.kind == SymbolKind.TYPE_ENUM;
+  }
+
+  isInteger(context: CheckContext): bool {
+    return this == context.intType || this.isEnum();
+  }
 }
 
 function typeIsReference(context: CheckContext, type: Type): bool {
-  return typeIsClass(type) || type == context.stringType;
+  return type.isClass() || type == context.stringType;
 }
 
 function typeToString(type: Type): String {
@@ -102,12 +127,30 @@ function findLocal(scope: Scope, name: String): Symbol {
   return null;
 }
 
-const FIND_NESTED_NORMAL = 0;
-const FIND_NESTED_ALLOW_INSTANCE_ERRORS = 1;
+function findMember(type: Type, name: String): Symbol {
+  var child = type.symbol.node.firstChild;
 
-function findNested(scope: Scope, name: String, mode: int): Symbol {
+  while (child != null) {
+    assert(child.kind == NodeKind.VARIABLE || child.kind == NodeKind.FUNCTION);
+
+    if (String_equal(child.symbol.name, name)) {
+      return child.symbol;
+    }
+
+    child = child.nextSibling;
+  }
+
+  return null;
+}
+
+enum FindNested {
+  NORMAL,
+  ALLOW_INSTANCE_ERRORS,
+}
+
+function findNested(scope: Scope, name: String, mode: FindNested): Symbol {
   while (scope != null) {
-    if (scope.symbol == null || scope.symbol.kind != TYPE_CLASS || mode == FIND_NESTED_ALLOW_INSTANCE_ERRORS) {
+    if (scope.symbol == null || scope.symbol.kind != SymbolKind.TYPE_CLASS || mode == FindNested.ALLOW_INSTANCE_ERRORS) {
       var local = findLocal(scope, name);
       if (local != null) {
         return local;
@@ -134,11 +177,11 @@ function define(log: Log, scope: Scope, symbol: Symbol): bool {
 
 function defineNativeType(log: Log, scope: Scope, name: string): Type {
   var symbol = new Symbol();
-  symbol.kind = TYPE_NATIVE;
+  symbol.kind = SymbolKind.TYPE_NATIVE;
   symbol.name = String_new(name);
   symbol.resolvedType = new Type();
   symbol.resolvedType.symbol = symbol;
-  symbol.state = SYMBOL_STATE_INITIALIZED;
+  symbol.state = SymbolState.INITIALIZED;
 
   define(log, scope, symbol);
 
@@ -160,22 +203,27 @@ function linkSymbolToNode(symbol: Symbol, node: Node): void {
 }
 
 function initialize(context: CheckContext, node: Node, parentScope: Scope): void {
-  // Validate node placement
-  if (node.parent != null && node.kind != NODE_VARIABLE && (node.kind != NODE_FUNCTION || node.parent.kind != NODE_CLASS) &&
-      (node.kind == NODE_CLASS || node.kind == NODE_FUNCTION || node.kind == NODE_CONSTANTS) != (node.parent.kind == NODE_GLOBAL)) {
-    context.log.error(node.range, String_new("This statement is not allowed here"));
+  if (node.parent != null) {
+    var kind = node.kind;
+    var parentKind = node.parent.kind;
+
+    // Validate node placement
+    if (kind != NodeKind.VARIABLE && (kind != NodeKind.FUNCTION || parentKind != NodeKind.CLASS) && (parentKind == NodeKind.GLOBAL) !=
+        (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
+      context.log.error(node.range, String_new("This statement is not allowed here"));
+    }
   }
 
   // Global
-  if (node.kind == NODE_GLOBAL) {
+  if (node.kind == NodeKind.GLOBAL) {
     assert(parentScope == null);
 
     var symbol = new Symbol();
-    symbol.kind = TYPE_GLOBAL;
+    symbol.kind = SymbolKind.TYPE_GLOBAL;
     symbol.name = String_new("<global>");
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
-    symbol.state = SYMBOL_STATE_INITIALIZED;
+    symbol.state = SymbolState.INITIALIZED;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
 
@@ -190,9 +238,9 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 
   // Class
-  else if (node.kind == NODE_CLASS) {
+  else if (node.kind == NodeKind.CLASS || node.kind == NodeKind.ENUM) {
     var symbol = new Symbol();
-    symbol.kind = TYPE_CLASS;
+    symbol.kind = node.kind == NodeKind.CLASS ? SymbolKind.TYPE_CLASS : SymbolKind.TYPE_ENUM;
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
@@ -203,11 +251,11 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 
   // Function
-  else if (node.kind == NODE_FUNCTION) {
+  else if (node.kind == NodeKind.FUNCTION) {
     var symbol = new Symbol();
     symbol.kind =
-      node.parent.kind == NODE_CLASS ? FUNCTION_INSTANCE :
-      FUNCTION_GLOBAL;
+      node.parent.kind == NodeKind.CLASS ? SymbolKind.FUNCTION_INSTANCE :
+      SymbolKind.FUNCTION_GLOBAL;
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
@@ -217,22 +265,22 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     parentScope = symbol.scope;
 
     // All instance functions have a special "this" type
-    if (symbol.kind == FUNCTION_INSTANCE) {
+    if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
       var parent = node.parent.symbol;
-      assert(parent.kind == TYPE_CLASS);
+      assert(parent.kind == SymbolKind.TYPE_CLASS);
       initializeSymbol(context, parent);
       node.insertChildBefore(node.firstChild, createVariable(String_new("this"), createType(parent.resolvedType), null));
     }
   }
 
   // Variable
-  else if (node.kind == NODE_VARIABLE) {
+  else if (node.kind == NodeKind.VARIABLE) {
     var symbol = new Symbol();
     symbol.kind =
-      node.parent.kind == NODE_CLASS ? VARIABLE_INSTANCE :
-      node.parent.kind == NODE_FUNCTION ? VARIABLE_ARGUMENT :
-      node.parent.kind == NODE_CONSTANTS ? VARIABLE_CONSTANT :
-      VARIABLE_LOCAL;
+      node.parent.kind == NodeKind.CLASS ? SymbolKind.VARIABLE_INSTANCE :
+      node.parent.kind == NodeKind.FUNCTION ? SymbolKind.VARIABLE_ARGUMENT :
+      node.parent.kind == NodeKind.CONSTANTS || node.parent.kind == NodeKind.ENUM ? SymbolKind.VARIABLE_CONSTANT :
+      SymbolKind.VARIABLE_LOCAL;
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
     linkSymbolToNode(symbol, node);
@@ -241,8 +289,8 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 
   // Block
-  else if (node.kind == NODE_BLOCK) {
-    if (node.parent.kind != NODE_FUNCTION) {
+  else if (node.kind == NodeKind.BLOCK) {
+    if (node.parent.kind != NodeKind.FUNCTION) {
       var scope = new Scope();
       scope.parent = parentScope;
       parentScope = scope;
@@ -260,17 +308,23 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
 }
 
 function initializeSymbol(context: CheckContext, symbol: Symbol): void {
-  if (symbol.state == SYMBOL_STATE_INITIALIZED) {
+  if (symbol.state == SymbolState.INITIALIZED) {
     assert(symbol.resolvedType != null);
     return;
   }
 
-  assert(symbol.state == SYMBOL_STATE_UNINITIALIZED);
+  assert(symbol.state == SymbolState.UNINITIALIZED);
   assert(symbol.resolvedType == null);
-  symbol.state = SYMBOL_STATE_INITIALIZING;
+  symbol.state = SymbolState.INITIALIZING;
 
   // Class
-  if (symbol.kind == TYPE_CLASS) {
+  if (symbol.kind == SymbolKind.TYPE_CLASS) {
+    symbol.resolvedType = new Type();
+    symbol.resolvedType.symbol = symbol;
+  }
+
+  // Enum
+  else if (symbol.kind == SymbolKind.TYPE_ENUM) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
   }
@@ -283,8 +337,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     var offset = 0;
     var child = symbol.node.firstChild;
     while (child != returnType) {
-      assert(child.kind == NODE_VARIABLE);
-      assert(child.symbol.kind == VARIABLE_ARGUMENT);
+      assert(child.kind == NodeKind.VARIABLE);
+      assert(child.symbol.kind == SymbolKind.VARIABLE_ARGUMENT);
       initializeSymbol(context, child.symbol);
       child.symbol.offset = offset;
       offset = offset + 1;
@@ -325,23 +379,34 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     }
 
     // Resolve constant values at initialization time
-    if (symbol.kind == VARIABLE_CONSTANT) {
-      if (symbol.resolvedType != context.errorType && symbol.resolvedType != context.intType) {
+    if (symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+      if (symbol.resolvedType != context.errorType && !symbol.resolvedType.isInteger(context)) {
         context.log.error(symbol.node.internalRange, String_new("All constants must be integers for now"));
         symbol.resolvedType = context.errorType;
       }
 
       if (value != null) {
         resolveAsExpression(context, value, symbol.scope);
-        checkConversion(context, value, symbol.resolvedType);
+        checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context));
 
         // TODO: Constant folding
-        if (value.kind == NODE_INT) {
+        if (value.kind == NodeKind.INT) {
           symbol.offset = value.intValue;
         }
 
         else {
           context.log.error(value.range, String_new("Constants must be initialized to a single integer for now"));
+        }
+      }
+
+      // Automatically initialize enum values using the previous enum
+      else if (symbol.isEnumValue()) {
+        if (symbol.node.previousSibling != null) {
+          var previousSymbol = symbol.node.previousSibling.symbol;
+          initializeSymbol(context, previousSymbol);
+          symbol.offset = previousSymbol.offset + 1;
+        } else {
+          symbol.offset = 0;
         }
       }
 
@@ -377,7 +442,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   }
 
   assert(symbol.resolvedType != null);
-  symbol.state = SYMBOL_STATE_INITIALIZED;
+  symbol.state = SymbolState.INITIALIZED;
 }
 
 function resolveChildren(context: CheckContext, node: Node, parentScope: Scope): void {
@@ -392,7 +457,7 @@ function resolveAsExpression(context: CheckContext, node: Node, parentScope: Sco
   assert(isExpression(node));
   resolve(context, node, parentScope);
 
-  if (node.resolvedType != context.errorType && (node.kind == NODE_TYPE || node.symbol != null && isType(node.symbol.kind))) {
+  if (node.resolvedType != context.errorType && node.isType()) {
     context.log.error(node.range, String_new("Expected expression but found type"));
     node.resolvedType = context.errorType;
   }
@@ -402,7 +467,7 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
   assert(isExpression(node));
   resolve(context, node, parentScope);
 
-  if (node.resolvedType != context.errorType && node.kind != NODE_TYPE && (node.symbol == null || !isType(node.symbol.kind))) {
+  if (node.resolvedType != context.errorType && !node.isType()) {
     context.log.error(node.range, String_new("Expected type but found expression"));
     node.resolvedType = context.errorType;
   }
@@ -427,8 +492,8 @@ function checkConversion(context: CheckContext, from: Node, to: Type): void {
 function checkStorage(context: CheckContext, target: Node): void {
   assert(isExpression(target));
 
-  if (target.resolvedType != context.errorType && (target.kind != NODE_NAME && target.kind != NODE_DOT ||
-      target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == VARIABLE_CONSTANT))) {
+  if (target.resolvedType != context.errorType && (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT ||
+      target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == SymbolKind.VARIABLE_CONSTANT))) {
     context.log.error(target.range, String_new("Cannot store to this location"));
     target.resolvedType = context.errorType;
   }
@@ -457,7 +522,7 @@ function checkBinary(context: CheckContext, node: Node, expectedType: Type, resu
 }
 
 function createDefaultValueForType(context: CheckContext, type: Type): Node {
-  if (type == context.intType) {
+  if (type.isInteger(context)) {
     return createInt(0);
   }
 
@@ -470,7 +535,7 @@ function createDefaultValueForType(context: CheckContext, type: Type): Node {
 }
 
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
-  assert(node.kind == NODE_GLOBAL || parentScope != null);
+  assert(node.kind == NodeKind.GLOBAL || parentScope != null);
 
   if (node.resolvedType != null) {
     return;
@@ -478,11 +543,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   node.resolvedType = context.errorType;
 
-  if (node.kind == NODE_GLOBAL) {
+  if (node.kind == NodeKind.GLOBAL) {
     resolveChildren(context, node, node.scope);
   }
 
-  else if (node.kind == NODE_CLASS) {
+  else if (node.kind == NodeKind.CLASS) {
     initializeSymbol(context, node.symbol);
     resolveChildren(context, node, node.scope);
 
@@ -490,7 +555,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var offset = 0;
     var child = node.firstChild;
     while (child != null) {
-      if (child.kind == NODE_VARIABLE) {
+      if (child.kind == NodeKind.VARIABLE) {
         child.symbol.offset = offset;
         offset = offset + 4;
       }
@@ -499,7 +564,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.symbol.offset = offset > 0 ? offset : 1;
   }
 
-  else if (node.kind == NODE_FUNCTION) {
+  else if (node.kind == NodeKind.ENUM) {
+    initializeSymbol(context, node.symbol);
+    resolveChildren(context, node, node.scope);
+  }
+
+  else if (node.kind == NodeKind.FUNCTION) {
     var body = node.functionBody();
     initializeSymbol(context, node.symbol);
 
@@ -511,14 +581,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_VARIABLE) {
+  else if (node.kind == NodeKind.VARIABLE) {
     var symbol = node.symbol;
     initializeSymbol(context, symbol);
 
     var value = node.variableValue();
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
-      checkConversion(context, value, symbol.resolvedType);
+      checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context));
     }
 
     else {
@@ -526,11 +596,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_BREAK || node.kind == NODE_CONTINUE) {
+  else if (node.kind == NodeKind.BREAK || node.kind == NodeKind.CONTINUE) {
     var found = false;
     var n = node;
     while (n != null) {
-      if (n.kind == NODE_WHILE) {
+      if (n.kind == NodeKind.WHILE) {
         found = true;
         break;
       }
@@ -541,43 +611,41 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_BLOCK) {
+  else if (node.kind == NodeKind.BLOCK) {
     resolveChildren(context, node, node.scope);
   }
 
-  else if (node.kind == NODE_CONSTANTS || node.kind == NODE_VARIABLES) {
+  else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.VARIABLES) {
     resolveChildren(context, node, parentScope);
   }
 
-  else if (node.kind == NODE_INT) {
+  else if (node.kind == NodeKind.INT) {
     node.resolvedType = context.intType;
   }
 
-  else if (node.kind == NODE_STRING) {
+  else if (node.kind == NodeKind.STRING) {
     node.resolvedType = context.stringType;
   }
 
-  else if (node.kind == NODE_BOOL) {
+  else if (node.kind == NodeKind.BOOL) {
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind == NODE_NULL) {
+  else if (node.kind == NodeKind.NULL) {
     node.resolvedType = context.nullType;
   }
 
-  else if (node.kind == NODE_THIS) {
-    var symbol = findNested(parentScope, String_new("this"), FIND_NESTED_NORMAL);
+  else if (node.kind == NodeKind.THIS) {
+    var symbol = findNested(parentScope, String_new("this"), FindNested.NORMAL);
     if (symbol == null) {
       context.log.error(node.range, String_new("Cannot use 'this' here"));
     } else {
-      node.kind = NODE_NAME;
-      node.symbol = symbol;
-      node.resolvedType = symbol.resolvedType;
+      node.becomeSymbolReference(symbol);
     }
   }
 
-  else if (node.kind == NODE_NAME) {
-    var symbol = findNested(parentScope, node.stringValue, FIND_NESTED_NORMAL);
+  else if (node.kind == NodeKind.NAME) {
+    var symbol = findNested(parentScope, node.stringValue, FindNested.NORMAL);
 
     if (symbol == null) {
       var message = String_appendNew(String_append(
@@ -586,7 +654,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         "' here");
 
       // In JavaScript, "this." before instance symbols is required
-      symbol = findNested(parentScope, node.stringValue, FIND_NESTED_ALLOW_INSTANCE_ERRORS);
+      symbol = findNested(parentScope, node.stringValue, FindNested.ALLOW_INSTANCE_ERRORS);
       if (symbol != null) {
         message = String_appendNew(String_append(String_appendNew(
           message,
@@ -598,14 +666,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       context.log.error(node.range, message);
     }
 
-    else if (symbol.state == SYMBOL_STATE_INITIALIZING) {
+    else if (symbol.state == SymbolState.INITIALIZING) {
       context.log.error(node.range, String_appendNew(String_append(
         String_new("Cyclic reference to symbol '"),
         node.stringValue),
         "' here"));
     }
 
-    else if (isFunction(symbol.kind) && (node.parent.kind != NODE_CALL || node != node.parent.callValue())) {
+    else if (isFunction(symbol.kind) && (node.parent.kind != NodeKind.CALL || node != node.parent.callValue())) {
       context.log.error(node.range, String_new("Bare function references are not allowed"));
     }
 
@@ -615,44 +683,39 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       node.resolvedType = symbol.resolvedType;
 
       // Inline constants
-      if (node.symbol.kind == VARIABLE_CONSTANT) {
-        node.kind = NODE_INT;
-        node.intValue = node.symbol.offset;
+      if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+        node.becomeIntegerConstant(node.symbol.offset);
       }
     }
   }
 
-  else if (node.kind == NODE_DOT) {
+  else if (node.kind == NodeKind.DOT) {
     var target = node.dotTarget();
-    resolveAsExpression(context, target, parentScope);
+    resolve(context, target, parentScope);
 
     if (target.resolvedType != context.errorType) {
-      if (typeIsClass(target.resolvedType)) {
+      if (target.isType() && target.resolvedType.isEnum() ||
+          !target.isType() && target.resolvedType.isClass()) {
         var child = target.resolvedType.symbol.node.firstChild;
+        node.symbol = findMember(target.resolvedType, node.stringValue);
 
-        while (child != null) {
-          assert(child.kind == NODE_VARIABLE || child.kind == NODE_FUNCTION);
-
-          if (String_equal(child.symbol.name, node.stringValue)) {
-            initializeSymbol(context, child.symbol);
-            node.symbol = child.symbol;
-            break;
-          }
-
-          child = child.nextSibling;
-        }
-
-        if (node.symbol != null) {
-          node.resolvedType = node.symbol.resolvedType;
-        }
-
-        else {
+        if (node.symbol == null) {
           context.log.error(node.internalRange, String_appendNew(String_append(String_appendNew(String_append(
             String_new("No member named '"),
             node.stringValue),
             "' on type '"),
             typeToString(target.resolvedType)),
             "'"));
+        }
+
+        else {
+          initializeSymbol(context, node.symbol);
+          node.resolvedType = node.symbol.resolvedType;
+
+          // Inline constants
+          if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+            node.becomeIntegerConstant(node.symbol.offset);
+          }
         }
       }
 
@@ -665,7 +728,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_CALL) {
+  else if (node.kind == NodeKind.CALL) {
     var value = node.callValue();
     resolveAsExpression(context, value, parentScope);
 
@@ -721,7 +784,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_RETURN) {
+  else if (node.kind == NodeKind.RETURN) {
     var value = node.returnValue();
 
     if (value != null) {
@@ -737,14 +800,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_EMPTY) {
+  else if (node.kind == NodeKind.EMPTY) {
   }
 
-  else if (node.kind == NODE_EXPRESSION) {
+  else if (node.kind == NodeKind.EXPRESSION) {
     resolveAsExpression(context, node.expressionValue(), parentScope);
   }
 
-  else if (node.kind == NODE_WHILE) {
+  else if (node.kind == NodeKind.WHILE) {
     var value = node.whileValue();
     var body = node.whileBody();
     resolveAsExpression(context, value, parentScope);
@@ -752,7 +815,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolve(context, body, parentScope);
   }
 
-  else if (node.kind == NODE_IF) {
+  else if (node.kind == NodeKind.IF) {
     var value = node.ifValue();
     var yes = node.ifTrue();
     var no = node.ifFalse();
@@ -764,7 +827,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_HOOK) {
+  else if (node.kind == NodeKind.HOOK) {
     var value = node.hookValue();
     var yes = node.hookTrue();
     var no = node.hookFalse();
@@ -785,7 +848,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = commonType;
   }
 
-  else if (node.kind == NODE_ASSIGN) {
+  else if (node.kind == NodeKind.ASSIGN) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -796,26 +859,31 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (
-      node.kind == NODE_ADD || node.kind == NODE_SUBTRACT || node.kind == NODE_MULTIPLY || node.kind == NODE_DIVIDE ||
-      node.kind == NODE_BITWISE_AND || node.kind == NODE_BITWISE_OR || node.kind == NODE_BITWISE_XOR ||
-      node.kind == NODE_SHIFT_LEFT || node.kind == NODE_SHIFT_RIGHT) {
+      node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE ||
+      node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
+      node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
     resolveBinary(context, node, parentScope);
     checkBinary(context, node, context.intType, context.intType);
   }
 
   else if (
-      node.kind == NODE_LESS_THAN || node.kind == NODE_LESS_THAN_EQUAL ||
-      node.kind == NODE_GREATER_THAN || node.kind == NODE_GREATER_THAN_EQUAL) {
-    resolveBinary(context, node, parentScope);
-    checkBinary(context, node, context.intType, context.boolType);
+      node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
+      node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
+    var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger(context) ? left.resolvedType : context.intType;
+    checkConversion(context, left, expectedType);
+    checkConversion(context, right, expectedType);
   }
 
-  else if (node.kind == NODE_LOGICAL_OR || node.kind == NODE_LOGICAL_AND) {
+  else if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
     resolveBinary(context, node, parentScope);
     checkBinary(context, node, context.boolType, context.boolType);
   }
 
-  else if (node.kind == NODE_EQUAL || node.kind == NODE_NOT_EQUAL) {
+  else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveBinary(context, node, parentScope);
@@ -836,20 +904,20 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NODE_COMPLEMENT || node.kind == NODE_NEGATIVE || node.kind == NODE_POSITIVE) {
+  else if (node.kind == NodeKind.COMPLEMENT || node.kind == NodeKind.NEGATIVE || node.kind == NodeKind.POSITIVE) {
     resolveUnary(context, node, parentScope, context.intType);
   }
 
-  else if (node.kind == NODE_NOT) {
+  else if (node.kind == NodeKind.NOT) {
     resolveUnary(context, node, parentScope, context.boolType);
   }
 
-  else if (node.kind == NODE_NEW) {
+  else if (node.kind == NodeKind.NEW) {
     var type = node.newType();
     resolveAsType(context, type, parentScope);
 
     if (type.resolvedType != context.errorType) {
-      if (!typeIsClass(type.resolvedType)) {
+      if (!type.resolvedType.isClass()) {
         context.log.error(type.range, String_appendNew(String_append(
           String_new("Cannot construct type '"),
           typeToString(type.resolvedType)),

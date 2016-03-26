@@ -10,7 +10,7 @@ extern function CompileResult_new(): CompileResult {
   var result = new CompileResult();
   result.log = new Log();
   result.global = new Node();
-  result.global.kind = NODE_GLOBAL;
+  result.global.kind = NodeKind.GLOBAL;
   return result;
 }
 
