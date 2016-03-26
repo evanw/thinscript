@@ -1,8 +1,3 @@
-class ParserContext {
-  current: Token;
-  log: Log;
-}
-
 const PRECEDENCE_LOWEST = 0;
 const PRECEDENCE_ASSIGN = 1;
 const PRECEDENCE_LOGICAL_OR = 2;
@@ -19,45 +14,6 @@ const PRECEDENCE_UNARY_PREFIX = 12;
 const PRECEDENCE_UNARY_POSTFIX = 13;
 const PRECEDENCE_MEMBER = 14;
 
-function peek(context: ParserContext, kind: int): bool {
-  return context.current.kind == kind;
-}
-
-function eat(context: ParserContext, kind: int): bool {
-  if (peek(context, kind)) {
-    advance(context);
-    return true;
-  }
-
-  return false;
-}
-
-function advance(context: ParserContext): void {
-  if (!peek(context, TOKEN_END_OF_FILE)) {
-    context.current = context.current.next;
-  }
-}
-
-function unexpectedToken(context: ParserContext): void {
-  error(context.log, context.current.range, String_append(
-    String_new("Unexpected "),
-    String_new(tokenToString(context.current.kind))));
-}
-
-function expect(context: ParserContext, kind: int): bool {
-  if (!peek(context, kind)) {
-    error(context.log, context.current.range, String_append(String_append(String_append(
-      String_new("Expected "),
-      String_new(tokenToString(kind))),
-      String_new(" but found ")),
-      String_new(tokenToString(context.current.kind))));
-    return false;
-  }
-
-  advance(context);
-  return true;
-}
-
 function parseInt(range: Range): int {
   var i = range.start;
   var value = 0;
@@ -70,657 +26,701 @@ function parseInt(range: Range): int {
   return value;
 }
 
-function parseUnaryPrefix(context: ParserContext, kind: int): Node {
-  assert(isUnary(kind));
+class ParserContext {
+  current: Token;
+  log: Log;
 
-  var token = context.current;
-  advance(context);
-
-  var value = parseExpression(context, PRECEDENCE_UNARY_PREFIX);
-  if (value == null) {
-    return null;
+  peek(kind: int): bool {
+    return this.current.kind == kind;
   }
 
-  return withRange(createUnary(kind, value), spanRanges(token.range, value.range));
-}
+  eat(kind: int): bool {
+    if (this.peek(kind)) {
+      this.advance();
+      return true;
+    }
 
-function parseBinary(context: ParserContext, kind: int, left: Node, localPrecedence: int, operatorPrecedence: int): Node {
-  if (localPrecedence >= operatorPrecedence) {
-    return left;
+    return false;
   }
 
-  advance(context);
-  var right = parseExpression(context, operatorPrecedence == PRECEDENCE_ASSIGN ? PRECEDENCE_LOWEST : operatorPrecedence); // PRECEDENCE_ASSIGN is right-associative
-
-  if (right == null) {
-    return null;
+  advance(): void {
+    if (!this.peek(TOKEN_END_OF_FILE)) {
+      this.current = this.current.next;
+    }
   }
 
-  return withRange(createBinary(kind, left, right), spanRanges(left.range, right.range));
-}
-
-function parseUnaryPostfix(context: ParserContext, kind: int, value: Node, localPrecedence: int): Node {
-  if (localPrecedence >= PRECEDENCE_UNARY_POSTFIX) {
-    return value;
+  unexpectedToken(): void {
+    this.log.error(this.current.range, String_append(
+      String_new("Unexpected "),
+      String_new(tokenToString(this.current.kind))));
   }
 
-  var token = context.current;
-  advance(context);
-  return withRange(createUnary(kind, value), spanRanges(value.range, token.range));
-}
+  expect(kind: int): bool {
+    if (!this.peek(kind)) {
+      this.log.error(this.current.range, String_append(String_append(String_append(
+        String_new("Expected "),
+        String_new(tokenToString(kind))),
+        String_new(" but found ")),
+        String_new(tokenToString(this.current.kind))));
+      return false;
+    }
 
-function parseQuotedString(context: ParserContext, range: Range): String {
-  assert(range.end - range.start >= 2);
-  var text = rangeToString(range);
-  var end = 1;
-  var limit = String_length(text) - 1;
-  var start = end;
-  var result = String_new("");
+    this.advance();
+    return true;
+  }
 
-  while (end < limit) {
-    var c = String_get(text, end);
+  parseUnaryPrefix(kind: int): Node {
+    assert(isUnary(kind));
 
-    if (c == '\\') {
-      result = String_append(result, String_slice(text, start, end));
+    var token = this.current;
+    this.advance();
+
+    var value = this.parseExpression(PRECEDENCE_UNARY_PREFIX);
+    if (value == null) {
+      return null;
+    }
+
+    return createUnary(kind, value).withRange(spanRanges(token.range, value.range));
+  }
+
+  parseBinary(kind: int, left: Node, localPrecedence: int, operatorPrecedence: int): Node {
+    if (localPrecedence >= operatorPrecedence) {
+      return left;
+    }
+
+    this.advance();
+    var right = this.parseExpression(operatorPrecedence == PRECEDENCE_ASSIGN ? PRECEDENCE_LOWEST : operatorPrecedence); // PRECEDENCE_ASSIGN is right-associative
+
+    if (right == null) {
+      return null;
+    }
+
+    return createBinary(kind, left, right).withRange(spanRanges(left.range, right.range));
+  }
+
+  parseUnaryPostfix(kind: int, value: Node, localPrecedence: int): Node {
+    if (localPrecedence >= PRECEDENCE_UNARY_POSTFIX) {
+      return value;
+    }
+
+    var token = this.current;
+    this.advance();
+    return createUnary(kind, value).withRange(spanRanges(value.range, token.range));
+  }
+
+  parseQuotedString(range: Range): String {
+    assert(range.end - range.start >= 2);
+    var text = range.toString();
+    var end = 1;
+    var limit = String_length(text) - 1;
+    var start = end;
+    var result = String_new("");
+
+    while (end < limit) {
+      var c = String_get(text, end);
+
+      if (c == '\\') {
+        result = String_append(result, String_slice(text, start, end));
+        end = end + 1;
+        start = end + 1;
+        c = String_get(text, end);
+
+        if (c == '0') result = String_appendNew(result, "\0");
+        else if (c == 't') result = String_appendNew(result, "\t");
+        else if (c == 'n') result = String_appendNew(result, "\n");
+        else if (c == 'r') result = String_appendNew(result, "\r");
+        else if (c == '"' || c == '\'' || c == '`' || c == '\n' || c == '\\') start = end;
+        else {
+          var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
+          this.log.error(escape, String_append(String_append(
+            String_new("Invalid escape code '"),
+            escape.toString()),
+            String_new("'")));
+          return null;
+        }
+      }
+
       end = end + 1;
-      start = end + 1;
-      c = String_get(text, end);
+    }
 
-      if (c == '0') result = String_appendNew(result, "\0");
-      else if (c == 't') result = String_appendNew(result, "\t");
-      else if (c == 'n') result = String_appendNew(result, "\n");
-      else if (c == 'r') result = String_appendNew(result, "\r");
-      else if (c == '"' || c == '\'' || c == '`' || c == '\n' || c == '\\') start = end;
-      else {
-        var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
-        error(context.log, escape, String_append(String_append(
-          String_new("Invalid escape code '"),
-          rangeToString(escape)),
-          String_new("'")));
+    return String_append(result, String_slice(text, start, end));
+  }
+
+  parsePrefix(): Node {
+    var token = this.current;
+
+    if (this.eat(TOKEN_NULL)) {
+      return createNull().withRange(token.range);
+    }
+
+    if (this.eat(TOKEN_THIS)) {
+      return createThis().withRange(token.range);
+    }
+
+    if (this.peek(TOKEN_CHARACTER)) {
+      var text = this.parseQuotedString(token.range);
+      if (text == null) {
+        return null;
+      }
+      if (String_length(text) != 1) {
+        this.log.error(token.range, String_new("Invalid character literal"));
+        return null;
+      }
+      this.advance();
+      return createInt(String_get(text, 0)).withRange(token.range);
+    }
+
+    if (this.peek(TOKEN_STRING)) {
+      var text = this.parseQuotedString(token.range);
+      if (text == null) {
+        return null;
+      }
+      this.advance();
+      return createString(text).withRange(token.range);
+    }
+
+    if (this.peek(TOKEN_INT)) {
+      var value = parseInt(token.range);
+      this.advance();
+      return createInt(value).withRange(token.range);
+    }
+
+    if (this.eat(TOKEN_TRUE)) {
+      return createBool(true).withRange(token.range);
+    }
+
+    if (this.eat(TOKEN_FALSE)) {
+      return createBool(false).withRange(token.range);
+    }
+
+    if (this.peek(TOKEN_IDENTIFIER)) {
+      var value = token.range.toString();
+      this.advance();
+      return createName(value).withRange(token.range);
+    }
+
+    if (this.eat(TOKEN_NEW)) {
+      var type = this.parseType();
+      if (type == null || !this.expect(TOKEN_LEFT_PARENTHESIS)) {
+        return null;
+      }
+      var close = this.current;
+      if (!this.expect(TOKEN_RIGHT_PARENTHESIS)) {
+        return null;
+      }
+      return createNew(type).withRange(spanRanges(token.range, close.range));
+    }
+
+    if (this.eat(TOKEN_LEFT_PARENTHESIS)) {
+      var value = this.parseExpression(PRECEDENCE_LOWEST);
+      if (value == null || !this.expect(TOKEN_RIGHT_PARENTHESIS)) {
+        return null;
+      }
+      return value;
+    }
+
+    // Unary prefix
+    if (this.peek(TOKEN_NOT)) return this.parseUnaryPrefix(NODE_NOT);
+    if (this.peek(TOKEN_MINUS)) return this.parseUnaryPrefix(NODE_NEGATIVE);
+    if (this.peek(TOKEN_MINUS_MINUS)) return this.parseUnaryPrefix(NODE_PREFIX_DECREMENT);
+    if (this.peek(TOKEN_PLUS)) return this.parseUnaryPrefix(NODE_POSITIVE);
+    if (this.peek(TOKEN_PLUS_PLUS)) return this.parseUnaryPrefix(NODE_PREFIX_INCREMENT);
+    if (this.peek(TOKEN_COMPLEMENT)) return this.parseUnaryPrefix(NODE_COMPLEMENT);
+
+    this.unexpectedToken();
+    return null;
+  }
+
+  parseInfix(precedence: int, node: Node): Node {
+    var token = this.current;
+
+    // Binary
+    if (this.peek(TOKEN_ASSIGN)) return this.parseBinary(NODE_ASSIGN, node, precedence, PRECEDENCE_ASSIGN);
+    if (this.peek(TOKEN_BITWISE_AND)) return this.parseBinary(NODE_BITWISE_AND, node, precedence, PRECEDENCE_BITWISE_AND);
+    if (this.peek(TOKEN_BITWISE_OR)) return this.parseBinary(NODE_BITWISE_OR, node, precedence, PRECEDENCE_BITWISE_OR);
+    if (this.peek(TOKEN_BITWISE_XOR)) return this.parseBinary(NODE_BITWISE_XOR, node, precedence, PRECEDENCE_BITWISE_XOR);
+    if (this.peek(TOKEN_DIVIDE)) return this.parseBinary(NODE_DIVIDE, node, precedence, PRECEDENCE_MULTIPLY);
+    if (this.peek(TOKEN_EQUAL)) return this.parseBinary(NODE_EQUAL, node, precedence, PRECEDENCE_EQUAL);
+    if (this.peek(TOKEN_GREATER_THAN)) return this.parseBinary(NODE_GREATER_THAN, node, precedence, PRECEDENCE_COMPARE);
+    if (this.peek(TOKEN_GREATER_THAN_EQUAL)) return this.parseBinary(NODE_GREATER_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
+    if (this.peek(TOKEN_LESS_THAN)) return this.parseBinary(NODE_LESS_THAN, node, precedence, PRECEDENCE_COMPARE);
+    if (this.peek(TOKEN_LESS_THAN_EQUAL)) return this.parseBinary(NODE_LESS_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
+    if (this.peek(TOKEN_LOGICAL_AND)) return this.parseBinary(NODE_LOGICAL_AND, node, precedence, PRECEDENCE_LOGICAL_AND);
+    if (this.peek(TOKEN_LOGICAL_OR)) return this.parseBinary(NODE_LOGICAL_OR, node, precedence, PRECEDENCE_LOGICAL_OR);
+    if (this.peek(TOKEN_MINUS)) return this.parseBinary(NODE_SUBTRACT, node, precedence, PRECEDENCE_ADD);
+    if (this.peek(TOKEN_MULTIPLY)) return this.parseBinary(NODE_MULTIPLY, node, precedence, PRECEDENCE_MULTIPLY);
+    if (this.peek(TOKEN_NOT_EQUAL)) return this.parseBinary(NODE_NOT_EQUAL, node, precedence, PRECEDENCE_EQUAL);
+    if (this.peek(TOKEN_PLUS)) return this.parseBinary(NODE_ADD, node, precedence, PRECEDENCE_ADD);
+    if (this.peek(TOKEN_REMAINDER)) return this.parseBinary(NODE_REMAINDER, node, precedence, PRECEDENCE_MULTIPLY);
+    if (this.peek(TOKEN_SHIFT_LEFT)) return this.parseBinary(NODE_SHIFT_LEFT, node, precedence, PRECEDENCE_SHIFT);
+    if (this.peek(TOKEN_SHIFT_RIGHT)) return this.parseBinary(NODE_SHIFT_RIGHT, node, precedence, PRECEDENCE_SHIFT);
+
+    // Unary postfix
+    if (this.peek(TOKEN_PLUS_PLUS)) return this.parseUnaryPostfix(NODE_POSTFIX_INCREMENT, node, precedence);
+    if (this.peek(TOKEN_MINUS_MINUS)) return this.parseUnaryPostfix(NODE_POSTFIX_DECREMENT, node, precedence);
+
+    // Call
+    if (this.peek(TOKEN_LEFT_PARENTHESIS) && precedence < PRECEDENCE_UNARY_POSTFIX) {
+      this.advance();
+      var call = createCall(node);
+
+      if (!this.peek(TOKEN_RIGHT_PARENTHESIS)) {
+        while (true) {
+          var value = this.parseExpression(PRECEDENCE_LOWEST);
+          if (value == null) {
+            return null;
+          }
+          call.appendChild(value);
+
+          if (!this.eat(TOKEN_COMMA)) {
+            break;
+          }
+        }
+      }
+
+      var close = this.current;
+      if (!this.expect(TOKEN_RIGHT_PARENTHESIS)) {
+        return null;
+      }
+
+      return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token.range, close.range));
+    }
+
+    // Hook
+    if (this.peek(TOKEN_QUESTION_MARK) && precedence < PRECEDENCE_ASSIGN) {
+      this.advance();
+
+      var middle = this.parseExpression(PRECEDENCE_LOWEST);
+      if (middle == null || !this.expect(TOKEN_COLON)) {
+        return null;
+      }
+
+      var right = this.parseExpression(PRECEDENCE_LOWEST);
+      if (right == null) {
+        return null;
+      }
+
+      return createHook(node, middle, right).withRange(spanRanges(node.range, right.range));
+    }
+
+    // Dot
+    if (this.peek(TOKEN_DOT) && precedence < PRECEDENCE_MEMBER) {
+      this.advance();
+
+      var name = this.current;
+      if (!this.expect(TOKEN_IDENTIFIER)) {
+        return null;
+      }
+
+      return createDot(node, name.range.toString()).withRange(spanRanges(node.range, name.range)).withInternalRange(name.range);
+    }
+
+    return node;
+  }
+
+  parseExpression(precedence: int): Node {
+    // Prefix
+    var node = this.parsePrefix();
+    if (node == null) {
+      return null;
+    }
+    assert(node.range != null);
+
+    // Infix
+    while (true) {
+      var result = this.parseInfix(precedence, node);
+      if (result == null) {
+        return null;
+      }
+      if (result == node) {
+        break;
+      }
+      node = result;
+      assert(node.range != null);
+    }
+
+    return node;
+  }
+
+  parseType(): Node {
+    return this.parseExpression(PRECEDENCE_UNARY_POSTFIX);
+  }
+
+  parseIf(): Node {
+    var token = this.current;
+    assert(token.kind == TOKEN_IF);
+    this.advance();
+
+    if (!this.expect(TOKEN_LEFT_PARENTHESIS)) {
+      return null;
+    }
+
+    var value = this.parseExpression(PRECEDENCE_LOWEST);
+    if (value == null || !this.expect(TOKEN_RIGHT_PARENTHESIS)) {
+      return null;
+    }
+
+    var trueBranch = this.parseBody();
+    if (trueBranch == null) {
+      return null;
+    }
+
+    var falseBranch: Node = null;
+    if (this.eat(TOKEN_ELSE)) {
+      falseBranch = this.parseBody();
+      if (falseBranch == null) {
         return null;
       }
     }
 
-    end = end + 1;
+    return createIf(value, trueBranch, falseBranch).withRange(spanRanges(
+      token.range, (falseBranch != null ? falseBranch : trueBranch).range));
   }
 
-  return String_append(result, String_slice(text, start, end));
-}
+  parseWhile(): Node {
+    var token = this.current;
+    assert(token.kind == TOKEN_WHILE);
+    this.advance();
 
-function parsePrefix(context: ParserContext): Node {
-  var token = context.current;
-
-  if (eat(context, TOKEN_NULL)) {
-    return withRange(createNull(), token.range);
-  }
-
-  if (eat(context, TOKEN_THIS)) {
-    return withRange(createThis(), token.range);
-  }
-
-  if (peek(context, TOKEN_CHARACTER)) {
-    var text = parseQuotedString(context, token.range);
-    if (text == null) {
+    if (!this.expect(TOKEN_LEFT_PARENTHESIS)) {
       return null;
     }
-    if (String_length(text) != 1) {
-      error(context.log, token.range, String_new("Invalid character literal"));
+
+    var value = this.parseExpression(PRECEDENCE_LOWEST);
+    if (value == null || !this.expect(TOKEN_RIGHT_PARENTHESIS)) {
       return null;
     }
-    advance(context);
-    return withRange(createInt(String_get(text, 0)), token.range);
-  }
 
-  if (peek(context, TOKEN_STRING)) {
-    var text = parseQuotedString(context, token.range);
-    if (text == null) {
+    var body = this.parseBody();
+    if (body == null) {
       return null;
     }
-    advance(context);
-    return withRange(createString(text), token.range);
+
+    return createWhile(value, body).withRange(spanRanges(token.range, body.range));
   }
 
-  if (peek(context, TOKEN_INT)) {
-    var value = parseInt(token.range);
-    advance(context);
-    return withRange(createInt(value), token.range);
-  }
-
-  if (eat(context, TOKEN_TRUE)) {
-    return withRange(createBool(true), token.range);
-  }
-
-  if (eat(context, TOKEN_FALSE)) {
-    return withRange(createBool(false), token.range);
-  }
-
-  if (peek(context, TOKEN_IDENTIFIER)) {
-    var value = rangeToString(token.range);
-    advance(context);
-    return withRange(createName(value), token.range);
-  }
-
-  if (eat(context, TOKEN_NEW)) {
-    var type = parseType(context);
-    if (type == null || !expect(context, TOKEN_LEFT_PARENTHESIS)) {
+  parseBody(): Node {
+    var node = this.parseStatement();
+    if (node == null) {
       return null;
     }
-    var close = context.current;
-    if (!expect(context, TOKEN_RIGHT_PARENTHESIS)) {
-      return null;
+
+    if (node.kind == NODE_BLOCK) {
+      return node;
     }
-    return withRange(createNew(type), spanRanges(token.range, close.range));
+
+    var block = createBlock();
+    block.appendChild(node);
+    return block.withRange(node.range);
   }
 
-  if (eat(context, TOKEN_LEFT_PARENTHESIS)) {
-    var value = parseExpression(context, PRECEDENCE_LOWEST);
-    if (value == null || !expect(context, TOKEN_RIGHT_PARENTHESIS)) {
+  parseBlock(): Node {
+    var open = this.current;
+    if (!this.expect(TOKEN_LEFT_BRACE)) {
       return null;
     }
-    return value;
+
+    var block = createBlock();
+    if (!this.parseStatements(block)) {
+      return null;
+    }
+
+    var close = this.current;
+    if (!this.expect(TOKEN_RIGHT_BRACE)) {
+      return null;
+    }
+
+    return block.withRange(spanRanges(open.range, close.range));
   }
 
-  // Unary prefix
-  if (peek(context, TOKEN_NOT)) return parseUnaryPrefix(context, NODE_NOT);
-  if (peek(context, TOKEN_MINUS)) return parseUnaryPrefix(context, NODE_NEGATIVE);
-  if (peek(context, TOKEN_MINUS_MINUS)) return parseUnaryPrefix(context, NODE_PREFIX_DECREMENT);
-  if (peek(context, TOKEN_PLUS)) return parseUnaryPrefix(context, NODE_POSITIVE);
-  if (peek(context, TOKEN_PLUS_PLUS)) return parseUnaryPrefix(context, NODE_PREFIX_INCREMENT);
-  if (peek(context, TOKEN_COMPLEMENT)) return parseUnaryPrefix(context, NODE_COMPLEMENT);
+  parseReturn(): Node {
+    var token = this.current;
+    assert(token.kind == TOKEN_RETURN);
+    this.advance();
 
-  unexpectedToken(context);
-  return null;
-}
+    var value: Node = null;
+    if (!this.peek(TOKEN_SEMICOLON)) {
+      value = this.parseExpression(PRECEDENCE_LOWEST);
+      if (value == null) {
+        return null;
+      }
+    }
 
-function parseInfix(context: ParserContext, precedence: int, node: Node): Node {
-  var token = context.current;
+    var semicolon = this.current;
+    if (!this.expect(TOKEN_SEMICOLON)) {
+      return null;
+    }
 
-  // Binary
-  if (peek(context, TOKEN_ASSIGN)) return parseBinary(context, NODE_ASSIGN, node, precedence, PRECEDENCE_ASSIGN);
-  if (peek(context, TOKEN_BITWISE_AND)) return parseBinary(context, NODE_BITWISE_AND, node, precedence, PRECEDENCE_BITWISE_AND);
-  if (peek(context, TOKEN_BITWISE_OR)) return parseBinary(context, NODE_BITWISE_OR, node, precedence, PRECEDENCE_BITWISE_OR);
-  if (peek(context, TOKEN_BITWISE_XOR)) return parseBinary(context, NODE_BITWISE_XOR, node, precedence, PRECEDENCE_BITWISE_XOR);
-  if (peek(context, TOKEN_DIVIDE)) return parseBinary(context, NODE_DIVIDE, node, precedence, PRECEDENCE_MULTIPLY);
-  if (peek(context, TOKEN_EQUAL)) return parseBinary(context, NODE_EQUAL, node, precedence, PRECEDENCE_EQUAL);
-  if (peek(context, TOKEN_GREATER_THAN)) return parseBinary(context, NODE_GREATER_THAN, node, precedence, PRECEDENCE_COMPARE);
-  if (peek(context, TOKEN_GREATER_THAN_EQUAL)) return parseBinary(context, NODE_GREATER_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
-  if (peek(context, TOKEN_LESS_THAN)) return parseBinary(context, NODE_LESS_THAN, node, precedence, PRECEDENCE_COMPARE);
-  if (peek(context, TOKEN_LESS_THAN_EQUAL)) return parseBinary(context, NODE_LESS_THAN_EQUAL, node, precedence, PRECEDENCE_COMPARE);
-  if (peek(context, TOKEN_LOGICAL_AND)) return parseBinary(context, NODE_LOGICAL_AND, node, precedence, PRECEDENCE_LOGICAL_AND);
-  if (peek(context, TOKEN_LOGICAL_OR)) return parseBinary(context, NODE_LOGICAL_OR, node, precedence, PRECEDENCE_LOGICAL_OR);
-  if (peek(context, TOKEN_MINUS)) return parseBinary(context, NODE_SUBTRACT, node, precedence, PRECEDENCE_ADD);
-  if (peek(context, TOKEN_MULTIPLY)) return parseBinary(context, NODE_MULTIPLY, node, precedence, PRECEDENCE_MULTIPLY);
-  if (peek(context, TOKEN_NOT_EQUAL)) return parseBinary(context, NODE_NOT_EQUAL, node, precedence, PRECEDENCE_EQUAL);
-  if (peek(context, TOKEN_PLUS)) return parseBinary(context, NODE_ADD, node, precedence, PRECEDENCE_ADD);
-  if (peek(context, TOKEN_REMAINDER)) return parseBinary(context, NODE_REMAINDER, node, precedence, PRECEDENCE_MULTIPLY);
-  if (peek(context, TOKEN_SHIFT_LEFT)) return parseBinary(context, NODE_SHIFT_LEFT, node, precedence, PRECEDENCE_SHIFT);
-  if (peek(context, TOKEN_SHIFT_RIGHT)) return parseBinary(context, NODE_SHIFT_RIGHT, node, precedence, PRECEDENCE_SHIFT);
+    return createReturn(value).withRange(spanRanges(token.range, semicolon.range));
+  }
 
-  // Unary postfix
-  if (peek(context, TOKEN_PLUS_PLUS)) return parseUnaryPostfix(context, NODE_POSTFIX_INCREMENT, node, precedence);
-  if (peek(context, TOKEN_MINUS_MINUS)) return parseUnaryPostfix(context, NODE_POSTFIX_DECREMENT, node, precedence);
+  parseClass(flags: int): Node {
+    var token = this.current;
+    assert(token.kind == TOKEN_CLASS);
+    this.advance();
 
-  // Call
-  if (peek(context, TOKEN_LEFT_PARENTHESIS) && precedence < PRECEDENCE_UNARY_POSTFIX) {
-    advance(context);
-    var call = createCall(node);
+    var name = this.current;
+    if (!this.expect(TOKEN_IDENTIFIER) || !this.expect(TOKEN_LEFT_BRACE)) {
+      return null;
+    }
 
-    if (!peek(context, TOKEN_RIGHT_PARENTHESIS)) {
-      while (true) {
-        var value = parseExpression(context, PRECEDENCE_LOWEST);
-        if (value == null) {
+    var node = createClass(name.range.toString());
+    node.flags = flags;
+
+    while (!this.peek(TOKEN_END_OF_FILE) && !this.peek(TOKEN_RIGHT_BRACE)) {
+      var start = this.current;
+
+      if (!this.expect(TOKEN_IDENTIFIER)) {
+        return null;
+      }
+
+      if (this.peek(TOKEN_LEFT_PARENTHESIS)) {
+        this.current = start;
+        if (this.parseFunction(0, node) == null) {
           return null;
         }
-        appendChild(call, value);
+      }
 
-        if (!eat(context, TOKEN_COMMA)) {
+      else {
+        this.current = start;
+        if (this.parseVariables(0, node) == null) {
+          return null;
+        }
+      }
+    }
+
+    var close = this.current;
+    if (!this.expect(TOKEN_RIGHT_BRACE)) {
+      return null;
+    }
+
+    return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
+  }
+
+  parseFunction(flags: int, parent: Node): Node {
+    var token = this.current;
+
+    // Functions inside class declarations don't use "
+    if (parent == null) {
+      assert(token.kind == TOKEN_FUNCTION);
+      this.advance();
+    }
+
+    var name = this.current;
+    if (!this.expect(TOKEN_IDENTIFIER) || !this.expect(TOKEN_LEFT_PARENTHESIS)) {
+      return null;
+    }
+
+    var node = createFunction(name.range.toString());
+    node.flags = flags;
+
+    if (!this.peek(TOKEN_RIGHT_PARENTHESIS)) {
+      while (true) {
+        var argument = this.current;
+        if (!this.expect(TOKEN_IDENTIFIER) || !this.expect(TOKEN_COLON)) {
+          return null;
+        }
+
+        var type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+
+        var variable = createVariable(argument.range.toString(), type, null);
+        node.appendChild(variable.withRange(spanRanges(argument.range, type.range)).withInternalRange(argument.range));
+
+        if (!this.eat(TOKEN_COMMA)) {
           break;
         }
       }
     }
 
-    var close = context.current;
-    if (!expect(context, TOKEN_RIGHT_PARENTHESIS)) {
+    if (!this.expect(TOKEN_RIGHT_PARENTHESIS) || !this.expect(TOKEN_COLON)) {
       return null;
     }
 
-    return withInternalRange(withRange(call, spanRanges(node.range, close.range)), spanRanges(token.range, close.range));
-  }
-
-  // Hook
-  if (peek(context, TOKEN_QUESTION_MARK) && precedence < PRECEDENCE_ASSIGN) {
-    advance(context);
-
-    var middle = parseExpression(context, PRECEDENCE_LOWEST);
-    if (middle == null || !expect(context, TOKEN_COLON)) {
+    var returnType = this.parseType();
+    if (returnType == null) {
       return null;
     }
+    node.appendChild(returnType);
+    var block: Node = null;
 
-    var right = parseExpression(context, PRECEDENCE_LOWEST);
-    if (right == null) {
-      return null;
+    // Is this an import?
+    var semicolon = this.current;
+    if (this.eat(TOKEN_SEMICOLON)) {
+      block = createEmpty().withRange(semicolon.range);
     }
 
-    return withRange(createHook(node, middle, right), spanRanges(node.range, right.range));
-  }
-
-  // Dot
-  if (peek(context, TOKEN_DOT) && precedence < PRECEDENCE_MEMBER) {
-    advance(context);
-
-    var name = context.current;
-    if (!expect(context, TOKEN_IDENTIFIER)) {
-      return null;
-    }
-
-    return withInternalRange(withRange(createDot(node, rangeToString(name.range)), spanRanges(node.range, name.range)), name.range);
-  }
-
-  return node;
-}
-
-function parseExpression(context: ParserContext, precedence: int): Node {
-  // Prefix
-  var node = parsePrefix(context);
-  if (node == null) {
-    return null;
-  }
-  assert(node.range != null);
-
-  // Infix
-  while (true) {
-    var result = parseInfix(context, precedence, node);
-    if (result == null) {
-      return null;
-    }
-    if (result == node) {
-      break;
-    }
-    node = result;
-    assert(node.range != null);
-  }
-
-  return node;
-}
-
-function parseType(context: ParserContext): Node {
-  return parseExpression(context, PRECEDENCE_UNARY_POSTFIX);
-}
-
-function parseIf(context: ParserContext): Node {
-  var token = context.current;
-  assert(token.kind == TOKEN_IF);
-  advance(context);
-
-  if (!expect(context, TOKEN_LEFT_PARENTHESIS)) {
-    return null;
-  }
-
-  var value = parseExpression(context, PRECEDENCE_LOWEST);
-  if (value == null || !expect(context, TOKEN_RIGHT_PARENTHESIS)) {
-    return null;
-  }
-
-  var trueBranch = parseBody(context);
-  if (trueBranch == null) {
-    return null;
-  }
-
-  var falseBranch: Node = null;
-  if (eat(context, TOKEN_ELSE)) {
-    falseBranch = parseBody(context);
-    if (falseBranch == null) {
-      return null;
-    }
-  }
-
-  return withRange(createIf(value, trueBranch, falseBranch),
-    spanRanges(token.range, (falseBranch != null ? falseBranch : trueBranch).range));
-}
-
-function parseWhile(context: ParserContext): Node {
-  var token = context.current;
-  assert(token.kind == TOKEN_WHILE);
-  advance(context);
-
-  if (!expect(context, TOKEN_LEFT_PARENTHESIS)) {
-    return null;
-  }
-
-  var value = parseExpression(context, PRECEDENCE_LOWEST);
-  if (value == null || !expect(context, TOKEN_RIGHT_PARENTHESIS)) {
-    return null;
-  }
-
-  var body = parseBody(context);
-  if (body == null) {
-    return null;
-  }
-
-  return withRange(createWhile(value, body), spanRanges(token.range, body.range));
-}
-
-function parseBody(context: ParserContext): Node {
-  var node = parseStatement(context);
-  if (node == null) {
-    return null;
-  }
-
-  if (node.kind == NODE_BLOCK) {
-    return node;
-  }
-
-  var block = createBlock();
-  appendChild(block, node);
-  return withRange(block, node.range);
-}
-
-function parseBlock(context: ParserContext): Node {
-  var open = context.current;
-  if (!expect(context, TOKEN_LEFT_BRACE)) {
-    return null;
-  }
-
-  var block = createBlock();
-  if (!parseStatements(context, block)) {
-    return null;
-  }
-
-  var close = context.current;
-  if (!expect(context, TOKEN_RIGHT_BRACE)) {
-    return null;
-  }
-
-  return withRange(block, spanRanges(open.range, close.range));
-}
-
-function parseReturn(context: ParserContext): Node {
-  var token = context.current;
-  assert(token.kind == TOKEN_RETURN);
-  advance(context);
-
-  var value: Node = null;
-  if (!peek(context, TOKEN_SEMICOLON)) {
-    value = parseExpression(context, PRECEDENCE_LOWEST);
-    if (value == null) {
-      return null;
-    }
-  }
-
-  var semicolon = context.current;
-  if (!expect(context, TOKEN_SEMICOLON)) {
-    return null;
-  }
-
-  return withRange(createReturn(value), spanRanges(token.range, semicolon.range));
-}
-
-function parseClass(context: ParserContext, flags: int): Node {
-  var token = context.current;
-  assert(token.kind == TOKEN_CLASS);
-  advance(context);
-
-  var name = context.current;
-  if (!expect(context, TOKEN_IDENTIFIER) || !expect(context, TOKEN_LEFT_BRACE)) {
-    return null;
-  }
-
-  var node = createClass(rangeToString(name.range));
-  node.flags = flags;
-
-  while (!peek(context, TOKEN_END_OF_FILE) && !peek(context, TOKEN_RIGHT_BRACE)) {
-    var start = context.current;
-
-    if (!expect(context, TOKEN_IDENTIFIER)) {
-      return null;
-    }
-
-    if (peek(context, TOKEN_LEFT_PARENTHESIS)) {
-      context.current = start;
-      if (parseFunction(context, 0, node) == null) {
-        return null;
-      }
-    }
-
+    // Normal functions
     else {
-      context.current = start;
-      if (parseVariables(context, 0, node) == null) {
+      block = this.parseBlock();
+      if (block == null) {
         return null;
       }
     }
+
+    // Add this to the enclosing class
+    if (parent != null) {
+      parent.appendChild(node);
+    }
+
+    node.appendChild(block);
+    return node.withRange(spanRanges(token.range, block.range)).withInternalRange(name.range);
   }
 
-  var close = context.current;
-  if (!expect(context, TOKEN_RIGHT_BRACE)) {
-    return null;
-  }
+  parseVariables(flags: int, parent: Node): Node {
+    var token = this.current;
 
-  return withInternalRange(withRange(node, spanRanges(token.range, close.range)), name.range);
-}
+    // Variables inside class declarations don't use "var"
+    if (parent == null) {
+      assert(token.kind == TOKEN_VAR || token.kind == TOKEN_CONST);
+      this.advance();
+    }
 
-function parseFunction(context: ParserContext, flags: int, parent: Node): Node {
-  var token = context.current;
+    var node = token.kind == TOKEN_CONST ? createConstants() : createVariables();
 
-  // Functions inside class declarations don't use "function"
-  if (parent == null) {
-    assert(token.kind == TOKEN_FUNCTION);
-    advance(context);
-  }
-
-  var name = context.current;
-  if (!expect(context, TOKEN_IDENTIFIER) || !expect(context, TOKEN_LEFT_PARENTHESIS)) {
-    return null;
-  }
-
-  var node = createFunction(rangeToString(name.range));
-  node.flags = flags;
-
-  if (!peek(context, TOKEN_RIGHT_PARENTHESIS)) {
     while (true) {
-      var argument = context.current;
-      if (!expect(context, TOKEN_IDENTIFIER) || !expect(context, TOKEN_COLON)) {
+      var name = this.current;
+      if (!this.expect(TOKEN_IDENTIFIER)) {
         return null;
       }
 
-      var type = parseType(context);
-      if (type == null) {
-        return null;
+      var type: Node = null;
+      if (this.eat(TOKEN_COLON)) {
+        type = this.parseType();
+        if (type == null) {
+          return null;
+        }
       }
 
-      var variable = createVariable(rangeToString(argument.range), type, null);
-      appendChild(node, withInternalRange(withRange(variable, spanRanges(argument.range, type.range)), argument.range));
+      var value: Node = null;
+      if (this.eat(TOKEN_ASSIGN)) {
+        value = this.parseExpression(PRECEDENCE_LOWEST);
+        if (value == null) {
+          return null;
+        }
 
-      if (!eat(context, TOKEN_COMMA)) {
+        // TODO: Implement constructors
+        if (parent != null) {
+          this.log.error(value.range, String_new("Inline initialization of instance variables is not supported yet"));
+        }
+      }
+
+      var range =
+        value != null ? spanRanges(name.range, value.range) :
+        type != null ? spanRanges(name.range, type.range) :
+        name.range;
+
+      var variable = createVariable(name.range.toString(), type, value);
+      variable.flags = flags;
+      (parent != null ? parent : node).appendChild(variable.withRange(range).withInternalRange(name.range));
+
+      if (!this.eat(TOKEN_COMMA)) {
         break;
       }
     }
-  }
 
-  if (!expect(context, TOKEN_RIGHT_PARENTHESIS) || !expect(context, TOKEN_COLON)) {
-    return null;
-  }
-
-  var returnType = parseType(context);
-  if (returnType == null) {
-    return null;
-  }
-  appendChild(node, returnType);
-  var block: Node = null;
-
-  // Is this an import?
-  var semicolon = context.current;
-  if (eat(context, TOKEN_SEMICOLON)) {
-    block = withRange(createEmpty(), semicolon.range);
-  }
-
-  // Normal functions
-  else {
-    block = parseBlock(context);
-    if (block == null) {
-      return null;
-    }
-  }
-
-  // Add this function to the enclosing class
-  if (parent != null) {
-    appendChild(parent, node);
-  }
-
-  appendChild(node, block);
-  return withInternalRange(withRange(node, spanRanges(token.range, block.range)), name.range);
-}
-
-function parseVariables(context: ParserContext, flags: int, parent: Node): Node {
-  var token = context.current;
-
-  // Variables inside class declarations don't use "var"
-  if (parent == null) {
-    assert(token.kind == TOKEN_VAR || token.kind == TOKEN_CONST);
-    advance(context);
-  }
-
-  var node = token.kind == TOKEN_CONST ? createConstants() : createVariables();
-
-  while (true) {
-    var name = context.current;
-    if (!expect(context, TOKEN_IDENTIFIER)) {
+    var semicolon = this.current;
+    if (!this.expect(TOKEN_SEMICOLON)) {
       return null;
     }
 
-    var type: Node = null;
-    if (eat(context, TOKEN_COLON)) {
-      type = parseType(context);
-      if (type == null) {
-        return null;
+    return node.withRange(spanRanges(token.range, semicolon.range));
+  }
+
+  parseLoopJump(kind: int): Node {
+    var token = this.current;
+    this.advance();
+
+    if (!this.expect(TOKEN_SEMICOLON)) {
+      return null;
+    }
+
+    var node = new Node();
+    node.kind = kind;
+    return node.withRange(token.range);
+  }
+
+  parseStatement(): Node {
+    var flags = 0;
+
+    if (this.eat(TOKEN_EXTERN)) {
+      flags = flags | NODE_FLAG_EXTERN;
+    }
+
+    if (this.peek(TOKEN_CONST) || this.peek(TOKEN_VAR)) {
+      return this.parseVariables(flags, null);
+    }
+
+    if (this.peek(TOKEN_FUNCTION)) {
+      return this.parseFunction(flags, null);
+    }
+
+    if (this.peek(TOKEN_CLASS)) {
+      return this.parseClass(flags);
+    }
+
+    // Definition modifiers need to be attached to a definition
+    if (flags != 0) {
+      this.unexpectedToken();
+      return null;
+    }
+
+    if (this.peek(TOKEN_LEFT_BRACE)) {
+      return this.parseBlock();
+    }
+
+    if (this.peek(TOKEN_BREAK)) {
+      return this.parseLoopJump(NODE_BREAK);
+    }
+
+    if (this.peek(TOKEN_CONTINUE)) {
+      return this.parseLoopJump(NODE_CONTINUE);
+    }
+
+    if (this.peek(TOKEN_IF)) {
+      return this.parseIf();
+    }
+
+    if (this.peek(TOKEN_WHILE)) {
+      return this.parseWhile();
+    }
+
+    if (this.peek(TOKEN_RETURN)) {
+      return this.parseReturn();
+    }
+
+    if (this.peek(TOKEN_SEMICOLON)) {
+      var token = this.current;
+      this.advance();
+      return createEmpty().withRange(token.range);
+    }
+
+    var value = this.parseExpression(PRECEDENCE_LOWEST);
+
+    if (value == null) {
+      return null;
+    }
+
+    var semicolon = this.current;
+    if (!this.expect(TOKEN_SEMICOLON)) {
+      return null;
+    }
+
+    return createExpression(value).withRange(spanRanges(value.range, semicolon.range));
+  }
+
+  parseStatements(parent: Node): bool {
+    while (!this.peek(TOKEN_END_OF_FILE) && !this.peek(TOKEN_RIGHT_BRACE)) {
+      var child = this.parseStatement();
+      if (child == null) {
+        return false;
       }
+      parent.appendChild(child);
     }
-
-    var value: Node = null;
-    if (eat(context, TOKEN_ASSIGN)) {
-      value = parseExpression(context, PRECEDENCE_LOWEST);
-      if (value == null) {
-        return null;
-      }
-
-      // TODO: Implement constructors
-      if (parent != null) {
-        error(context.log, value.range, String_new("Inline initialization of instance variables is not supported yet"));
-      }
-    }
-
-    var range =
-      value != null ? spanRanges(name.range, value.range) :
-      type != null ? spanRanges(name.range, type.range) :
-      name.range;
-
-    var variable = createVariable(rangeToString(name.range), type, value);
-    variable.flags = flags;
-    appendChild(parent != null ? parent : node, withInternalRange(withRange(variable, range), name.range));
-
-    if (!eat(context, TOKEN_COMMA)) {
-      break;
-    }
+    return true;
   }
-
-  var semicolon = context.current;
-  if (!expect(context, TOKEN_SEMICOLON)) {
-    return null;
-  }
-
-  return withRange(node, spanRanges(token.range, semicolon.range));
-}
-
-function parseLoopJump(context: ParserContext, kind: int): Node {
-  var token = context.current;
-  advance(context);
-
-  if (!expect(context, TOKEN_SEMICOLON)) {
-    return null;
-  }
-
-  var node = new Node();
-  node.kind = kind;
-  return withRange(node, token.range);
-}
-
-function parseStatement(context: ParserContext): Node {
-  var flags = 0;
-
-  if (eat(context, TOKEN_EXTERN)) {
-    flags = flags | NODE_FLAG_EXTERN;
-  }
-
-  if (peek(context, TOKEN_CONST) || peek(context, TOKEN_VAR)) {
-    return parseVariables(context, flags, null);
-  }
-
-  if (peek(context, TOKEN_FUNCTION)) {
-    return parseFunction(context, flags, null);
-  }
-
-  if (peek(context, TOKEN_CLASS)) {
-    return parseClass(context, flags);
-  }
-
-  // Definition modifiers need to be attached to a definition
-  if (flags != 0) {
-    unexpectedToken(context);
-    return null;
-  }
-
-  if (peek(context, TOKEN_LEFT_BRACE)) {
-    return parseBlock(context);
-  }
-
-  if (peek(context, TOKEN_BREAK)) {
-    return parseLoopJump(context, NODE_BREAK);
-  }
-
-  if (peek(context, TOKEN_CONTINUE)) {
-    return parseLoopJump(context, NODE_CONTINUE);
-  }
-
-  if (peek(context, TOKEN_IF)) {
-    return parseIf(context);
-  }
-
-  if (peek(context, TOKEN_WHILE)) {
-    return parseWhile(context);
-  }
-
-  if (peek(context, TOKEN_RETURN)) {
-    return parseReturn(context);
-  }
-
-  if (peek(context, TOKEN_SEMICOLON)) {
-    var token = context.current;
-    advance(context);
-    return withRange(createEmpty(), token.range);
-  }
-
-  var value = parseExpression(context, PRECEDENCE_LOWEST);
-
-  if (value == null) {
-    return null;
-  }
-
-  var semicolon = context.current;
-  if (!expect(context, TOKEN_SEMICOLON)) {
-    return null;
-  }
-
-  return withRange(createExpression(value), spanRanges(value.range, semicolon.range));
-}
-
-function parseStatements(context: ParserContext, parent: Node): bool {
-  while (!peek(context, TOKEN_END_OF_FILE) && !peek(context, TOKEN_RIGHT_BRACE)) {
-    var child = parseStatement(context);
-    if (child == null) {
-      return false;
-    }
-    appendChild(parent, child);
-  }
-  return true;
 }
 
 function parse(firstToken: Token, log: Log): Node {
@@ -730,7 +730,7 @@ function parse(firstToken: Token, log: Log): Node {
 
   var global = new Node();
   global.kind = NODE_GLOBAL;
-  if (!parseStatements(context, global)) {
+  if (!context.parseStatements(global)) {
     return null;
   }
   return global;

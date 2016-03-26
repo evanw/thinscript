@@ -27,8 +27,8 @@ extern function CompileResult_addInput(result: CompileResult, name: String, cont
     if (file != null) {
       while (file.firstChild != null) {
         var child = file.firstChild;
-        remove(child);
-        appendChild(result.global, child);
+        child.remove();
+        result.global.appendChild(child);
       }
     }
   }
@@ -56,5 +56,5 @@ extern function CompileResult_js(result: CompileResult): String {
 }
 
 extern function CompileResult_log(result: CompileResult): String {
-  return logToString(result.log);
+  return result.log.toString();
 }

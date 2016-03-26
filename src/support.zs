@@ -32,6 +32,26 @@ class Range {
   source: Source;
   start: int;
   end: int;
+
+  toString(): String {
+    return String_slice(this.source.contents, this.start, this.end);
+  }
+
+  enclosingLine(): Range {
+    var contents = this.source.contents;
+    var start = this.start;
+    var end = this.start;
+
+    while (start > 0 && String_get(contents, start - 1) != '\n') {
+      start = start - 1;
+    }
+
+    while (end + 1 < String_length(contents) && String_get(contents, end) != '\n') {
+      end = end + 1;
+    }
+
+    return createRange(this.source, start, end);
+  }
 }
 
 class Diagnostic {
@@ -43,80 +63,70 @@ class Diagnostic {
 class Log {
   first: Diagnostic;
   last: Diagnostic;
-}
 
-function rangeToString(range: Range): String {
-  return String_slice(range.source.contents, range.start, range.end);
-}
+  error(range: Range, message: String): void {
+    var diagnostic = new Diagnostic();
+    diagnostic.range = range;
+    diagnostic.message = message;
+    this.append(diagnostic);
+  }
 
-function logToString(log: Log): String {
-  var result = String_new("");
-  var d = log.first;
+  append(diagnostic: Diagnostic): void {
+    if (this.first == null) this.first = diagnostic;
+    else this.last.next = diagnostic;
+    this.last = diagnostic;
+  }
 
-  while (d != null) {
-    var lineRange = enclosingLine(d.range);
-    var column = d.range.start - lineRange.start;
-    var line = 0;
+  toString(): String {
+    var result = String_new("");
+    var d = this.first;
 
-    var i = 0;
-    while (i < lineRange.start) {
-      if (String_get(lineRange.source.contents, i) == '\n') {
-        line = line + 1;
-      }
-      i = i + 1;
-    }
+    while (d != null) {
+      var lineRange = d.range.enclosingLine();
+      var column = d.range.start - lineRange.start;
+      var line = 0;
 
-    result = String_append(result, d.range.source.name);
-    result = String_appendNew(result, ":");
-    result = String_append(result, String_toString(line + 1));
-    result = String_appendNew(result, ":");
-    result = String_append(result, String_toString(column + 1));
-    result = String_appendNew(result, ": error: ");
-    result = String_append(result, d.message);
-    result = String_appendNew(result, "\n");
-    result = String_append(result, rangeToString(lineRange));
-    result = String_appendNew(result, "\n");
-
-    i = 0;
-    while (i < column) {
-      result = String_appendNew(result, " ");
-      i = i + 1;
-    }
-
-    if (d.range.end - d.range.start <= 1) {
-      result = String_appendNew(result, "^");
-    } else {
-      i = d.range.start;
-      while (i < d.range.end && i < lineRange.end) {
-        result = String_appendNew(result, "~");
+      var i = 0;
+      while (i < lineRange.start) {
+        if (String_get(lineRange.source.contents, i) == '\n') {
+          line = line + 1;
+        }
         i = i + 1;
       }
+
+      result = String_append(result, d.range.source.name);
+      result = String_appendNew(result, ":");
+      result = String_append(result, String_toString(line + 1));
+      result = String_appendNew(result, ":");
+      result = String_append(result, String_toString(column + 1));
+      result = String_appendNew(result, ": error: ");
+      result = String_append(result, d.message);
+      result = String_appendNew(result, "\n");
+      result = String_append(result, lineRange.toString());
+      result = String_appendNew(result, "\n");
+
+      i = 0;
+      while (i < column) {
+        result = String_appendNew(result, " ");
+        i = i + 1;
+      }
+
+      if (d.range.end - d.range.start <= 1) {
+        result = String_appendNew(result, "^");
+      } else {
+        i = d.range.start;
+        while (i < d.range.end && i < lineRange.end) {
+          result = String_appendNew(result, "~");
+          i = i + 1;
+        }
+      }
+
+      result = String_appendNew(result, "\n");
+      d = d.next;
     }
 
-    result = String_appendNew(result, "\n");
-    d = d.next;
+    return result;
   }
-
-  return result;
-}
-
-function appendDiagnostic(log: Log, diagnostic: Diagnostic): void {
-  if (log.first == null) {
-    log.first = diagnostic;
-    log.last = diagnostic;
-  }
-
-  else {
-    log.last.next = diagnostic;
-    log.last = diagnostic;
-  }
-}
-
-function error(log: Log, range: Range, message: String): void {
-  var diagnostic = new Diagnostic();
-  diagnostic.range = range;
-  diagnostic.message = message;
-  appendDiagnostic(log, diagnostic);
 }
 
 function createRange(source: Source, start: int, end: int): Range {
@@ -132,20 +142,4 @@ function spanRanges(left: Range, right: Range): Range {
   assert(left.source == right.source);
   assert(left.end <= right.start);
   return createRange(left.source, left.start, right.end);
-}
-
-function enclosingLine(range: Range): Range {
-  var contents = range.source.contents;
-  var start = range.start;
-  var end = range.start;
-
-  while (start > 0 && String_get(contents, start - 1) != '\n') {
-    start = start - 1;
-  }
-
-  while (end + 1 < String_length(contents) && String_get(contents, end) != '\n') {
-    end = end + 1;
-  }
-
-  return createRange(range.source, start, end);
 }

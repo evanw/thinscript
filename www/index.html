@@ -77,25 +77,23 @@
     'class List {\n' +
     '  first: Link;\n' +
     '  last: Link;\n' +
-    '}\n' +
     '\n' +
-    'function append(list: List, value: int): void {\n' +
-    '  var link = new Link();\n' +
-    '  link.value = value;\n' +
+    '  append(value: int): void {\n' +
+    '    var link = new Link();\n' +
+    '    link.value = value;\n' +
     '\n' +
-    '  if (list.first == null) {\n' +
-    '    list.first = link;\n' +
-    '  } else {\n' +
-    '    list.last.next = link;\n' +
+    '    // Append the new link to the end of the chain\n' +
+    '    if (this.first == null) this.first = link;\n' +
+    '    else this.last.next = link;\n' +
+    '    this.last = link;\n' +
     '  }\n' +
-    '  list.last = link;\n' +
     '}\n' +
     '\n' +
     'extern function main(): int {\n' +
     '  var list = new List();\n' +
-    '  append(list, 1);\n' +
-    '  append(list, 2);\n' +
-    '  append(list, 3);\n' +
+    '  list.append(1);\n' +
+    '  list.append(2);\n' +
+    '  list.append(3);\n' +
     '\n' +
     '  var total = 0;\n' +
     '  var link = list.first;\n' +

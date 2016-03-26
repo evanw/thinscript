@@ -235,7 +235,7 @@ function tokenize(source: Source, log: Log): Token {
 
       // It's an error if we didn't find a matching quote character
       if (kind == TOKEN_END_OF_FILE) {
-        error(log, createRange(source, start, i), String_new(
+        log.error(createRange(source, start, i), String_new(
           c == '\'' ? "Unterminated character literal" :
           c == '`' ? "Unterminated template literal" :
           "Unterminated string literal"));
@@ -293,7 +293,7 @@ function tokenize(source: Source, log: Log): Token {
         }
 
         if (!foundEnd) {
-          error(log, createRange(source, start, start + 2), String_new("Unterminated multi-line comment"));
+          log.error(createRange(source, start, start + 2), String_new("Unterminated multi-line comment"));
           return null;
         }
 
@@ -312,7 +312,7 @@ function tokenize(source: Source, log: Log): Token {
         // Recover from !==
         if (i < limit && String_get(contents, i) == '=') {
           i = i + 1;
-          error(log, createRange(source, start, i), String_new("Use '!=' instead of '!=='"));
+          log.error(createRange(source, start, i), String_new("Use '!=' instead of '!=='"));
         }
       }
     }
@@ -328,7 +328,7 @@ function tokenize(source: Source, log: Log): Token {
         // Recover from ===
         if (i < limit && String_get(contents, i) == '=') {
           i = i + 1;
-          error(log, createRange(source, start, i), String_new("Use '==' instead of '==='"));
+          log.error(createRange(source, start, i), String_new("Use '==' instead of '==='"));
         }
       }
     }
@@ -414,7 +414,7 @@ function tokenize(source: Source, log: Log): Token {
     var range = createRange(source, start, i);
 
     if (kind == TOKEN_END_OF_FILE) {
-      error(log, range,
+      log.error(range,
         String_appendNew(
           String_append(
             String_new("Syntax error: '"),

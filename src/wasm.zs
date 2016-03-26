@@ -256,62 +256,321 @@ class WasmModule {
   signatureCount: int;
 
   memoryInitializer: ByteArray;
-}
 
-function wasmAllocateImport(module: WasmModule, signatureIndex: int, mod: String, name: String): WasmImport {
-  var result = new WasmImport();
-  result.signatureIndex = signatureIndex;
-  result.module = mod;
-  result.name = name;
+  allocateImport(signatureIndex: int, mod: String, name: String): WasmImport {
+    var result = new WasmImport();
+    result.signatureIndex = signatureIndex;
+    result.module = mod;
+    result.name = name;
 
-  if (module.firstImport == null) module.firstImport = result;
-  else module.lastImport.next = result;
-  module.lastImport = result;
+    if (this.firstImport == null) this.firstImport = result;
+    else this.lastImport.next = result;
+    this.lastImport = result;
 
-  module.importCount = module.importCount + 1;
-  return result;
-}
-
-function wasmAllocateFunction(module: WasmModule, name: String, signatureIndex: int, body: Node): WasmFunction {
-  var fn = new WasmFunction();
-  fn.name = name;
-  fn.signatureIndex = signatureIndex;
-  fn.body = body;
-
-  if (module.firstFunction == null) module.firstFunction = fn;
-  else module.lastFunction.next = fn;
-  module.lastFunction = fn;
-
-  module.functionCount = module.functionCount + 1;
-  return fn;
-}
-
-function wasmAllocateSignature(module: WasmModule, argumentTypes: WasmType, returnType: WasmType): int {
-  assert(returnType != null);
-  assert(returnType.next == null);
-
-  var signature = new WasmSignature();
-  signature.argumentTypes = argumentTypes;
-  signature.returnType = returnType;
-
-  var check = module.firstSignature;
-  var i = 0;
-
-  while (check != null) {
-    if (wasmAreSignaturesEqual(signature, check)) {
-      return i;
-    }
-
-    check = check.next;
-    i = i + 1;
+    this.importCount = this.importCount + 1;
+    return result;
   }
 
-  if (module.firstSignature == null) module.firstSignature = signature;
-  else module.lastSignature.next = signature;
-  module.lastSignature = signature;
+  allocateFunction(name: String, signatureIndex: int, body: Node): WasmFunction {
+    var fn = new WasmFunction();
+    fn.name = name;
+    fn.signatureIndex = signatureIndex;
+    fn.body = body;
 
-  module.signatureCount = module.signatureCount + 1;
-  return i;
+    if (this.firstFunction == null) this.firstFunction = fn;
+    else this.lastFunction.next = fn;
+    this.lastFunction = fn;
+
+    this.functionCount = this.functionCount + 1;
+    return fn;
+  }
+
+  allocateSignature(argumentTypes: WasmType, returnType: WasmType): int {
+    assert(returnType != null);
+    assert(returnType.next == null);
+
+    var signature = new WasmSignature();
+    signature.argumentTypes = argumentTypes;
+    signature.returnType = returnType;
+
+    var check = this.firstSignature;
+    var i = 0;
+
+    while (check != null) {
+      if (wasmAreSignaturesEqual(signature, check)) {
+        return i;
+      }
+
+      check = check.next;
+      i = i + 1;
+    }
+
+    if (this.firstSignature == null) this.firstSignature = signature;
+    else this.lastSignature.next = signature;
+    this.lastSignature = signature;
+
+    this.signatureCount = this.signatureCount + 1;
+    return i;
+  }
+
+  emitModule(array: ByteArray): void {
+    ByteArray_appendByte(array, WASM_MAGIC);
+    ByteArray_appendByte(array, WASM_MAGIC >> 8);
+    ByteArray_appendByte(array, WASM_MAGIC >> 16);
+    ByteArray_appendByte(array, WASM_MAGIC >> 24);
+
+    ByteArray_appendByte(array, WASM_VERSION);
+    ByteArray_appendByte(array, WASM_VERSION >> 8);
+    ByteArray_appendByte(array, WASM_VERSION >> 16);
+    ByteArray_appendByte(array, WASM_VERSION >> 24);
+
+    this.emitSignatures(array);
+    this.emitImportTable(array);
+    this.emitFunctionSignatures(array);
+    this.emitMemory(array);
+    this.emitExportTable(array);
+    this.emitFunctionBodies(array);
+    this.emitDataSegments(array);
+  }
+
+  emitSignatures(array: ByteArray): void {
+    var section = wasmStartSection(array, String_new("signatures"));
+    wasmWriteVarUnsigned(array, this.signatureCount);
+
+    var signature = this.firstSignature;
+    while (signature != null) {
+      var count = 0;
+      var type = signature.argumentTypes;
+
+      while (type != null) {
+        count = count + 1;
+        type = type.next;
+      }
+
+      wasmWriteVarUnsigned(array, count);
+      wasmWriteVarUnsigned(array, signature.returnType.id);
+
+      type = signature.argumentTypes;
+      while (type != null) {
+        wasmWriteVarUnsigned(array, type.id);
+        type = type.next;
+      }
+
+      signature = signature.next;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitImportTable(array: ByteArray): void {
+    if (this.firstImport == null) {
+      return;
+    }
+
+    var section = wasmStartSection(array, String_new("import_table"));
+    wasmWriteVarUnsigned(array, this.importCount);
+
+    var current = this.firstImport;
+    while (current != null) {
+      wasmWriteVarUnsigned(array, current.signatureIndex);
+      wasmWriteLengthPrefixedString(array, current.module);
+      wasmWriteLengthPrefixedString(array, current.name);
+      current = current.next;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitFunctionSignatures(array: ByteArray): void {
+    if (this.firstFunction == null) {
+      return;
+    }
+
+    var section = wasmStartSection(array, String_new("function_signatures"));
+    wasmWriteVarUnsigned(array, this.functionCount);
+
+    var fn = this.firstFunction;
+    while (fn != null) {
+      wasmWriteVarUnsigned(array, fn.signatureIndex);
+      fn = fn.next;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitMemory(array: ByteArray): void {
+    var section = wasmStartSection(array, String_new("memory"));
+    wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
+    wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
+    wasmWriteVarUnsigned(array, 1); // The memory array is exported
+    wasmFinishSection(array, section);
+  }
+
+  emitExportTable(array: ByteArray): void {
+    var exportedCount = 0;
+    var fn = this.firstFunction;
+    while (fn != null) {
+      if (fn.isExported) {
+        exportedCount = exportedCount + 1;
+      }
+      fn = fn.next;
+    }
+    if (exportedCount == 0) {
+      return;
+    }
+
+    var section = wasmStartSection(array, String_new("export_table"));
+    wasmWriteVarUnsigned(array, exportedCount);
+
+    var i = 0;
+    fn = this.firstFunction;
+    while (fn != null) {
+      if (fn.isExported) {
+        wasmWriteVarUnsigned(array, i);
+        wasmWriteLengthPrefixedString(array, fn.name);
+      }
+      fn = fn.next;
+      i = i + 1;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitFunctionBodies(array: ByteArray): void {
+    if (this.firstFunction == null) {
+      return;
+    }
+
+    var section = wasmStartSection(array, String_new("function_bodies"));
+    wasmWriteVarUnsigned(array, this.functionCount);
+
+    var fn = this.firstFunction;
+    while (fn != null) {
+      var bodyLength = ByteArray_length(array);
+      wasmWriteVarUnsigned(array, ~0); // This will be patched later
+
+      if (fn.intLocalCount > 0) {
+        wasmWriteVarUnsigned(array, 1);
+        wasmWriteVarUnsigned(array, fn.intLocalCount);
+        ByteArray_appendByte(array, WASM_TYPE_I32);
+      } else {
+        wasmWriteVarUnsigned(array, 0);
+      }
+
+      var child = fn.body.firstChild;
+      while (child != null) {
+        wasmEmitNode(array, child);
+        child = child.nextSibling;
+      }
+
+      wasmPatchVarUnsigned(array, bodyLength, ByteArray_length(array) - bodyLength - 5, ~0);
+      fn = fn.next;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitDataSegments(array: ByteArray): void {
+    var section = wasmStartSection(array, String_new("data_segments"));
+    wasmWriteVarUnsigned(array, 1);
+
+    var memoryInitializer = this.memoryInitializer;
+    var byteOffset = WASM_MEMORY_INITIALIZER_OFFSET;
+    var byteCount = ByteArray_length(memoryInitializer);
+    var initialHeapOffset = (byteOffset + byteCount + 7) & ~7;
+    assert(byteCount >= 4);
+
+    wasmWriteVarUnsigned(array, byteOffset);
+    wasmWriteVarUnsigned(array, byteCount);
+
+    // Pass the initial heap offset to the runtime
+    ByteArray_setByte(memoryInitializer, 0, initialHeapOffset);
+    ByteArray_setByte(memoryInitializer, 1, initialHeapOffset >> 8);
+    ByteArray_setByte(memoryInitializer, 2, initialHeapOffset >> 16);
+    ByteArray_setByte(memoryInitializer, 3, initialHeapOffset >> 24);
+
+    // Put the string table next after that
+    var i = 0;
+    while (i < byteCount) {
+      ByteArray_appendByte(array, ByteArray_getByte(memoryInitializer, i));
+      i = i + 1;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  collectStrings(node: Node): void {
+    if (node.kind == NODE_STRING) {
+      var memoryInitializer = this.memoryInitializer;
+      node.intValue = WASM_MEMORY_INITIALIZER_OFFSET + ByteArray_length(memoryInitializer);
+      var text = node.stringValue;
+      var i = 0;
+      var count = String_length(text);
+      while (i < count) {
+        ByteArray_appendByte(memoryInitializer, String_get(text, i));
+        i = i + 1;
+      }
+      ByteArray_appendByte(memoryInitializer, 0);
+    }
+
+    var child = node.firstChild;
+    while (child != null) {
+      this.collectStrings(child);
+      child = child.nextSibling;
+    }
+  }
+
+  prepareFunctions(node: Node, context: CheckContext): void {
+    if (node.kind == NODE_GLOBAL || node.kind == NODE_CLASS) {
+      var child = node.firstChild;
+      while (child != null) {
+        this.prepareFunctions(child, context);
+        child = child.nextSibling;
+      }
+    }
+
+    else if (node.kind == NODE_FUNCTION) {
+      var returnType = node.functionReturnType();
+      var shared = new WasmSharedOffset();
+      var argumentTypesFirst: WasmType = null;
+      var argumentTypesLast: WasmType = null;
+
+      // Make sure to include the implicit "this" variable as a normal argument
+      var argument = node.firstChild;
+      while (argument != returnType) {
+        var type = wasmWrapType(wasmGetType(context, argument.variableType().resolvedType));
+
+        if (argumentTypesFirst == null) argumentTypesFirst = type;
+        else argumentTypesLast.next = type;
+        argumentTypesLast = type;
+
+        shared.nextLocalOffset = shared.nextLocalOffset + 1;
+        argument = argument.nextSibling;
+      }
+      var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+      var body = node.functionBody();
+
+      // Functions without bodies are imports
+      if (body == null) {
+        node.symbol.offset = this.importCount;
+        this.allocateImport(signatureIndex, String_new("imports"), node.symbol.name);
+        node = node.nextSibling;
+        return;
+      }
+
+      node.symbol.offset = this.functionCount;
+      var fn = this.allocateFunction(node.symbol.name, signatureIndex, body);
+
+      // Only export "extern" functions
+      if (isExternSymbol(node.symbol)) {
+        fn.isExported = true;
+      }
+
+      // Assign local variable offsets
+      wasmAssignLocalVariableOffsets(body, shared);
+      fn.intLocalCount = shared.intLocalCount;
+    }
+  }
 }
 
 function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValue: int): void {
@@ -382,113 +641,10 @@ function wasmFinishSection(array: ByteArray, offset: int): void {
   wasmPatchVarUnsigned(array, offset, ByteArray_length(array) - offset - 5, ~0);
 }
 
-function wasmEmitSignatures(array: ByteArray, module: WasmModule): void {
-  var section = wasmStartSection(array, String_new("signatures"));
-  wasmWriteVarUnsigned(array, module.signatureCount);
-
-  var signature = module.firstSignature;
-  while (signature != null) {
-    var count = 0;
-    var type = signature.argumentTypes;
-
-    while (type != null) {
-      count = count + 1;
-      type = type.next;
-    }
-
-    wasmWriteVarUnsigned(array, count);
-    wasmWriteVarUnsigned(array, signature.returnType.id);
-
-    type = signature.argumentTypes;
-    while (type != null) {
-      wasmWriteVarUnsigned(array, type.id);
-      type = type.next;
-    }
-
-    signature = signature.next;
-  }
-
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitImportTable(array: ByteArray, module: WasmModule): void {
-  if (module.firstImport == null) {
-    return;
-  }
-
-  var section = wasmStartSection(array, String_new("import_table"));
-  wasmWriteVarUnsigned(array, module.importCount);
-
-  var current = module.firstImport;
-  while (current != null) {
-    wasmWriteVarUnsigned(array, current.signatureIndex);
-    wasmWriteLengthPrefixedString(array, current.module);
-    wasmWriteLengthPrefixedString(array, current.name);
-    current = current.next;
-  }
-
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitFunctionSignatures(array: ByteArray, module: WasmModule): void {
-  if (module.firstFunction == null) {
-    return;
-  }
-
-  var section = wasmStartSection(array, String_new("function_signatures"));
-  wasmWriteVarUnsigned(array, module.functionCount);
-
-  var fn = module.firstFunction;
-  while (fn != null) {
-    wasmWriteVarUnsigned(array, fn.signatureIndex);
-    fn = fn.next;
-  }
-
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitMemory(array: ByteArray, module: WasmModule): void {
-  var section = wasmStartSection(array, String_new("memory"));
-  wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
-  wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
-  wasmWriteVarUnsigned(array, 1); // The memory array is exported
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitExportTable(array: ByteArray, module: WasmModule): void {
-  var exportedCount = 0;
-  var fn = module.firstFunction;
-  while (fn != null) {
-    if (fn.isExported) {
-      exportedCount = exportedCount + 1;
-    }
-    fn = fn.next;
-  }
-  if (exportedCount == 0) {
-    return;
-  }
-
-  var section = wasmStartSection(array, String_new("export_table"));
-  wasmWriteVarUnsigned(array, exportedCount);
-
-  var i = 0;
-  fn = module.firstFunction;
-  while (fn != null) {
-    if (fn.isExported) {
-      wasmWriteVarUnsigned(array, i);
-      wasmWriteLengthPrefixedString(array, fn.name);
-    }
-    fn = fn.next;
-    i = i + 1;
-  }
-
-  wasmFinishSection(array, section);
-}
-
 function emitBinaryExpression(array: ByteArray, node: Node, opcode: int): void {
   ByteArray_appendByte(array, opcode);
-  wasmEmitNode(array, binaryLeft(node));
-  wasmEmitNode(array, binaryRight(node));
+  wasmEmitNode(array, node.binaryLeft());
+  wasmEmitNode(array, node.binaryRight());
 }
 
 function wasmEmitNode(array: ByteArray, node: Node): int {
@@ -506,8 +662,8 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_WHILE) {
-    var value = whileValue(node);
-    var body = whileBody(node);
+    var value = node.whileValue();
+    var body = node.whileBody();
 
     // Ignore "while (false) { ... }"
     if (value.kind == NODE_BOOL && value.intValue == 0) {
@@ -566,11 +722,11 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_EXPRESSION) {
-    wasmEmitNode(array, expressionValue(node));
+    wasmEmitNode(array, node.expressionValue());
   }
 
   else if (node.kind == NODE_RETURN) {
-    var value = returnValue(node);
+    var value = node.returnValue();
     ByteArray_appendByte(array, WASM_OPCODE_RETURN);
     if (value != null) {
       wasmEmitNode(array, value);
@@ -589,10 +745,10 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_IF) {
-    var branch = ifFalse(node);
+    var branch = node.ifFalse();
     ByteArray_appendByte(array, branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, ifValue(node));
-    wasmEmitNode(array, ifTrue(node));
+    wasmEmitNode(array, node.ifValue());
+    wasmEmitNode(array, node.ifTrue());
     if (branch != null) {
       wasmEmitNode(array, branch);
     }
@@ -600,13 +756,13 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
 
   else if (node.kind == NODE_HOOK) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, hookValue(node));
-    wasmEmitNode(array, hookTrue(node));
-    wasmEmitNode(array, hookFalse(node));
+    wasmEmitNode(array, node.hookValue());
+    wasmEmitNode(array, node.hookTrue());
+    wasmEmitNode(array, node.hookFalse());
   }
 
   else if (node.kind == NODE_VARIABLE) {
-    var value = variableValue(node);
+    var value = node.variableValue();
 
     if (node.symbol.kind == VARIABLE_LOCAL) {
       ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
@@ -655,16 +811,16 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_CALL) {
-    var value = callValue(node);
+    var value = node.callValue();
     var symbol = value.symbol;
     assert(isFunction(symbol.kind));
 
-    ByteArray_appendByte(array, functionBody(symbol.node) == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
+    ByteArray_appendByte(array, symbol.node.functionBody() == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
     wasmWriteVarUnsigned(array, symbol.offset);
 
     // Write out the implicit "this" argument
     if (symbol.kind == FUNCTION_INSTANCE) {
-      wasmEmitNode(array, dotTarget(value));
+      wasmEmitNode(array, value.dotTarget());
     }
 
     var child = value.nextSibling;
@@ -675,7 +831,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_NEW) {
-    var type = newType(node);
+    var type = node.newType();
     assert(type.symbol.kind == TYPE_CLASS);
 
     ByteArray_appendByte(array, WASM_OPCODE_CALL_IMPORT);
@@ -687,26 +843,26 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_POSITIVE) {
-    wasmEmitNode(array, unaryValue(node));
+    wasmEmitNode(array, node.unaryValue());
   }
 
   else if (node.kind == NODE_NEGATIVE) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_SUB);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 0);
-    wasmEmitNode(array, unaryValue(node));
+    wasmEmitNode(array, node.unaryValue());
   }
 
   else if (node.kind == NODE_COMPLEMENT) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_XOR);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, ~0);
-    wasmEmitNode(array, unaryValue(node));
+    wasmEmitNode(array, node.unaryValue());
   }
 
   else if (node.kind == NODE_NOT) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ);
-    wasmEmitNode(array, unaryValue(node));
+    wasmEmitNode(array, node.unaryValue());
   }
 
   else if (node.kind == NODE_DOT) {
@@ -716,7 +872,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
       wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, dotTarget(node));
+      wasmEmitNode(array, node.dotTarget());
     }
 
     else {
@@ -725,7 +881,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NODE_ASSIGN) {
-    var left = binaryLeft(node);
+    var left = node.binaryLeft();
     var symbol = left.symbol;
 
     if (symbol.kind == VARIABLE_INSTANCE) {
@@ -733,14 +889,14 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
       wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, dotTarget(left));
-      wasmEmitNode(array, binaryRight(node));
+      wasmEmitNode(array, left.dotTarget());
+      wasmEmitNode(array, node.binaryRight());
     }
 
     else if (symbol.kind == VARIABLE_ARGUMENT || symbol.kind == VARIABLE_LOCAL) {
       ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, binaryRight(node));
+      wasmEmitNode(array, node.binaryRight());
     }
 
     else {
@@ -767,18 +923,18 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
 
   else if (node.kind == NODE_LOGICAL_AND) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, binaryLeft(node));
-    wasmEmitNode(array, binaryRight(node));
+    wasmEmitNode(array, node.binaryLeft());
+    wasmEmitNode(array, node.binaryRight());
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 0);
   }
 
   else if (node.kind == NODE_LOGICAL_OR) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, binaryLeft(node));
+    wasmEmitNode(array, node.binaryLeft());
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 1);
-    wasmEmitNode(array, binaryRight(node));
+    wasmEmitNode(array, node.binaryRight());
   }
 
   else {
@@ -786,89 +942,6 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   return 1;
-}
-
-function wasmEmitFunctionBodies(array: ByteArray, module: WasmModule): void {
-  if (module.firstFunction == null) {
-    return;
-  }
-
-  var section = wasmStartSection(array, String_new("function_bodies"));
-  wasmWriteVarUnsigned(array, module.functionCount);
-
-  var fn = module.firstFunction;
-  while (fn != null) {
-    var bodyLength = ByteArray_length(array);
-    wasmWriteVarUnsigned(array, ~0); // This will be patched later
-
-    if (fn.intLocalCount > 0) {
-      wasmWriteVarUnsigned(array, 1);
-      wasmWriteVarUnsigned(array, fn.intLocalCount);
-      ByteArray_appendByte(array, WASM_TYPE_I32);
-    } else {
-      wasmWriteVarUnsigned(array, 0);
-    }
-
-    var child = fn.body.firstChild;
-    while (child != null) {
-      wasmEmitNode(array, child);
-      child = child.nextSibling;
-    }
-
-    wasmPatchVarUnsigned(array, bodyLength, ByteArray_length(array) - bodyLength - 5, ~0);
-    fn = fn.next;
-  }
-
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitDataSegments(array: ByteArray, module: WasmModule): void {
-  var section = wasmStartSection(array, String_new("data_segments"));
-  wasmWriteVarUnsigned(array, 1);
-
-  var memoryInitializer = module.memoryInitializer;
-  var byteOffset = WASM_MEMORY_INITIALIZER_OFFSET;
-  var byteCount = ByteArray_length(memoryInitializer);
-  var initialHeapOffset = (byteOffset + byteCount + 7) & ~7;
-  assert(byteCount >= 4);
-
-  wasmWriteVarUnsigned(array, byteOffset);
-  wasmWriteVarUnsigned(array, byteCount);
-
-  // Pass the initial heap offset to the runtime
-  ByteArray_setByte(memoryInitializer, 0, initialHeapOffset);
-  ByteArray_setByte(memoryInitializer, 1, initialHeapOffset >> 8);
-  ByteArray_setByte(memoryInitializer, 2, initialHeapOffset >> 16);
-  ByteArray_setByte(memoryInitializer, 3, initialHeapOffset >> 24);
-
-  // Put the string table next after that
-  var i = 0;
-  while (i < byteCount) {
-    ByteArray_appendByte(array, ByteArray_getByte(memoryInitializer, i));
-    i = i + 1;
-  }
-
-  wasmFinishSection(array, section);
-}
-
-function wasmEmitModule(array: ByteArray, module: WasmModule): void {
-  ByteArray_appendByte(array, WASM_MAGIC);
-  ByteArray_appendByte(array, WASM_MAGIC >> 8);
-  ByteArray_appendByte(array, WASM_MAGIC >> 16);
-  ByteArray_appendByte(array, WASM_MAGIC >> 24);
-
-  ByteArray_appendByte(array, WASM_VERSION);
-  ByteArray_appendByte(array, WASM_VERSION >> 8);
-  ByteArray_appendByte(array, WASM_VERSION >> 16);
-  ByteArray_appendByte(array, WASM_VERSION >> 24);
-
-  wasmEmitSignatures(array, module);
-  wasmEmitImportTable(array, module);
-  wasmEmitFunctionSignatures(array, module);
-  wasmEmitMemory(array, module);
-  wasmEmitExportTable(array, module);
-  wasmEmitFunctionBodies(array, module);
-  wasmEmitDataSegments(array, module);
 }
 
 function wasmWrapType(id: int): WasmType {
@@ -891,27 +964,6 @@ function wasmGetType(context: CheckContext, type: Type): int {
   return WASM_TYPE_VOID;
 }
 
-function wasmCollectStrings(module: WasmModule, node: Node): void {
-  if (node.kind == NODE_STRING) {
-    var memoryInitializer = module.memoryInitializer;
-    node.intValue = WASM_MEMORY_INITIALIZER_OFFSET + ByteArray_length(memoryInitializer);
-    var text = node.stringValue;
-    var i = 0;
-    var count = String_length(text);
-    while (i < count) {
-      ByteArray_appendByte(memoryInitializer, String_get(text, i));
-      i = i + 1;
-    }
-    ByteArray_appendByte(memoryInitializer, 0);
-  }
-
-  var child = node.firstChild;
-  while (child != null) {
-    wasmCollectStrings(module, child);
-    child = child.nextSibling;
-  }
-}
-
 class WasmSharedOffset {
   nextLocalOffset: int;
   intLocalCount: int;
@@ -932,58 +984,6 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
   }
 }
 
-function wasmPrepareFunctions(node: Node, module: WasmModule, context: CheckContext): void {
-  if (node.kind == NODE_GLOBAL || node.kind == NODE_CLASS) {
-    var child = node.firstChild;
-    while (child != null) {
-      wasmPrepareFunctions(child, module, context);
-      child = child.nextSibling;
-    }
-  }
-
-  else if (node.kind == NODE_FUNCTION) {
-    var returnType = functionReturnType(node);
-    var shared = new WasmSharedOffset();
-    var argumentTypesFirst: WasmType = null;
-    var argumentTypesLast: WasmType = null;
-
-    // Make sure to include the implicit "this" variable as a normal argument
-    var argument = node.firstChild;
-    while (argument != returnType) {
-      var type = wasmWrapType(wasmGetType(context, variableType(argument).resolvedType));
-
-      if (argumentTypesFirst == null) argumentTypesFirst = type;
-      else argumentTypesLast.next = type;
-      argumentTypesLast = type;
-
-      shared.nextLocalOffset = shared.nextLocalOffset + 1;
-      argument = argument.nextSibling;
-    }
-    var signatureIndex = wasmAllocateSignature(module, argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
-    var body = functionBody(node);
-
-    // Functions without bodies are imports
-    if (body == null) {
-      node.symbol.offset = module.importCount;
-      wasmAllocateImport(module, signatureIndex, String_new("imports"), node.symbol.name);
-      node = node.nextSibling;
-      return;
-    }
-
-    node.symbol.offset = module.functionCount;
-    var fn = wasmAllocateFunction(module, node.symbol.name, signatureIndex, body);
-
-    // Only export "extern" functions
-    if (isExternSymbol(node.symbol)) {
-      fn.isExported = true;
-    }
-
-    // Assign local variable offsets
-    wasmAssignLocalVariableOffsets(body, shared);
-    fn.intLocalCount = shared.intLocalCount;
-  }
-}
-
 function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   var module = new WasmModule();
   module.memoryInitializer = ByteArray_new();
@@ -995,11 +995,11 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   ByteArray_appendByte(module.memoryInitializer, 0);
 
   // The "malloc" equivalent is in the standard library
-  var signatureIndex = wasmAllocateSignature(module, wasmWrapType(WASM_TYPE_I32), wasmWrapType(WASM_TYPE_I32));
-  wasmAllocateImport(module, signatureIndex, String_new("imports"), String_new("new"));
+  var signatureIndex = module.allocateSignature(wasmWrapType(WASM_TYPE_I32), wasmWrapType(WASM_TYPE_I32));
+  module.allocateImport(signatureIndex, String_new("imports"), String_new("new"));
 
   // Build the string table
-  wasmCollectStrings(module, global);
-  wasmPrepareFunctions(global, module, context);
-  wasmEmitModule(array, module);
+  module.collectStrings(global);
+  module.prepareFunctions(global, context);
+  module.emitModule(array);
 }
