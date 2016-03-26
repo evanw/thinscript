@@ -210,11 +210,11 @@ class ParserContext {
         if (text == null) {
           return null;
         }
+        this.advance();
         if (String_length(text) != 1) {
           this.log.error(token.range, String_new("Invalid character literal"));
-          return null;
+          return createParseError().withRange(token.range);
         }
-        this.advance();
         return createInt(String_get(text, 0)).withRange(token.range);
       }
 
@@ -504,10 +504,7 @@ class ParserContext {
     }
 
     var semicolon = this.current;
-    if (!this.expect(TokenKind.SEMICOLON)) {
-      return null;
-    }
-
+    this.expect(TokenKind.SEMICOLON);
     return createReturn(value).withRange(spanRanges(token.range, semicolon.range));
   }
 
@@ -553,6 +550,11 @@ class ParserContext {
       if (this.peek(TokenKind.SEMICOLON)) {
         this.expect(TokenKind.COMMA);
         this.advance();
+      }
+
+      // Recover from a missing comma
+      else if (this.peek(TokenKind.IDENTIFIER)) {
+        this.expect(TokenKind.COMMA);
       }
 
       else if (!this.eat(TokenKind.COMMA)) {
@@ -631,17 +633,28 @@ class ParserContext {
     if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
       while (true) {
         var argument = this.current;
-        if (!this.expect(TokenKind.IDENTIFIER) || !this.expect(TokenKind.COLON)) {
+        if (!this.expect(TokenKind.IDENTIFIER)) {
           return null;
         }
 
-        var type = this.parseType();
-        if (type == null) {
-          return null;
+        var type: Node;
+        var range = argument.range;
+
+        if (this.expect(TokenKind.COLON)) {
+          type = this.parseType();
+          if (type == null) {
+            return null;
+          }
+          range = spanRanges(argument.range, type.range);
+        }
+
+        // Recover from a missing colon
+        else if (this.peek(TokenKind.COMMA) || this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+          type = createParseError();
         }
 
         var variable = createVariable(argument.range.toString(), type, null);
-        node.appendChild(variable.withRange(spanRanges(argument.range, type.range)).withInternalRange(argument.range));
+        node.appendChild(variable.withRange(range).withInternalRange(argument.range));
 
         if (!this.eat(TokenKind.COMMA)) {
           break;
@@ -649,14 +662,28 @@ class ParserContext {
       }
     }
 
-    if (!this.expect(TokenKind.RIGHT_PARENTHESIS) || !this.expect(TokenKind.COLON)) {
+    if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
       return null;
     }
 
-    var returnType = this.parseType();
-    if (returnType == null) {
+    var returnType: Node;
+
+    if (this.expect(TokenKind.COLON)) {
+      returnType = this.parseType();
+      if (returnType == null) {
+        return null;
+      }
+    }
+
+    // Recover from a missing colon
+    else if (this.peek(TokenKind.SEMICOLON) || this.peek(TokenKind.LEFT_BRACE)) {
+      returnType = createParseError();
+    }
+
+    else {
       return null;
     }
+
     node.appendChild(returnType);
     var block: Node = null;
 
@@ -736,21 +763,14 @@ class ParserContext {
     }
 
     var semicolon = this.current;
-    if (!this.expect(TokenKind.SEMICOLON)) {
-      return null;
-    }
-
+    this.expect(TokenKind.SEMICOLON);
     return node.withRange(spanRanges(token.range, semicolon.range));
   }
 
   parseLoopJump(kind: NodeKind): Node {
     var token = this.current;
     this.advance();
-
-    if (!this.expect(TokenKind.SEMICOLON)) {
-      return null;
-    }
-
+    this.expect(TokenKind.SEMICOLON);
     var node = new Node();
     node.kind = kind;
     return node.withRange(token.range);
@@ -790,10 +810,7 @@ class ParserContext {
     }
 
     var semicolon = this.current;
-    if (!this.expect(TokenKind.SEMICOLON)) {
-      return null;
-    }
-
+    this.expect(TokenKind.SEMICOLON);
     return createExpression(value).withRange(spanRanges(value.range, semicolon.range));
   }
 

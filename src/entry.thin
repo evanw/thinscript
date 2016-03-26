@@ -35,15 +35,13 @@ extern function CompileResult_addInput(result: CompileResult, name: String, cont
 }
 
 extern function CompileResult_finish(result: CompileResult): void {
+  result.context = check(result.global, result.log);
+
   if (result.log.first == null) {
-    result.context = check(result.global, result.log);
+    result.wasm = ByteArray_new();
+    wasmEmit(result.global, result.context, result.wasm);
 
-    if (result.log.first == null) {
-      result.wasm = ByteArray_new();
-      wasmEmit(result.global, result.context, result.wasm);
-
-      result.js = jsEmit(result.global, result.context);
-    }
+    result.js = jsEmit(result.global, result.context);
   }
 }
 

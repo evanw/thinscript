@@ -224,7 +224,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
           symbol.offset = value.intValue;
         }
 
-        else {
+        else if (value.resolvedType != context.errorType) {
           context.log.error(value.range, String_new("Constants must be initialized to a single integer for now"));
         }
       }
@@ -557,6 +557,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     } else {
       node.becomeSymbolReference(symbol);
     }
+  }
+
+  else if (node.kind == NodeKind.PARSE_ERROR) {
+    node.resolvedType = context.errorType;
   }
 
   else if (node.kind == NodeKind.NAME) {

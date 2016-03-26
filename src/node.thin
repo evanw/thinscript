@@ -28,6 +28,7 @@ enum NodeKind {
   NAME,
   NEW,
   NULL,
+  PARSE_ERROR,
   STRING,
   THIS,
   TYPE,
@@ -470,6 +471,7 @@ function createName(value: String): Node {
 }
 
 function createType(type: Type): Node {
+  assert(type != null);
   var node = new Node();
   node.kind = NodeKind.TYPE;
   node.resolvedType = type;
@@ -623,5 +625,11 @@ function createDot(value: Node, name: String): Node {
   node.kind = NodeKind.DOT;
   node.stringValue = name;
   node.appendChild(value);
+  return node;
+}
+
+function createParseError(): Node {
+  var node = new Node();
+  node.kind = NodeKind.PARSE_ERROR;
   return node;
 }

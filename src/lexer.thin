@@ -81,7 +81,7 @@ function tokenToString(token: TokenKind): string {
   // Literals
   if (token == TokenKind.CHARACTER) return "character literal";
   if (token == TokenKind.IDENTIFIER) return "identifier";
-  if (token == TokenKind.INT) return "int literal";
+  if (token == TokenKind.INT) return "integer literal";
   if (token == TokenKind.STRING) return "string literal";
 
   // Punctuation
