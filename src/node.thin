@@ -99,6 +99,14 @@ class Node {
   symbol: Symbol;
   scope: Scope;
 
+  isNegativeInteger(): bool {
+    return this.kind == NodeKind.INT && this.intValue < 0;
+  }
+
+  isNonNegativeInteger(): bool {
+    return this.kind == NodeKind.INT && this.intValue >= 0;
+  }
+
   childCount(): int {
     var count = 0;
     var child = this.firstChild;

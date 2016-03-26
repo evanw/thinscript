@@ -68,7 +68,8 @@ class JsResult {
     var parentKind = node.parent.kind;
     var shouldCastToInt = mode == EmitBinary.CAST_TO_INT && parentKind != NodeKind.SHIFT_LEFT && parentKind != NodeKind.SHIFT_RIGHT &&
       parentKind != NodeKind.BITWISE_OR && parentKind != NodeKind.BITWISE_AND && parentKind != NodeKind.BITWISE_XOR;
-    var selfPrecedence = shouldCastToInt ? Precedence.BITWISE_OR : parentPrecedence;
+    var isUnsigned = node.resolvedType.isUnsigned();
+    var selfPrecedence = shouldCastToInt ? isUnsigned ? Precedence.SHIFT : Precedence.BITWISE_OR : parentPrecedence;
 
     if (parentPrecedence > selfPrecedence) {
       this.emitText("(");
@@ -87,7 +88,7 @@ class JsResult {
     }
 
     if (shouldCastToInt) {
-      this.emitText(" | 0");
+      this.emitText(isUnsigned ? " >>> 0" : " | 0");
     }
 
     if (parentPrecedence > selfPrecedence) {
@@ -154,7 +155,7 @@ class JsResult {
 
           this.emitExpression(value, Precedence.BITWISE_AND);
           this.emitText(" & ");
-          this.emitString(String_toString(type.integerBitMask()));
+          this.emitString(String_toString(type.integerBitMask() as int));
 
           if (parentPrecedence > Precedence.BITWISE_AND) {
             this.emitText(")");
@@ -269,7 +270,7 @@ class JsResult {
     else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", Precedence.EQUAL, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
     else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", Precedence.SHIFT, EmitBinary.NORMAL);
-    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", Precedence.SHIFT, EmitBinary.NORMAL);
+    else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, node.resolvedType.isUnsigned() ? " >>> " : " >> ", Precedence.SHIFT, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", Precedence.ADD, EmitBinary.CAST_TO_INT);
 
     else if (node.kind == NodeKind.MULTIPLY) {

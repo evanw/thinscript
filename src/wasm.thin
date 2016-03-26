@@ -893,7 +893,7 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
         ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
         wasmEmitNode(array, value, context);
         ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-        wasmWriteVarSigned(array, type.integerBitMask());
+        wasmWriteVarSigned(array, type.integerBitMask() as int);
       }
 
       // No cast needed
@@ -942,23 +942,6 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
     }
   }
 
-  else if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD, context);
-  else if (node.kind == NodeKind.SUBTRACT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB, context);
-  else if (node.kind == NodeKind.MULTIPLY) emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL, context);
-  else if (node.kind == NodeKind.DIVIDE) emitBinaryExpression(array, node, WASM_OPCODE_I32_DIV_S, context);
-  else if (node.kind == NodeKind.REMAINDER) emitBinaryExpression(array, node, WASM_OPCODE_I32_REM_S, context);
-  else if (node.kind == NodeKind.SHIFT_LEFT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL, context);
-  else if (node.kind == NodeKind.SHIFT_RIGHT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHR_S, context);
-  else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND, context);
-  else if (node.kind == NodeKind.BITWISE_OR) emitBinaryExpression(array, node, WASM_OPCODE_I32_OR, context);
-  else if (node.kind == NodeKind.BITWISE_XOR) emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR, context);
-  else if (node.kind == NodeKind.EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ, context);
-  else if (node.kind == NodeKind.NOT_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_NE, context);
-  else if (node.kind == NodeKind.LESS_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_LT_S, context);
-  else if (node.kind == NodeKind.LESS_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_LE_S, context);
-  else if (node.kind == NodeKind.GREATER_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_GT_S, context);
-  else if (node.kind == NodeKind.GREATER_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_GE_S, context);
-
   else if (node.kind == NodeKind.LOGICAL_AND) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
     wasmEmitNode(array, node.binaryLeft(), context);
@@ -976,7 +959,29 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
   }
 
   else {
-    assert(false);
+    var isUnsigned = node.binaryLeft().resolvedType.isUnsigned();
+
+    if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD, context);
+    else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND, context);
+    else if (node.kind == NodeKind.BITWISE_OR) emitBinaryExpression(array, node, WASM_OPCODE_I32_OR, context);
+    else if (node.kind == NodeKind.BITWISE_XOR) emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR, context);
+    else if (node.kind == NodeKind.EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ, context);
+    else if (node.kind == NodeKind.MULTIPLY) emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL, context);
+    else if (node.kind == NodeKind.NOT_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_NE, context);
+    else if (node.kind == NodeKind.SHIFT_LEFT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL, context);
+    else if (node.kind == NodeKind.SUBTRACT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB, context);
+
+    else if (node.kind == NodeKind.DIVIDE) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_DIV_U : WASM_OPCODE_I32_DIV_S, context);
+    else if (node.kind == NodeKind.GREATER_THAN) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GT_U : WASM_OPCODE_I32_GT_S, context);
+    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GE_U : WASM_OPCODE_I32_GE_S, context);
+    else if (node.kind == NodeKind.LESS_THAN) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LT_U : WASM_OPCODE_I32_LT_S, context);
+    else if (node.kind == NodeKind.LESS_THAN_EQUAL) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LE_U : WASM_OPCODE_I32_LE_S, context);
+    else if (node.kind == NodeKind.REMAINDER) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_REM_U : WASM_OPCODE_I32_REM_S, context);
+    else if (node.kind == NodeKind.SHIFT_RIGHT) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_SHR_U : WASM_OPCODE_I32_SHR_S, context);
+
+    else {
+      assert(false);
+    }
   }
 
   return 1;

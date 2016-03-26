@@ -275,16 +275,21 @@ class ParserContext {
   }
 
   parseInfix(precedence: Precedence, node: Node, mode: ParseKind): Node {
+    var token = this.current.range;
+
     // Dot
     if (this.peek(TokenKind.DOT) && precedence < Precedence.MEMBER) {
       this.advance();
 
       var name = this.current;
+      var range = name.range;
+
+      // Recover from a missing identifier
       if (!this.expect(TokenKind.IDENTIFIER)) {
-        return null;
+        range = createRange(range.source, token.end, token.end);
       }
 
-      return createDot(node, name.range.toString()).withRange(spanRanges(node.range, name.range)).withInternalRange(name.range);
+      return createDot(node, range.toString()).withRange(spanRanges(node.range, range)).withInternalRange(range);
     }
 
     if (mode == ParseKind.EXPRESSION) {
@@ -315,7 +320,6 @@ class ParserContext {
 
       // Cast
       if (this.peek(TokenKind.AS) && precedence < Precedence.UNARY_PREFIX) {
-        var token = this.current;
         this.advance();
 
         var type = this.parseType();
@@ -323,12 +327,11 @@ class ParserContext {
           return null;
         }
 
-        return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token.range);
+        return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token);
       }
 
       // Call
       if (this.peek(TokenKind.LEFT_PARENTHESIS) && precedence < Precedence.UNARY_POSTFIX) {
-        var token = this.current;
         this.advance();
         var call = createCall(node);
 
@@ -351,7 +354,7 @@ class ParserContext {
           return null;
         }
 
-        return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token.range, close.range));
+        return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token, close.range));
       }
 
       // Hook
@@ -412,9 +415,20 @@ class ParserContext {
       return null;
     }
 
-    var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
-    if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-      return null;
+    var value: Node;
+
+    // Recover from a missing value
+    if (this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+      this.unexpectedToken();
+      this.advance();
+      value = createParseError();
+    }
+
+    else {
+      value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+      if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+        return null;
+      }
     }
 
     var trueBranch = this.parseBody();
@@ -443,9 +457,20 @@ class ParserContext {
       return null;
     }
 
-    var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
-    if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-      return null;
+    var value: Node;
+
+    // Recover from a missing value
+    if (this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+      this.unexpectedToken();
+      this.advance();
+      value = createParseError();
+    }
+
+    else {
+      value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+      if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+        return null;
+      }
     }
 
     var body = this.parseBody();

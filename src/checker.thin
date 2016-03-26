@@ -324,12 +324,12 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
   // Check integer conversions
   if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
-    var lower = to.isUnsigned() ? 0 : ~mask >> 1;
-    var upper = to.isUnsigned() ? mask : mask >> 1;
 
     // Only allow lossless conversions implicitly
     if (kind == ConversionKind.EXPLICIT || from.symbol.byteSize < to.symbol.byteSize ||
-        node.kind == NodeKind.INT && node.intValue >= lower && node.intValue <= upper) {
+        node.kind == NodeKind.INT && (to.isUnsigned()
+          ? node.intValue >= 0 && node.intValue as uint <= mask
+          : node.intValue >= (~mask >> 1) as int && node.intValue <= (mask >> 1) as int)) {
       return;
     }
 
@@ -359,39 +359,6 @@ function checkStorage(context: CheckContext, target: Node): void {
   }
 }
 
-function resolveUnary(context: CheckContext, node: Node, parentScope: Scope, expectedType: Type): void {
-  var value = node.unaryValue();
-  resolveAsExpression(context, value, parentScope);
-  checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
-  node.resolvedType = expectedType;
-
-  // Automatically fold constants
-  if (value.kind == NodeKind.INT) {
-    var input = value.intValue;
-    var output = 0;
-    if (node.kind == NodeKind.COMPLEMENT) output = ~input;
-    else if (node.kind == NodeKind.NEGATIVE) output = -input;
-    else if (node.kind == NodeKind.POSITIVE) output = input;
-    else return;
-    node.becomeIntegerConstant(output);
-  }
-}
-
-function resolveBinary(context: CheckContext, node: Node, parentScope: Scope): void {
-  var left = node.binaryLeft();
-  var right = node.binaryRight();
-  resolveAsExpression(context, left, parentScope);
-  resolveAsExpression(context, right, parentScope);
-}
-
-function checkBinary(context: CheckContext, node: Node, expectedType: Type, resultType: Type): void {
-  var left = node.binaryLeft();
-  var right = node.binaryRight();
-  checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
-  checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
-  node.resolvedType = resultType;
-}
-
 function createDefaultValueForType(context: CheckContext, type: Type): Node {
   if (type.isInteger()) {
     return createInt(0);
@@ -405,33 +372,53 @@ function createDefaultValueForType(context: CheckContext, type: Type): Node {
   return createNull();
 }
 
-function turnMultiplyIntoShift(node: Node, variable: Node, constant: Node): bool {
-  var value = constant.intValue;
-
-  if (node.kind == NodeKind.MULTIPLY && constant.kind == NodeKind.INT && value > 0 && (value & (value - 1)) == 0) {
-    var shift = -1;
-    while (value != 0) {
-      value = value >> 1;
-      shift = shift + 1;
-    }
-    node.kind = NodeKind.SHIFT_LEFT;
-    constant.intValue = shift;
-    if (node.binaryLeft() == constant) {
-      constant.remove();
-      node.appendChild(constant);
-    }
-    return true;
-  }
-
-  return false;
-}
-
 function simplifyBinary(node: Node): void {
   var left = node.binaryLeft();
   var right = node.binaryRight();
 
-  // Convert multiplication by a power of 2 into a shift
-  if (turnMultiplyIntoShift(node, left, right) || turnMultiplyIntoShift(node, right, left)) {
+  // Canonicalize addition and multiplication order
+  if ((node.kind == NodeKind.ADD || node.kind == NodeKind.MULTIPLY) && left.kind == NodeKind.INT && right.kind != NodeKind.INT) {
+    left.remove();
+    node.appendChild(left);
+    left = node.binaryLeft();
+    right = node.binaryRight();
+  }
+
+  // Convert multiplication or division by a power of 2 into a shift
+  if (node.kind == NodeKind.MULTIPLY || (node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER) && node.resolvedType.isUnsigned()) {
+    var rightValue = right.intValue;
+
+    // The right operand must be a positive power of 2
+    if (right.kind == NodeKind.INT && rightValue > 0 && (rightValue & (rightValue - 1)) == 0) {
+      // Extract the shift from the value
+      var shift = -1;
+      while (rightValue != 0) {
+        rightValue = rightValue >> 1;
+        shift = shift + 1;
+      }
+
+      // "x * 16" => "x << 4"
+      if (node.kind == NodeKind.MULTIPLY) {
+        node.kind = NodeKind.SHIFT_LEFT;
+        right.intValue = shift;
+      }
+
+      // "x / 16" => "x >> 4" when x is unsigned
+      else if (node.kind == NodeKind.DIVIDE) {
+        node.kind = NodeKind.SHIFT_RIGHT;
+        right.intValue = shift;
+      }
+
+      // "x % 16" => "x & 15" when x is unsigned
+      else if (node.kind == NodeKind.REMAINDER) {
+        node.kind = NodeKind.BITWISE_AND;
+        right.intValue = right.intValue - 1;
+      }
+
+      else {
+        assert(false);
+      }
+    }
   }
 
   // Flip addition with negation into subtraction
@@ -443,10 +430,22 @@ function simplifyBinary(node: Node): void {
   }
 
   // Flip addition with negative constants into subtraction
-  else if (node.kind == NodeKind.ADD && right.kind == NodeKind.INT && right.intValue < 0) {
+  else if (node.kind == NodeKind.ADD && right.isNegativeInteger()) {
     node.kind = NodeKind.SUBTRACT;
     right.intValue = -right.intValue;
   }
+}
+
+function binaryHasUnsignedArguments(node: Node): bool {
+  var left = node.binaryLeft();
+  var right = node.binaryRight();
+  var leftType = left.resolvedType;
+  var rightType = right.resolvedType;
+
+  return
+    leftType.isUnsigned() && rightType.isUnsigned() ||
+    leftType.isUnsigned() && right.isNonNegativeInteger() ||
+    left.isNonNegativeInteger() && rightType.isUnsigned();
 }
 
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
@@ -625,24 +624,29 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       if (target.isType() && target.resolvedType.isEnum() ||
           !target.isType() && target.resolvedType.isClass()) {
         var child = target.resolvedType.symbol.node.firstChild;
-        node.symbol = target.resolvedType.findMember(node.stringValue);
+        var name = node.stringValue;
 
-        if (node.symbol == null) {
-          context.log.error(node.internalRange, String_appendNew(String_append(String_appendNew(String_append(
-            String_new("No member named '"),
-            node.stringValue),
-            "' on type '"),
-            target.resolvedType.toString()),
-            "'"));
-        }
+        // Empty names are left over from parse errors that have already been reported
+        if (String_length(name) > 0) {
+          node.symbol = target.resolvedType.findMember(name);
 
-        else {
-          initializeSymbol(context, node.symbol);
-          node.resolvedType = node.symbol.resolvedType;
+          if (node.symbol == null) {
+            context.log.error(node.internalRange, String_appendNew(String_append(String_appendNew(String_append(
+              String_new("No member named '"),
+              name),
+              "' on type '"),
+              target.resolvedType.toString()),
+              "'"));
+          }
 
-          // Inline constants
-          if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
-            node.becomeIntegerConstant(node.symbol.offset);
+          else {
+            initializeSymbol(context, node.symbol);
+            node.resolvedType = node.symbol.resolvedType;
+
+            // Inline constants
+            if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+              node.becomeIntegerConstant(node.symbol.offset);
+            }
           }
         }
       }
@@ -790,11 +794,16 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER ||
       node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
       node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
-    resolveBinary(context, node, parentScope);
-    checkBinary(context, node, context.intType, context.intType);
-
     var left = node.binaryLeft();
     var right = node.binaryRight();
+
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
+
+    var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+    checkConversion(context, left, commonType, ConversionKind.IMPLICIT);
+    checkConversion(context, right, commonType, ConversionKind.IMPLICIT);
+    node.resolvedType = commonType;
 
     // Automatically fold constants
     if (left.kind == NodeKind.INT && right.kind == NodeKind.INT) {
@@ -827,21 +836,32 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
-    var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger() ? left.resolvedType : context.intType;
+    var leftType = left.resolvedType;
+    var rightType = right.resolvedType;
+    var expectedType =
+      leftType == rightType && leftType.isEnum() ? leftType :
+      binaryHasUnsignedArguments(node) ? context.uintType :
+      context.intType;
     checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
     checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
     node.resolvedType = context.boolType;
   }
 
   else if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
-    resolveBinary(context, node, parentScope);
-    checkBinary(context, node, context.boolType, context.boolType);
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
+    checkConversion(context, left, context.boolType, ConversionKind.IMPLICIT);
+    checkConversion(context, right, context.boolType, ConversionKind.IMPLICIT);
+    node.resolvedType = context.boolType;
   }
 
   else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
-    resolveBinary(context, node, parentScope);
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
     node.resolvedType = context.boolType;
 
     var leftType = left.resolvedType;
@@ -860,7 +880,20 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.COMPLEMENT || node.kind == NodeKind.NEGATIVE || node.kind == NodeKind.POSITIVE) {
-    resolveUnary(context, node, parentScope, context.intType);
+    var value = node.unaryValue();
+    resolveAsExpression(context, value, parentScope);
+    var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
+    checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
+    node.resolvedType = expectedType;
+
+    // Automatically fold constants
+    if (value.kind == NodeKind.INT) {
+      var input = value.intValue;
+      var output = input;
+      if (node.kind == NodeKind.COMPLEMENT) output = ~input;
+      else if (node.kind == NodeKind.NEGATIVE) output = -input;
+      node.becomeIntegerConstant(output);
+    }
   }
 
   else if (node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
@@ -869,7 +902,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.NOT) {
-    resolveUnary(context, node, parentScope, context.boolType);
+    var value = node.unaryValue();
+    resolveAsExpression(context, value, parentScope);
+    checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
+    node.resolvedType = context.boolType;
   }
 
   else if (node.kind == NodeKind.NEW) {
