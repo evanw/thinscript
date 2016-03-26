@@ -102,7 +102,7 @@ var sourceDir = __dirname + '/src';
 var sources = [];
 
 fs.readdirSync(sourceDir).forEach(function(entry) {
-  if (/\.zs$/.test(entry)) {
+  if (/\.thin$/.test(entry)) {
     sources.push({
       name: entry,
       contents: fs.readFileSync(sourceDir + '/' + entry, 'utf8'),
