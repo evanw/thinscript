@@ -908,6 +908,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolveUnary(context, node, parentScope, context.intType);
   }
 
+  else if (node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
+      node.kind == NodeKind.PREFIX_DECREMENT || node.kind == NodeKind.PREFIX_INCREMENT) {
+    context.log.error(node.range, String_new("This operator is currently unsupported"));
+  }
+
   else if (node.kind == NodeKind.NOT) {
     resolveUnary(context, node, parentScope, context.boolType);
   }

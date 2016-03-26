@@ -581,6 +581,8 @@ function resolve(context, node, parentScope) {
     }
   } else if (node.kind === 27 || node.kind === 28 || node.kind === 30) {
     resolveUnary(context, node, parentScope, context.intType);
+  } else if (node.kind === 31 || node.kind === 32 || node.kind === 33 || node.kind === 34) {
+    context.log.error(node.range, __imports.String_new("This operator is currently unsupported"));
   } else if (node.kind === 29) {
     resolveUnary(context, node, parentScope, context.boolType);
   } else if (node.kind === 22) {
