@@ -614,7 +614,7 @@ class ParserContext {
   parseFunction(flags: int, parent: Node): Node {
     var token = this.current;
 
-    // Functions inside class declarations don't use "
+    // Functions inside class declarations don't use "function"
     if (parent == null) {
       assert(token.kind == TokenKind.FUNCTION);
       this.advance();

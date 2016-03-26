@@ -367,12 +367,13 @@ function resolveUnary(context: CheckContext, node: Node, parentScope: Scope, exp
 
   // Automatically fold constants
   if (value.kind == NodeKind.INT) {
-    var constant = 0;
-    if (node.kind == NodeKind.COMPLEMENT) constant = ~value.intValue;
-    else if (node.kind == NodeKind.NEGATIVE) constant = -value.intValue;
-    else if (node.kind == NodeKind.POSITIVE) constant = value.intValue;
+    var input = value.intValue;
+    var output = 0;
+    if (node.kind == NodeKind.COMPLEMENT) output = ~input;
+    else if (node.kind == NodeKind.NEGATIVE) output = -input;
+    else if (node.kind == NodeKind.POSITIVE) output = input;
     else return;
-    node.becomeIntegerConstant(constant);
+    node.becomeIntegerConstant(output);
   }
 }
 
@@ -738,11 +739,47 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (
-      node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE ||
+      node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER ||
       node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
       node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
     resolveBinary(context, node, parentScope);
     checkBinary(context, node, context.intType, context.intType);
+
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+
+    // Automatically fold constants
+    if (left.kind == NodeKind.INT && right.kind == NodeKind.INT) {
+      var inputLeft = left.intValue;
+      var inputRight = right.intValue;
+      var output = 0;
+      if (node.kind == NodeKind.ADD) output = inputLeft + inputRight;
+      else if (node.kind == NodeKind.BITWISE_AND) output = inputLeft & inputRight;
+      else if (node.kind == NodeKind.BITWISE_OR) output = inputLeft | inputRight;
+      else if (node.kind == NodeKind.BITWISE_XOR) output = inputLeft ^ inputRight;
+      else if (node.kind == NodeKind.DIVIDE) output = inputLeft / inputRight;
+      else if (node.kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
+      else if (node.kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
+      else if (node.kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
+      else if (node.kind == NodeKind.SHIFT_RIGHT) output = inputLeft >> inputRight;
+      else if (node.kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
+      else return;
+      node.becomeIntegerConstant(output);
+    }
+
+    // Automatically flip addition with negation into subtraction
+    else if (node.kind == NodeKind.ADD && right.kind == NodeKind.NEGATIVE) {
+      var value = right.unaryValue();
+      node.kind = NodeKind.SUBTRACT;
+      value.remove();
+      right.replaceWith(value);
+    }
+
+    // Automatically flip addition with negative constants into subtraction
+    else if (node.kind == NodeKind.ADD && right.kind == NodeKind.INT && right.intValue < 0) {
+      node.kind = NodeKind.SUBTRACT;
+      right.intValue = -right.intValue;
+    }
   }
 
   else if (

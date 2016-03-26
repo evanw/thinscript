@@ -251,17 +251,18 @@ function resolveUnary(context, node, parentScope, expectedType) {
   checkConversion(context, value, expectedType, 0);
   node.resolvedType = expectedType;
   if (value.kind === 20) {
-    var constant = 0;
+    var input = value.intValue;
+    var output = 0;
     if (node.kind === 27) {
-      constant = ~value.intValue;
+      output = ~input;
     } else if (node.kind === 28) {
-      constant = -value.intValue;
+      output = -input;
     } else if (node.kind === 30) {
-      constant = value.intValue;
+      output = input;
     } else {
       return;
     }
-    node.becomeIntegerConstant(constant);
+    node.becomeIntegerConstant(output);
   }
 }
 function resolveBinary(context, node, parentScope) {
@@ -490,9 +491,48 @@ function resolve(context, node, parentScope) {
     checkConversion(context, right, left.resolvedType, 0);
     checkStorage(context, left);
     node.resolvedType = left.resolvedType;
-  } else if (node.kind === 35 || node.kind === 53 || node.kind === 48 || node.kind === 40 || node.kind === 37 || node.kind === 38 || node.kind === 39 || node.kind === 51 || node.kind === 52) {
+  } else if (node.kind === 35 || node.kind === 53 || node.kind === 48 || node.kind === 40 || node.kind === 50 || node.kind === 37 || node.kind === 38 || node.kind === 39 || node.kind === 51 || node.kind === 52) {
     resolveBinary(context, node, parentScope);
     checkBinary(context, node, context.intType, context.intType);
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+    if (left.kind === 20 && right.kind === 20) {
+      var inputLeft = left.intValue;
+      var inputRight = right.intValue;
+      var output = 0;
+      if (node.kind === 35) {
+        output = inputLeft + inputRight | 0;
+      } else if (node.kind === 37) {
+        output = inputLeft & inputRight;
+      } else if (node.kind === 38) {
+        output = inputLeft | inputRight;
+      } else if (node.kind === 39) {
+        output = inputLeft ^ inputRight;
+      } else if (node.kind === 40) {
+        output = inputLeft / inputRight | 0;
+      } else if (node.kind === 48) {
+        output = inputLeft * inputRight | 0;
+      } else if (node.kind === 50) {
+        output = inputLeft % inputRight | 0;
+      } else if (node.kind === 51) {
+        output = inputLeft << inputRight;
+      } else if (node.kind === 52) {
+        output = inputLeft >> inputRight;
+      } else if (node.kind === 53) {
+        output = inputLeft - inputRight | 0;
+      } else {
+        return;
+      }
+      node.becomeIntegerConstant(output);
+    } else if (node.kind === 35 && right.kind === 28) {
+      var value = right.unaryValue();
+      node.kind = 53;
+      value.remove();
+      right.replaceWith(value);
+    } else if (node.kind === 35 && right.kind === 20 && right.intValue < 0) {
+      node.kind = 53;
+      right.intValue = -right.intValue;
+    }
   } else if (node.kind === 44 || node.kind === 45 || node.kind === 42 || node.kind === 43) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
@@ -1655,6 +1695,33 @@ Node.prototype.removeChildren = function() {
     this.lastChild.remove();
   }
 };
+Node.prototype.replaceWith = function(node) {
+  __imports.assert(node !== this);
+  __imports.assert(this.parent !== null);
+  __imports.assert(node.parent === null);
+  __imports.assert(node.previousSibling === null);
+  __imports.assert(node.nextSibling === null);
+  node.parent = this.parent;
+  node.previousSibling = this.previousSibling;
+  node.nextSibling = this.nextSibling;
+  if (this.previousSibling !== null) {
+    __imports.assert(this.previousSibling.nextSibling === this);
+    this.previousSibling.nextSibling = node;
+  } else {
+    __imports.assert(this.parent.firstChild === this);
+    this.parent.firstChild = node;
+  }
+  if (this.nextSibling !== null) {
+    __imports.assert(this.nextSibling.previousSibling === this);
+    this.nextSibling.previousSibling = node;
+  } else {
+    __imports.assert(this.parent.lastChild === this);
+    this.parent.lastChild = node;
+  }
+  this.parent = null;
+  this.previousSibling = null;
+  this.nextSibling = null;
+};
 Node.prototype.becomeSymbolReference = function(symbol) {
   this.kind = 21;
   this.symbol = symbol;
@@ -1664,6 +1731,7 @@ Node.prototype.becomeSymbolReference = function(symbol) {
 };
 Node.prototype.becomeIntegerConstant = function(value) {
   this.kind = 20;
+  this.symbol = null;
   this.intValue = value;
   this.removeChildren();
 };
@@ -2027,7 +2095,7 @@ function parseInt(range) {
   }
   while (i < limit) {
     var c = __imports.String_get(source.contents, i);
-    value = (value * base | 0) + (c >= 65 && c <= 70 ? c + (10 - 65 | 0) | 0 : c >= 97 && c <= 102 ? c + (10 - 97 | 0) | 0 : c - 48 | 0) | 0;
+    value = (value * base | 0) + (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) | 0;
     i = i + 1 | 0;
   }
   return value;
@@ -2755,7 +2823,7 @@ Scope.prototype.defineNativeType = function(log, name) {
 };
 Scope.prototype.defineNativeIntegerType = function(log, name, isUnsigned, byteSize) {
   var type = this.defineNativeType(log, name);
-  type.symbol.flags = isUnsigned ? 1 | 2 : 1;
+  type.symbol.flags = isUnsigned ? 3 : 1;
   type.symbol.byteSize = byteSize;
   return type;
 };
@@ -2939,13 +3007,13 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
 };
 WasmModule.prototype.emitModule = function(array, context) {
   __imports.ByteArray_appendByte(array, 1836278016);
-  __imports.ByteArray_appendByte(array, 1836278016 >> 8);
-  __imports.ByteArray_appendByte(array, 1836278016 >> 16);
-  __imports.ByteArray_appendByte(array, 1836278016 >> 24);
+  __imports.ByteArray_appendByte(array, 7172961);
+  __imports.ByteArray_appendByte(array, 28019);
+  __imports.ByteArray_appendByte(array, 109);
   __imports.ByteArray_appendByte(array, 10);
-  __imports.ByteArray_appendByte(array, 10 >> 8);
-  __imports.ByteArray_appendByte(array, 10 >> 16);
-  __imports.ByteArray_appendByte(array, 10 >> 24);
+  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 0);
   this.emitSignatures(array);
   this.emitImportTable(array);
   this.emitFunctionSignatures(array);

@@ -184,6 +184,38 @@ class Node {
     }
   }
 
+  replaceWith(node: Node): void {
+    assert(node != this);
+    assert(this.parent != null);
+    assert(node.parent == null);
+    assert(node.previousSibling == null);
+    assert(node.nextSibling == null);
+
+    node.parent = this.parent;
+    node.previousSibling = this.previousSibling;
+    node.nextSibling = this.nextSibling;
+
+    if (this.previousSibling != null) {
+      assert(this.previousSibling.nextSibling == this);
+      this.previousSibling.nextSibling = node;
+    } else {
+      assert(this.parent.firstChild == this);
+      this.parent.firstChild = node;
+    }
+
+    if (this.nextSibling != null) {
+      assert(this.nextSibling.previousSibling == this);
+      this.nextSibling.previousSibling = node;
+    } else {
+      assert(this.parent.lastChild == this);
+      this.parent.lastChild = node;
+    }
+
+    this.parent = null;
+    this.previousSibling = null;
+    this.nextSibling = null;
+  }
+
   becomeSymbolReference(symbol: Symbol): void {
     this.kind = NodeKind.NAME;
     this.symbol = symbol;
@@ -194,6 +226,7 @@ class Node {
 
   becomeIntegerConstant(value: int): void {
     this.kind = NodeKind.INT;
+    this.symbol = null;
     this.intValue = value;
     this.removeChildren();
   }
