@@ -212,7 +212,7 @@ class ParserContext {
         }
         this.advance();
         if (String_length(text) != 1) {
-          this.log.error(token.range, String_new("Invalid character literal"));
+          this.log.error(token.range, String_new("Invalid character literal (strings use double quotes)"));
           return createParseError().withRange(token.range);
         }
         return createInt(String_get(text, 0)).withRange(token.range);
@@ -715,7 +715,7 @@ class ParserContext {
 
     // Variables inside class declarations don't use "var"
     if (parent == null) {
-      assert(token.kind == TokenKind.VAR || token.kind == TokenKind.CONST);
+      assert(token.kind == TokenKind.CONST || token.kind == TokenKind.LET || token.kind == TokenKind.VAR);
       this.advance();
     }
 
@@ -783,7 +783,7 @@ class ParserContext {
       flags = flags | NODE_FLAG_EXTERN;
     }
 
-    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.VAR)) return this.parseVariables(flags, null);
+    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.LET) || this.peek(TokenKind.VAR)) return this.parseVariables(flags, null);
     if (this.peek(TokenKind.FUNCTION)) return this.parseFunction(flags, null);
     if (this.peek(TokenKind.CLASS)) return this.parseClass(flags);
     if (this.peek(TokenKind.ENUM)) return this.parseEnum(flags);

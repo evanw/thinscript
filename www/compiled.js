@@ -1224,24 +1224,27 @@ function tokenToString(token) {
     return "'interface'";
   }
   if (token === 55) {
-    return "'new'";
+    return "'let'";
   }
   if (token === 56) {
-    return "'null'";
+    return "'new'";
   }
   if (token === 57) {
-    return "'return'";
+    return "'null'";
   }
   if (token === 58) {
-    return "'this'";
+    return "'return'";
   }
   if (token === 59) {
-    return "'true'";
+    return "'this'";
   }
   if (token === 60) {
-    return "'var'";
+    return "'true'";
   }
   if (token === 61) {
+    return "'var'";
+  }
+  if (token === 62) {
     return "'while'";
   }
   __imports.assert(false);
@@ -1311,20 +1314,22 @@ function tokenize(source, log) {
         kind = 53;
       } else if (__imports.String_equalNew(text, "interface")) {
         kind = 54;
-      } else if (__imports.String_equalNew(text, "new")) {
+      } else if (__imports.String_equalNew(text, "let")) {
         kind = 55;
-      } else if (__imports.String_equalNew(text, "null")) {
+      } else if (__imports.String_equalNew(text, "new")) {
         kind = 56;
-      } else if (__imports.String_equalNew(text, "return")) {
+      } else if (__imports.String_equalNew(text, "null")) {
         kind = 57;
-      } else if (__imports.String_equalNew(text, "this")) {
+      } else if (__imports.String_equalNew(text, "return")) {
         kind = 58;
-      } else if (__imports.String_equalNew(text, "true")) {
+      } else if (__imports.String_equalNew(text, "this")) {
         kind = 59;
-      } else if (__imports.String_equalNew(text, "var")) {
+      } else if (__imports.String_equalNew(text, "true")) {
         kind = 60;
-      } else if (__imports.String_equalNew(text, "while")) {
+      } else if (__imports.String_equalNew(text, "var")) {
         kind = 61;
+      } else if (__imports.String_equalNew(text, "while")) {
+        kind = 62;
       }
     } else if (isNumber(c)) {
       kind = 3;
@@ -2255,10 +2260,10 @@ ParserContext.prototype.parsePrefix = function(mode) {
     return createName(value).withRange(token.range);
   }
   if (mode === 0) {
-    if (this.eat(56)) {
+    if (this.eat(57)) {
       return createNull().withRange(token.range);
     }
-    if (this.eat(58)) {
+    if (this.eat(59)) {
       return createThis().withRange(token.range);
     }
     if (this.peek(1)) {
@@ -2268,7 +2273,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       }
       this.advance();
       if (__imports.String_length(text) !== 1) {
-        this.log.error(token.range, __imports.String_new("Invalid character literal"));
+        this.log.error(token.range, __imports.String_new("Invalid character literal (strings use double quotes)"));
         return createParseError().withRange(token.range);
       }
       return createInt(__imports.String_get(text, 0)).withRange(token.range);
@@ -2286,13 +2291,13 @@ ParserContext.prototype.parsePrefix = function(mode) {
       this.advance();
       return createInt(value).withRange(token.range);
     }
-    if (this.eat(59)) {
+    if (this.eat(60)) {
       return createBool(true).withRange(token.range);
     }
     if (this.eat(49)) {
       return createBool(false).withRange(token.range);
     }
-    if (this.eat(55)) {
+    if (this.eat(56)) {
       var type = this.parseType();
       if (type === null || !this.expect(19)) {
         return null;
@@ -2499,7 +2504,7 @@ ParserContext.prototype.parseIf = function() {
 };
 ParserContext.prototype.parseWhile = function() {
   var token = this.current;
-  __imports.assert(token.kind === 61);
+  __imports.assert(token.kind === 62);
   this.advance();
   if (!this.expect(19)) {
     return null;
@@ -2543,7 +2548,7 @@ ParserContext.prototype.parseBlock = function() {
 };
 ParserContext.prototype.parseReturn = function() {
   var token = this.current;
-  __imports.assert(token.kind === 57);
+  __imports.assert(token.kind === 58);
   this.advance();
   var value = null;
   if (!this.peek(36)) {
@@ -2704,7 +2709,7 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
 ParserContext.prototype.parseVariables = function(flags, parent) {
   var token = this.current;
   if (parent === null) {
-    __imports.assert(token.kind === 60 || token.kind === 42);
+    __imports.assert(token.kind === 42 || token.kind === 55 || token.kind === 61);
     this.advance();
   }
   var node = token.kind === 42 ? createConstants() : createVariables();
@@ -2755,7 +2760,7 @@ ParserContext.prototype.parseStatement = function() {
   if (this.eat(48)) {
     flags = flags | 1;
   }
-  if (this.peek(42) || this.peek(60)) {
+  if (this.peek(42) || this.peek(55) || this.peek(61)) {
     return this.parseVariables(flags, null);
   }
   if (this.peek(50)) {
@@ -2783,10 +2788,10 @@ ParserContext.prototype.parseStatement = function() {
   if (this.peek(51)) {
     return this.parseIf();
   }
-  if (this.peek(61)) {
+  if (this.peek(62)) {
     return this.parseWhile();
   }
-  if (this.peek(57)) {
+  if (this.peek(58)) {
     return this.parseReturn();
   }
   if (this.peek(36)) {

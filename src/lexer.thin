@@ -60,6 +60,7 @@ enum TokenKind {
   IMPLEMENTS,
   IMPORT,
   INTERFACE,
+  LET,
   NEW,
   NULL,
   RETURN,
@@ -137,6 +138,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.IMPLEMENTS) return "'implements'";
   if (token == TokenKind.IMPORT) return "'import'";
   if (token == TokenKind.INTERFACE) return "'interface'";
+  if (token == TokenKind.LET) return "'let'";
   if (token == TokenKind.NEW) return "'new'";
   if (token == TokenKind.NULL) return "'null'";
   if (token == TokenKind.RETURN) return "'return'";
@@ -211,6 +213,7 @@ function tokenize(source: Source, log: Log): Token {
       else if (String_equalNew(text, "implements")) kind = TokenKind.IMPLEMENTS;
       else if (String_equalNew(text, "import")) kind = TokenKind.IMPORT;
       else if (String_equalNew(text, "interface")) kind = TokenKind.INTERFACE;
+      else if (String_equalNew(text, "let")) kind = TokenKind.LET;
       else if (String_equalNew(text, "new")) kind = TokenKind.NEW;
       else if (String_equalNew(text, "null")) kind = TokenKind.NULL;
       else if (String_equalNew(text, "return")) kind = TokenKind.RETURN;
