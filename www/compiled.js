@@ -44,17 +44,17 @@ function initialize(context, node, parentScope) {
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
     parentScope = symbol.scope;
-    context.boolType = parentScope.defineNativeType(context.log, "bool");
-    context.errorType = parentScope.defineNativeType(context.log, "<error>");
-    context.nullType = parentScope.defineNativeType(context.log, "null");
-    context.stringType = parentScope.defineNativeType(context.log, "string");
-    context.voidType = parentScope.defineNativeType(context.log, "void");
-    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", false, 1);
-    context.intType = parentScope.defineNativeIntegerType(context.log, "int", false, 4);
-    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", false, 2);
-    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", true, 1);
-    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", true, 4);
-    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", true, 2);
+    context.boolType = parentScope.defineNativeType(context.log, "bool", 1);
+    context.errorType = parentScope.defineNativeType(context.log, "<error>", 0);
+    context.nullType = parentScope.defineNativeType(context.log, "null", 0);
+    context.stringType = parentScope.defineNativeType(context.log, "string", 4);
+    context.voidType = parentScope.defineNativeType(context.log, "void", 0);
+    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, false);
+    context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
+    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
+    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", 1, true);
+    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
+    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
   } else if (node.kind === 4 || node.kind === 8) {
     var symbol = new Symbol();
     symbol.kind = node.kind === 4 ? 0 : 1;
@@ -227,7 +227,7 @@ function checkConversion(context, node, to, kind) {
   }
   if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
-    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 20 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask >>> 1 | 0) && node.intValue <= (mask >>> 1 | 0))) {
+    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 20 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
       return;
     }
     canCast = true;
@@ -262,26 +262,24 @@ function simplifyBinary(node) {
     left = node.binaryLeft();
     right = node.binaryRight();
   }
-  if (node.kind === 49 || (node.kind === 41 || node.kind === 51) && node.resolvedType.isUnsigned()) {
-    var rightValue = right.intValue;
-    if (right.kind === 20 && rightValue > 0 && (rightValue & rightValue - 1) === 0) {
-      var shift = -1;
-      while (rightValue !== 0) {
-        rightValue = rightValue >> 1;
-        shift = shift + 1 | 0;
-      }
-      if (node.kind === 49) {
-        node.kind = 52;
-        right.intValue = shift;
-      } else if (node.kind === 41) {
-        node.kind = 53;
-        right.intValue = shift;
-      } else if (node.kind === 51) {
-        node.kind = 38;
-        right.intValue = right.intValue - 1 | 0;
-      } else {
-        __imports.assert(false);
-      }
+  if ((node.kind === 49 || (node.kind === 41 || node.kind === 51) && node.resolvedType.isUnsigned()) && right.kind === 20 && isPositivePowerOf2(right.intValue)) {
+    var shift = -1;
+    var value = right.intValue;
+    while (value !== 0) {
+      value = value >> 1;
+      shift = shift + 1 | 0;
+    }
+    if (node.kind === 49) {
+      node.kind = 52;
+      right.intValue = shift;
+    } else if (node.kind === 41) {
+      node.kind = 53;
+      right.intValue = shift;
+    } else if (node.kind === 51) {
+      node.kind = 38;
+      right.intValue = right.intValue - 1 | 0;
+    } else {
+      __imports.assert(false);
     }
   } else if (node.kind === 36 && right.kind === 29) {
     var value = right.unaryValue();
@@ -311,16 +309,7 @@ function resolve(context, node, parentScope) {
   } else if (node.kind === 4) {
     initializeSymbol(context, node.symbol);
     resolveChildren(context, node, node.scope);
-    var offset = 0;
-    var child = node.firstChild;
-    while (child !== null) {
-      if (child.kind === 1) {
-        child.symbol.offset = offset;
-        offset = offset + 4 | 0;
-      }
-      child = child.nextSibling;
-    }
-    node.symbol.offset = offset > 0 ? offset : 1;
+    node.symbol.determineClassLayout(context);
   } else if (node.kind === 8) {
     initializeSymbol(context, node.symbol);
     resolveChildren(context, node, node.scope);
@@ -672,6 +661,9 @@ var CompileResult_log = exports.CompileResult_log = function(result) {
 function String() {
 }
 function ByteArray() {
+}
+function isPositivePowerOf2(value) {
+  return value > 0 && (value & value - 1) === 0;
 }
 function JsResult() {
   this.context = null;
@@ -2902,20 +2894,20 @@ Scope.prototype.define = function(log, symbol) {
   this.lastSymbol = symbol;
   return true;
 };
-Scope.prototype.defineNativeType = function(log, name) {
+Scope.prototype.defineNativeType = function(log, name, byteSize) {
   var symbol = new Symbol();
   symbol.kind = 3;
   symbol.name = __imports.String_new(name);
+  symbol.byteSize = byteSize;
   symbol.resolvedType = new Type();
   symbol.resolvedType.symbol = symbol;
   symbol.state = 2;
   this.define(log, symbol);
   return symbol.resolvedType;
 };
-Scope.prototype.defineNativeIntegerType = function(log, name, isUnsigned, byteSize) {
-  var type = this.defineNativeType(log, name);
+Scope.prototype.defineNativeIntegerType = function(log, name, byteSize, isUnsigned) {
+  var type = this.defineNativeType(log, name, byteSize);
   type.symbol.flags = isUnsigned ? 3 : 1;
-  type.symbol.byteSize = byteSize;
   return type;
 };
 function isType(kind) {
@@ -2949,6 +2941,28 @@ Symbol.prototype.isExtern = function() {
 Symbol.prototype.resolvedTypeUnderlyingIfEnumValue = function(context) {
   return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
 };
+Symbol.prototype.determineClassLayout = function(context) {
+  __imports.assert(this.kind === 0);
+  if (this.byteSize !== 0) {
+    return;
+  }
+  var offset = 0;
+  var child = this.node.firstChild;
+  while (child !== null) {
+    if (child.kind === 1) {
+      var type = child.symbol.resolvedType;
+      if (type !== context.errorType) {
+        var byteSize = type.byteSize();
+        __imports.assert(isPositivePowerOf2(byteSize));
+        offset = (offset + byteSize | 0) - 1 & -byteSize;
+        child.symbol.offset = offset;
+        offset = offset + byteSize | 0;
+      }
+    }
+    child = child.nextSibling;
+  }
+  this.byteSize = offset > 0 ? offset : 1;
+};
 function Type() {
   this.symbol = null;
 }
@@ -2972,6 +2986,9 @@ Type.prototype.integerBitMask = function() {
 };
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
+};
+Type.prototype.byteSize = function() {
+  return this.isClass() ? 4 : this.symbol.byteSize;
 };
 Type.prototype.toString = function() {
   return this.symbol.name;
@@ -3504,7 +3521,7 @@ function wasmEmitNode(array, node, context) {
     __imports.ByteArray_appendByte(array, 31);
     wasmWriteVarUnsigned(array, 0);
     __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, type.symbol.offset);
+    wasmWriteVarSigned(array, type.symbol.byteSize);
   } else if (node.kind === 31) {
     wasmEmitNode(array, node.unaryValue(), context);
   } else if (node.kind === 29) {
@@ -3546,8 +3563,20 @@ function wasmEmitNode(array, node, context) {
   } else if (node.kind === 18) {
     var symbol = node.symbol;
     if (symbol.kind === 8) {
-      __imports.ByteArray_appendByte(array, 42);
-      wasmWriteVarUnsigned(array, 2);
+      var type = symbol.resolvedType;
+      var byteSize = type.byteSize();
+      if (byteSize === 1) {
+        __imports.ByteArray_appendByte(array, type.isUnsigned() ? 33 : 32);
+        wasmWriteVarUnsigned(array, 0);
+      } else if (byteSize === 2) {
+        __imports.ByteArray_appendByte(array, type.isUnsigned() ? 35 : 34);
+        wasmWriteVarUnsigned(array, 1);
+      } else if (byteSize === 4) {
+        __imports.ByteArray_appendByte(array, 42);
+        wasmWriteVarUnsigned(array, 2);
+      } else {
+        __imports.assert(false);
+      }
       wasmWriteVarUnsigned(array, symbol.offset);
       wasmEmitNode(array, node.dotTarget(), context);
     } else {
@@ -3557,9 +3586,19 @@ function wasmEmitNode(array, node, context) {
     var left = node.binaryLeft();
     var symbol = left.symbol;
     if (symbol.kind === 8) {
-      __imports.assert(left.kind === 18);
-      __imports.ByteArray_appendByte(array, 51);
-      wasmWriteVarUnsigned(array, 2);
+      var byteSize = symbol.resolvedType.byteSize();
+      if (byteSize === 1) {
+        __imports.ByteArray_appendByte(array, 46);
+        wasmWriteVarUnsigned(array, 0);
+      } else if (byteSize === 2) {
+        __imports.ByteArray_appendByte(array, 47);
+        wasmWriteVarUnsigned(array, 1);
+      } else if (byteSize === 4) {
+        __imports.ByteArray_appendByte(array, 51);
+        wasmWriteVarUnsigned(array, 2);
+      } else {
+        __imports.assert(false);
+      }
       wasmWriteVarUnsigned(array, symbol.offset);
       wasmEmitNode(array, left.dotTarget(), context);
       wasmEmitNode(array, node.binaryRight(), context);

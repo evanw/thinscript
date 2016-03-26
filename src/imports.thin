@@ -22,3 +22,7 @@ function ByteArray_length(self: ByteArray): int;
 function ByteArray_getByte(self: ByteArray, index: int): int;
 function ByteArray_setByte(self: ByteArray, index: int, byte: int): void;
 function ByteArray_appendByte(self: ByteArray, byte: int): void;
+
+function isPositivePowerOf2(value: int): bool {
+  return value > 0 && (value & (value - 1)) == 0;
+}

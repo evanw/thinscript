@@ -1,3 +1,5 @@
+const POINTER_SIZE = 4;
+
 enum ConversionKind {
   IMPLICIT,
   EXPLICIT,
@@ -32,6 +34,10 @@ class Type {
 
   isReference(context: CheckContext): bool {
     return this == context.stringType || this.isClass();
+  }
+
+  byteSize(): int {
+    return this.isClass() ? POINTER_SIZE : this.symbol.byteSize;
   }
 
   toString(): String {

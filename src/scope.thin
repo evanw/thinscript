@@ -48,20 +48,21 @@ class Scope {
     return true;
   }
 
-  defineNativeType(log: Log, name: string): Type {
+  defineNativeType(log: Log, name: string, byteSize: int): Type {
     var symbol = new Symbol();
     symbol.kind = SymbolKind.TYPE_NATIVE;
     symbol.name = String_new(name);
+    symbol.byteSize = byteSize;
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     symbol.state = SymbolState.INITIALIZED;
     this.define(log, symbol);
     return symbol.resolvedType;
   }
-  defineNativeIntegerType(log: Log, name: string, isUnsigned: bool, byteSize: int): Type {
-    var type = this.defineNativeType(log, name);
+
+  defineNativeIntegerType(log: Log, name: string, byteSize: int, isUnsigned: bool): Type {
+    var type = this.defineNativeType(log, name, byteSize);
     type.symbol.flags = isUnsigned ? SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED : SYMBOL_FLAG_NATIVE_INTEGER;
-    type.symbol.byteSize = byteSize;
     return type;
   }
 }

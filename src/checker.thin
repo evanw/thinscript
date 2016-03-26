@@ -57,19 +57,19 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     parentScope = symbol.scope;
 
     // Initialize native types
-    context.boolType = parentScope.defineNativeType(context.log, "bool");
-    context.errorType = parentScope.defineNativeType(context.log, "<error>");
-    context.nullType = parentScope.defineNativeType(context.log, "null");
-    context.stringType = parentScope.defineNativeType(context.log, "string");
-    context.voidType = parentScope.defineNativeType(context.log, "void");
+    context.boolType = parentScope.defineNativeType(context.log, "bool", 1);
+    context.errorType = parentScope.defineNativeType(context.log, "<error>", 0);
+    context.nullType = parentScope.defineNativeType(context.log, "null", 0);
+    context.stringType = parentScope.defineNativeType(context.log, "string", POINTER_SIZE);
+    context.voidType = parentScope.defineNativeType(context.log, "void", 0);
 
     // Native integer types
-    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", false, 1);
-    context.intType = parentScope.defineNativeIntegerType(context.log, "int", false, 4);
-    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", false, 2);
-    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", true, 1);
-    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", true, 4);
-    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", true, 2);
+    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, false);
+    context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
+    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
+    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", 1, true);
+    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
+    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
   }
 
   // Class
@@ -329,7 +329,7 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
     if (kind == ConversionKind.EXPLICIT || from.symbol.byteSize < to.symbol.byteSize ||
         node.kind == NodeKind.INT && (to.isUnsigned()
           ? node.intValue >= 0 && node.intValue as uint <= mask
-          : node.intValue >= (~mask >> 1) as int && node.intValue <= (mask >> 1) as int)) {
+          : node.intValue >= (~mask as int >> 1) && node.intValue <= (mask >> 1) as int)) {
       return;
     }
 
@@ -385,39 +385,36 @@ function simplifyBinary(node: Node): void {
   }
 
   // Convert multiplication or division by a power of 2 into a shift
-  if (node.kind == NodeKind.MULTIPLY || (node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER) && node.resolvedType.isUnsigned()) {
-    var rightValue = right.intValue;
+  if ((node.kind == NodeKind.MULTIPLY || (node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER) && node.resolvedType.isUnsigned()) &&
+      right.kind == NodeKind.INT && isPositivePowerOf2(right.intValue)) {
+    // Extract the shift from the value
+    var shift = -1;
+    var value = right.intValue;
+    while (value != 0) {
+      value = value >> 1;
+      shift = shift + 1;
+    }
 
-    // The right operand must be a positive power of 2
-    if (right.kind == NodeKind.INT && rightValue > 0 && (rightValue & (rightValue - 1)) == 0) {
-      // Extract the shift from the value
-      var shift = -1;
-      while (rightValue != 0) {
-        rightValue = rightValue >> 1;
-        shift = shift + 1;
-      }
+    // "x * 16" => "x << 4"
+    if (node.kind == NodeKind.MULTIPLY) {
+      node.kind = NodeKind.SHIFT_LEFT;
+      right.intValue = shift;
+    }
 
-      // "x * 16" => "x << 4"
-      if (node.kind == NodeKind.MULTIPLY) {
-        node.kind = NodeKind.SHIFT_LEFT;
-        right.intValue = shift;
-      }
+    // "x / 16" => "x >> 4" when x is unsigned
+    else if (node.kind == NodeKind.DIVIDE) {
+      node.kind = NodeKind.SHIFT_RIGHT;
+      right.intValue = shift;
+    }
 
-      // "x / 16" => "x >> 4" when x is unsigned
-      else if (node.kind == NodeKind.DIVIDE) {
-        node.kind = NodeKind.SHIFT_RIGHT;
-        right.intValue = shift;
-      }
+    // "x % 16" => "x & 15" when x is unsigned
+    else if (node.kind == NodeKind.REMAINDER) {
+      node.kind = NodeKind.BITWISE_AND;
+      right.intValue = right.intValue - 1;
+    }
 
-      // "x % 16" => "x & 15" when x is unsigned
-      else if (node.kind == NodeKind.REMAINDER) {
-        node.kind = NodeKind.BITWISE_AND;
-        right.intValue = right.intValue - 1;
-      }
-
-      else {
-        assert(false);
-      }
+    else {
+      assert(false);
     }
   }
 
@@ -464,18 +461,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else if (node.kind == NodeKind.CLASS) {
     initializeSymbol(context, node.symbol);
     resolveChildren(context, node, node.scope);
-
-    // Determine class layout
-    var offset = 0;
-    var child = node.firstChild;
-    while (child != null) {
-      if (child.kind == NodeKind.VARIABLE) {
-        child.symbol.offset = offset;
-        offset = offset + 4;
-      }
-      child = child.nextSibling;
-    }
-    node.symbol.offset = offset > 0 ? offset : 1;
+    node.symbol.determineClassLayout(context);
   }
 
   else if (node.kind == NodeKind.ENUM) {

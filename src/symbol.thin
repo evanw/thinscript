@@ -48,7 +48,7 @@ class Symbol {
 
   // The "offset" variable is used to store kind-specific information
   //
-  //   TYPE_CLASS: Object size
+  //   TYPE_CLASS: N/A
   //   TYPE_ENUM: N/A
   //   TYPE_GLOBAL: N/A
   //   TYPE_NATIVE: N/A
@@ -73,5 +73,41 @@ class Symbol {
 
   resolvedTypeUnderlyingIfEnumValue(context: CheckContext): Type {
     return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
+  }
+
+  determineClassLayout(context: CheckContext): void {
+    assert(this.kind == SymbolKind.TYPE_CLASS);
+
+    // Only determine class layout once
+    if (this.byteSize != 0) {
+      return;
+    }
+
+    var offset = 0;
+    var child = this.node.firstChild;
+
+    while (child != null) {
+      if (child.kind == NodeKind.VARIABLE) {
+        var type = child.symbol.resolvedType;
+
+        // Ignore invalid members
+        if (type != context.errorType) {
+          var byteSize = type.byteSize();
+          assert(isPositivePowerOf2(byteSize));
+
+          // Align the member to the next available slot
+          offset = (offset + byteSize - 1) & -byteSize;
+
+          // Allocate the member by extending the object
+          child.symbol.offset = offset;
+          offset = offset + byteSize;
+        }
+      }
+
+      child = child.nextSibling;
+    }
+
+    // All objects must have a non-zero size
+    this.byteSize = offset > 0 ? offset : 1;
   }
 }

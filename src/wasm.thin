@@ -176,7 +176,6 @@ const WASM_OPCODE_I64_REINTERPRET_F64 = 181;
 
 const WASM_MAGIC = 0x6D736100;
 const WASM_VERSION = 10;
-const WASM_I32_LOAD_STORE_ALIGNMENT = 2; // 1 << 2 is 4, and 4 is sizeof(int)
 const WASM_SIZE_IN_PAGES = 256;
 const WASM_MEMORY_INITIALIZER_OFFSET = 8; // Leave space for "null"
 
@@ -838,8 +837,9 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
     wasmWriteVarUnsigned(array, 0); // Invoke the "new" function
 
     // Pass the object size as the first argument
+    // assert(type.symbol.byteSize > 0);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, type.symbol.offset);
+    wasmWriteVarSigned(array, type.symbol.byteSize);
   }
 
   else if (node.kind == NodeKind.POSITIVE) {
@@ -907,8 +907,28 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
     var symbol = node.symbol;
 
     if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
-      wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
+      var type = symbol.resolvedType;
+      var byteSize = type.byteSize();
+
+      if (byteSize == 1) {
+        ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
+        wasmWriteVarUnsigned(array, 0);
+      }
+
+      else if (byteSize == 2) {
+        ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD16_U : WASM_OPCODE_I32_LOAD16_S);
+        wasmWriteVarUnsigned(array, 1);
+      }
+
+      else if (byteSize == 4) {
+        ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
+        wasmWriteVarUnsigned(array, 2);
+      }
+
+      else {
+        assert(false);
+      }
+
       wasmWriteVarUnsigned(array, symbol.offset);
       wasmEmitNode(array, node.dotTarget(), context);
     }
@@ -923,9 +943,27 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
     var symbol = left.symbol;
 
     if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
-      assert(left.kind == NodeKind.DOT);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
-      wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
+      var byteSize = symbol.resolvedType.byteSize();
+
+      if (byteSize == 1) {
+        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE8);
+        wasmWriteVarUnsigned(array, 0);
+      }
+
+      else if (byteSize == 2) {
+        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE16);
+        wasmWriteVarUnsigned(array, 1);
+      }
+
+      else if (byteSize == 4) {
+        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
+        wasmWriteVarUnsigned(array, 2);
+      }
+
+      else {
+        assert(false);
+      }
+
       wasmWriteVarUnsigned(array, symbol.offset);
       wasmEmitNode(array, left.dotTarget(), context);
       wasmEmitNode(array, node.binaryRight(), context);
