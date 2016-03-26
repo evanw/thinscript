@@ -1,0 +1,75 @@
+enum SymbolKind {
+  TYPE_CLASS,
+  TYPE_ENUM,
+  TYPE_GLOBAL,
+  TYPE_NATIVE,
+
+  FUNCTION_INSTANCE,
+  FUNCTION_GLOBAL,
+
+  VARIABLE_ARGUMENT,
+  VARIABLE_CONSTANT,
+  VARIABLE_INSTANCE,
+  VARIABLE_LOCAL,
+}
+
+function isType(kind: SymbolKind): bool {
+  return kind >= SymbolKind.TYPE_CLASS && kind <= SymbolKind.TYPE_NATIVE;
+}
+
+function isFunction(kind: SymbolKind): bool {
+  return kind >= SymbolKind.FUNCTION_INSTANCE && kind <= SymbolKind.FUNCTION_GLOBAL;
+}
+
+function isVariable(kind: SymbolKind): bool {
+  return kind >= SymbolKind.VARIABLE_ARGUMENT && kind <= SymbolKind.VARIABLE_LOCAL;
+}
+
+enum SymbolState {
+  UNINITIALIZED,
+  INITIALIZING,
+  INITIALIZED,
+}
+
+class Symbol {
+  kind: SymbolKind;
+  name: String;
+  node: Node;
+  range: Range;
+  scope: Scope;
+  resolvedType: Type;
+  next: Symbol;
+  state: SymbolState;
+
+  // The "offset" variable is used to store kind-specific information
+  //
+  //   TYPE_CLASS: Object size
+  //   TYPE_ENUM: N/A
+  //   TYPE_GLOBAL: N/A
+  //   TYPE_NATIVE: N/A
+  //
+  //   FUNCTION_INSTANCE: N/A
+  //   FUNCTION_GLOBAL: N/A
+  //
+  //   VARIABLE_ARGUMENT: Argument index
+  //   VARIABLE_CONSTANT: Integer constant value
+  //   VARIABLE_INSTANCE: Instance offset
+  //   VARIABLE_LOCAL: N/A
+  //
+  offset: int;
+
+  isEnumValue(): bool {
+    return this.node.parent.kind == NodeKind.ENUM;
+  }
+
+  isExtern(): bool {
+    return (this.node.flags & NODE_FLAG_EXTERN) != 0;
+  }
+
+  resolvedTypeIntIfEnumValue(context: CheckContext): Type {
+    if (this.isEnumValue()) {
+      return context.intType;
+    }
+    return this.resolvedType;
+  }
+}

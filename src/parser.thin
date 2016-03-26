@@ -468,6 +468,12 @@ class ParserContext {
     return createReturn(value).withRange(spanRanges(token.range, semicolon.range));
   }
 
+  parseEmpty(): Node {
+    var token = this.current;
+    this.advance();
+    return createEmpty().withRange(token.range);
+  }
+
   parseEnum(flags: int): Node {
     var token = this.current;
     assert(token.kind == TokenKind.ENUM);
@@ -714,21 +720,10 @@ class ParserContext {
       flags = flags | NODE_FLAG_EXTERN;
     }
 
-    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.VAR)) {
-      return this.parseVariables(flags, null);
-    }
-
-    if (this.peek(TokenKind.FUNCTION)) {
-      return this.parseFunction(flags, null);
-    }
-
-    if (this.peek(TokenKind.CLASS)) {
-      return this.parseClass(flags);
-    }
-
-    if (this.peek(TokenKind.ENUM)) {
-      return this.parseEnum(flags);
-    }
+    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.VAR)) return this.parseVariables(flags, null);
+    if (this.peek(TokenKind.FUNCTION)) return this.parseFunction(flags, null);
+    if (this.peek(TokenKind.CLASS)) return this.parseClass(flags);
+    if (this.peek(TokenKind.ENUM)) return this.parseEnum(flags);
 
     // Definition modifiers need to be attached to a definition
     if (flags != 0) {
@@ -736,36 +731,15 @@ class ParserContext {
       return null;
     }
 
-    if (this.peek(TokenKind.LEFT_BRACE)) {
-      return this.parseBlock();
-    }
+    if (this.peek(TokenKind.LEFT_BRACE)) return this.parseBlock();
+    if (this.peek(TokenKind.BREAK)) return this.parseLoopJump(NodeKind.BREAK);
+    if (this.peek(TokenKind.CONTINUE)) return this.parseLoopJump(NodeKind.CONTINUE);
+    if (this.peek(TokenKind.IF)) return this.parseIf();
+    if (this.peek(TokenKind.WHILE)) return this.parseWhile();
+    if (this.peek(TokenKind.RETURN)) return this.parseReturn();
+    if (this.peek(TokenKind.SEMICOLON)) return this.parseEmpty();
 
-    if (this.peek(TokenKind.BREAK)) {
-      return this.parseLoopJump(NodeKind.BREAK);
-    }
-
-    if (this.peek(TokenKind.CONTINUE)) {
-      return this.parseLoopJump(NodeKind.CONTINUE);
-    }
-
-    if (this.peek(TokenKind.IF)) {
-      return this.parseIf();
-    }
-
-    if (this.peek(TokenKind.WHILE)) {
-      return this.parseWhile();
-    }
-
-    if (this.peek(TokenKind.RETURN)) {
-      return this.parseReturn();
-    }
-
-    if (this.peek(TokenKind.SEMICOLON)) {
-      var token = this.current;
-      this.advance();
-      return createEmpty().withRange(token.range);
-    }
-
+    // Parse an expression statement
     var value = this.parseExpression(PRECEDENCE_LOWEST);
 
     if (value == null) {

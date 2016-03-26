@@ -1,0 +1,24 @@
+function assert(truth: bool): void;
+
+// An external string handle for now
+class String {}
+
+function String_new(text: string): String;
+function String_length(self: String): int;
+function String_get(self: String, index: int): int;
+function String_append(self: String, other: String): String;
+function String_appendNew(self: String, other: string): String;
+function String_equal(self: String, other: String): bool;
+function String_equalNew(self: String, other: string): bool;
+function String_slice(self: String, start: int, end: int): String;
+function String_toString(value: int): String;
+function String_quote(self: String): String;
+
+// This is an external handle for now
+class ByteArray {}
+
+function ByteArray_new(): ByteArray;
+function ByteArray_length(self: ByteArray): int;
+function ByteArray_getByte(self: ByteArray, index: int): int;
+function ByteArray_setByte(self: ByteArray, index: int, byte: int): void;
+function ByteArray_appendByte(self: ByteArray, byte: int): void;

@@ -1,0 +1,61 @@
+enum FindNested {
+  NORMAL,
+  ALLOW_INSTANCE_ERRORS,
+}
+
+class Scope {
+  parent: Scope;
+  symbol: Symbol;
+  firstSymbol: Symbol;
+  lastSymbol: Symbol;
+
+  findLocal(name: String): Symbol {
+    var symbol = this.firstSymbol;
+    while (symbol != null) {
+      if (String_equal(symbol.name, name)) {
+        return symbol;
+      }
+      symbol = symbol.next;
+    }
+    return null;
+  }
+
+  findNested(name: String, mode: FindNested): Symbol {
+    var scope = this;
+    while (scope != null) {
+      if (scope.symbol == null || scope.symbol.kind != SymbolKind.TYPE_CLASS || mode == FindNested.ALLOW_INSTANCE_ERRORS) {
+        var local = scope.findLocal(name);
+        if (local != null) {
+          return local;
+        }
+      }
+      scope = scope.parent;
+    }
+    return null;
+  }
+
+  define(log: Log, symbol: Symbol): bool {
+    var existing = this.findLocal(symbol.name);
+    if (existing != null) {
+      log.error(symbol.range, String_appendNew(String_append(String_new("Duplicate symbol '"), symbol.name), "'"));
+      return false;
+    }
+
+    if (this.firstSymbol == null) this.firstSymbol = symbol;
+    else this.lastSymbol.next = symbol;
+    this.lastSymbol = symbol;
+
+    return true;
+  }
+
+  defineNativeType(log: Log, name: string): Type {
+    var symbol = new Symbol();
+    symbol.kind = SymbolKind.TYPE_NATIVE;
+    symbol.name = String_new(name);
+    symbol.resolvedType = new Type();
+    symbol.resolvedType.symbol = symbol;
+    symbol.state = SymbolState.INITIALIZED;
+    this.define(log, symbol);
+    return symbol.resolvedType;
+  }
+}

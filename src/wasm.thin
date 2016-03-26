@@ -562,7 +562,7 @@ class WasmModule {
       var fn = this.allocateFunction(node.symbol.name, signatureIndex, body);
 
       // Only export "extern" functions
-      if (isExternSymbol(node.symbol)) {
+      if (node.symbol.isExtern()) {
         fn.isExported = true;
       }
 
@@ -952,7 +952,7 @@ function wasmWrapType(id: int): WasmType {
 }
 
 function wasmGetType(context: CheckContext, type: Type): int {
-  if (type == context.boolType || type.isInteger(context) || typeIsReference(context, type)) {
+  if (type == context.boolType || type.isInteger(context) || type.isReference(context)) {
     return WASM_TYPE_I32;
   }
 

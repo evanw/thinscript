@@ -1,0 +1,39 @@
+class Type {
+  symbol: Symbol;
+
+  isClass(): bool {
+    return this.symbol.kind == SymbolKind.TYPE_CLASS;
+  }
+
+  isEnum(): bool {
+    return this.symbol.kind == SymbolKind.TYPE_ENUM;
+  }
+
+  isInteger(context: CheckContext): bool {
+    return this == context.intType || this.isEnum();
+  }
+
+  isReference(context: CheckContext): bool {
+    return this == context.stringType || this.isClass();
+  }
+
+  toString(): String {
+    return this.symbol.name;
+  }
+
+  findMember(name: String): Symbol {
+    var child = this.symbol.node.firstChild;
+
+    while (child != null) {
+      assert(child.kind == NodeKind.VARIABLE || child.kind == NodeKind.FUNCTION);
+
+      if (String_equal(child.symbol.name, name)) {
+        return child.symbol;
+      }
+
+      child = child.nextSibling;
+    }
+
+    return null;
+  }
+}

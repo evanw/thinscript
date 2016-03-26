@@ -1,59 +1,3 @@
-function isType(kind) {
-  return kind >= 0 && kind <= 3;
-}
-function isFunction(kind) {
-  return kind >= 4 && kind <= 5;
-}
-function isVariable(kind) {
-  return kind >= 6 && kind <= 9;
-}
-function Symbol() {
-  this.kind = 0;
-  this.name = null;
-  this.node = null;
-  this.range = null;
-  this.scope = null;
-  this.resolvedType = null;
-  this.next = null;
-  this.state = 0;
-  this.offset = 0;
-}
-Symbol.prototype.isEnumValue = function() {
-  return this.node.parent.kind === 8;
-};
-Symbol.prototype.resolvedTypeIntIfEnumValue = function(context) {
-  if (this.isEnumValue()) {
-    return context.intType;
-  }
-  return this.resolvedType;
-};
-function isExternSymbol(symbol) {
-  return (symbol.node.flags & 1) !== 0;
-}
-function Scope() {
-  this.parent = null;
-  this.symbol = null;
-  this.firstSymbol = null;
-  this.lastSymbol = null;
-}
-function Type() {
-  this.symbol = null;
-}
-Type.prototype.isClass = function() {
-  return this.symbol.kind === 0;
-};
-Type.prototype.isEnum = function() {
-  return this.symbol.kind === 1;
-};
-Type.prototype.isInteger = function(context) {
-  return this === context.intType || this.isEnum();
-};
-function typeIsReference(context, type) {
-  return type.isClass() || type === context.stringType;
-}
-function typeToString(type) {
-  return type.symbol.name;
-}
 function CheckContext() {
   this.log = null;
   this.currentReturnType = null;
@@ -63,63 +7,6 @@ function CheckContext() {
   this.nullType = null;
   this.stringType = null;
   this.voidType = null;
-}
-function findLocal(scope, name) {
-  var symbol = scope.firstSymbol;
-  while (symbol !== null) {
-    if (__imports.String_equal(symbol.name, name)) {
-      return symbol;
-    }
-    symbol = symbol.next;
-  }
-  return null;
-}
-function findMember(type, name) {
-  var child = type.symbol.node.firstChild;
-  while (child !== null) {
-    __imports.assert(child.kind === 1 || child.kind === 10);
-    if (__imports.String_equal(child.symbol.name, name)) {
-      return child.symbol;
-    }
-    child = child.nextSibling;
-  }
-  return null;
-}
-function findNested(scope, name, mode) {
-  while (scope !== null) {
-    if (scope.symbol === null || scope.symbol.kind !== 0 || mode === 1) {
-      var local = findLocal(scope, name);
-      if (local !== null) {
-        return local;
-      }
-    }
-    scope = scope.parent;
-  }
-  return null;
-}
-function define(log, scope, symbol) {
-  var existing = findLocal(scope, symbol.name);
-  if (existing !== null) {
-    log.error(symbol.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Duplicate symbol '"), symbol.name), "'"));
-    return false;
-  }
-  if (scope.firstSymbol === null) {
-    scope.firstSymbol = symbol;
-  } else {
-    scope.lastSymbol.next = symbol;
-  }
-  scope.lastSymbol = symbol;
-  return true;
-}
-function defineNativeType(log, scope, name) {
-  var symbol = new Symbol();
-  symbol.kind = 3;
-  symbol.name = __imports.String_new(name);
-  symbol.resolvedType = new Type();
-  symbol.resolvedType.symbol = symbol;
-  symbol.state = 2;
-  define(log, scope, symbol);
-  return symbol.resolvedType;
 }
 function addScopeToSymbol(symbol, parentScope) {
   var scope = new Scope();
@@ -151,20 +38,20 @@ function initialize(context, node, parentScope) {
     symbol.state = 2;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    context.boolType = defineNativeType(context.log, symbol.scope, "bool");
-    context.errorType = defineNativeType(context.log, symbol.scope, "<error>");
-    context.intType = defineNativeType(context.log, symbol.scope, "int");
-    context.nullType = defineNativeType(context.log, symbol.scope, "null");
-    context.stringType = defineNativeType(context.log, symbol.scope, "string");
-    context.voidType = defineNativeType(context.log, symbol.scope, "void");
     parentScope = symbol.scope;
+    context.boolType = parentScope.defineNativeType(context.log, "bool");
+    context.errorType = parentScope.defineNativeType(context.log, "<error>");
+    context.intType = parentScope.defineNativeType(context.log, "int");
+    context.nullType = parentScope.defineNativeType(context.log, "null");
+    context.stringType = parentScope.defineNativeType(context.log, "string");
+    context.voidType = parentScope.defineNativeType(context.log, "void");
   } else if (node.kind === 4 || node.kind === 8) {
     var symbol = new Symbol();
     symbol.kind = node.kind === 4 ? 0 : 1;
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    define(context.log, parentScope, symbol);
+    parentScope.define(context.log, symbol);
     parentScope = symbol.scope;
   } else if (node.kind === 10) {
     var symbol = new Symbol();
@@ -172,7 +59,7 @@ function initialize(context, node, parentScope) {
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    define(context.log, parentScope, symbol);
+    parentScope.define(context.log, symbol);
     parentScope = symbol.scope;
     if (symbol.kind === 4) {
       var parent = node.parent.symbol;
@@ -186,7 +73,7 @@ function initialize(context, node, parentScope) {
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
     linkSymbolToNode(symbol, node);
-    define(context.log, parentScope, symbol);
+    parentScope.define(context.log, symbol);
   } else if (node.kind === 2) {
     if (node.parent.kind !== 10) {
       var scope = new Scope();
@@ -244,7 +131,7 @@ function initializeSymbol(context, symbol) {
       symbol.resolvedType = context.errorType;
     }
     if (symbol.resolvedType === context.voidType || symbol.resolvedType === context.nullType) {
-      context.log.error(symbol.node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot create a variable with type '"), typeToString(symbol.resolvedType)), "'"));
+      context.log.error(symbol.node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot create a variable with type '"), symbol.resolvedType.toString()), "'"));
       symbol.resolvedType = context.errorType;
     }
     if (symbol.kind === 7) {
@@ -275,7 +162,7 @@ function initializeSymbol(context, symbol) {
     if (symbol.scope.symbol === null) {
       var scope = symbol.scope.parent;
       while (scope !== null) {
-        var shadowed = findLocal(scope, symbol.name);
+        var shadowed = scope.findLocal(symbol.name);
         if (shadowed !== null) {
           context.log.error(symbol.node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
           break;
@@ -318,8 +205,8 @@ function resolveAsType(context, node, parentScope) {
 function checkConversion(context, from, to) {
   __imports.assert(isExpression(from));
   __imports.assert(to !== null);
-  if (from.resolvedType !== context.errorType && to !== context.errorType && from.resolvedType !== to && (from.resolvedType !== context.nullType || !typeIsReference(context, to))) {
-    context.log.error(from.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot convert from type '"), typeToString(from.resolvedType)), "' to type '"), typeToString(to)), "'"));
+  if (from.resolvedType !== context.errorType && to !== context.errorType && from.resolvedType !== to && (from.resolvedType !== context.nullType || !to.isReference(context))) {
+    context.log.error(from.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot convert from type '"), from.resolvedType.toString()), "' to type '"), to.toString()), "'"));
     from.resolvedType = context.errorType;
   }
 }
@@ -356,7 +243,7 @@ function createDefaultValueForType(context, type) {
   if (type === context.boolType) {
     return createBool(false);
   }
-  __imports.assert(typeIsReference(context, type));
+  __imports.assert(type.isReference(context));
   return createNull();
 }
 function resolve(context, node, parentScope) {
@@ -428,17 +315,17 @@ function resolve(context, node, parentScope) {
   } else if (node.kind === 23) {
     node.resolvedType = context.nullType;
   } else if (node.kind === 25) {
-    var symbol = findNested(parentScope, __imports.String_new("this"), 0);
+    var symbol = parentScope.findNested(__imports.String_new("this"), 0);
     if (symbol === null) {
       context.log.error(node.range, __imports.String_new("Cannot use 'this' here"));
     } else {
       node.becomeSymbolReference(symbol);
     }
   } else if (node.kind === 21) {
-    var symbol = findNested(parentScope, node.stringValue, 0);
+    var symbol = parentScope.findNested(node.stringValue, 0);
     if (symbol === null) {
       var message = __imports.String_appendNew(__imports.String_append(__imports.String_new("No symbol named '"), node.stringValue), "' here");
-      symbol = findNested(parentScope, node.stringValue, 1);
+      symbol = parentScope.findNested(node.stringValue, 1);
       if (symbol !== null) {
         message = __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(message, ", did you mean 'this."), symbol.name), "'?");
       }
@@ -461,9 +348,9 @@ function resolve(context, node, parentScope) {
     if (target.resolvedType !== context.errorType) {
       if (target.isType() && target.resolvedType.isEnum() || !target.isType() && target.resolvedType.isClass()) {
         var child = target.resolvedType.symbol.node.firstChild;
-        node.symbol = findMember(target.resolvedType, node.stringValue);
+        node.symbol = target.resolvedType.findMember(node.stringValue);
         if (node.symbol === null) {
-          context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("No member named '"), node.stringValue), "' on type '"), typeToString(target.resolvedType)), "'"));
+          context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("No member named '"), node.stringValue), "' on type '"), target.resolvedType.toString()), "'"));
         } else {
           initializeSymbol(context, node.symbol);
           node.resolvedType = node.symbol.resolvedType;
@@ -472,7 +359,7 @@ function resolve(context, node, parentScope) {
           }
         }
       } else {
-        context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("The type '"), typeToString(target.resolvedType)), "' has no members"));
+        context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("The type '"), target.resolvedType.toString()), "' has no members"));
       }
     }
   } else if (node.kind === 16) {
@@ -481,7 +368,7 @@ function resolve(context, node, parentScope) {
     if (value.resolvedType !== context.errorType) {
       var symbol = value.symbol;
       if (symbol === null || !isFunction(symbol.kind)) {
-        context.log.error(value.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot call value of type '"), typeToString(value.resolvedType)), "'"));
+        context.log.error(value.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot call value of type '"), value.resolvedType.toString()), "'"));
       } else {
         initializeSymbol(context, symbol);
         var returnType = symbol.node.functionReturnType();
@@ -543,8 +430,8 @@ function resolve(context, node, parentScope) {
     resolve(context, yes, parentScope);
     resolve(context, no, parentScope);
     var commonType = (yes.resolvedType === context.nullType ? no : yes).resolvedType;
-    if (yes.resolvedType !== commonType && (yes.resolvedType !== context.nullType || !typeIsReference(context, commonType)) && no.resolvedType !== commonType && (no.resolvedType !== context.nullType || !typeIsReference(context, commonType))) {
-      context.log.error(spanRanges(yes.range, no.range), __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Type '"), typeToString(yes.resolvedType)), "' is not the same as type '"), typeToString(no.resolvedType)), "'"));
+    if (yes.resolvedType !== commonType && (yes.resolvedType !== context.nullType || !commonType.isReference(context)) && no.resolvedType !== commonType && (no.resolvedType !== context.nullType || !commonType.isReference(context))) {
+      context.log.error(spanRanges(yes.range, no.range), __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Type '"), yes.resolvedType.toString()), "' is not the same as type '"), no.resolvedType.toString()), "'"));
     }
     node.resolvedType = commonType;
   } else if (node.kind === 36) {
@@ -576,8 +463,8 @@ function resolve(context, node, parentScope) {
     node.resolvedType = context.boolType;
     var leftType = left.resolvedType;
     var rightType = right.resolvedType;
-    if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !typeIsReference(context, rightType)) && (rightType !== context.nullType || !typeIsReference(context, leftType)))) {
-      context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot compare type '"), typeToString(leftType)), "' with type '"), typeToString(rightType)), "'"));
+    if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)))) {
+      context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot compare type '"), leftType.toString()), "' with type '"), rightType.toString()), "'"));
     }
   } else if (node.kind === 27 || node.kind === 28 || node.kind === 30) {
     resolveUnary(context, node, parentScope, context.intType);
@@ -590,7 +477,7 @@ function resolve(context, node, parentScope) {
     resolveAsType(context, type, parentScope);
     if (type.resolvedType !== context.errorType) {
       if (!type.resolvedType.isClass()) {
-        context.log.error(type.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot construct type '"), typeToString(type.resolvedType)), "'"));
+        context.log.error(type.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot construct type '"), type.resolvedType.toString()), "'"));
       } else {
         node.resolvedType = type.resolvedType;
       }
@@ -655,6 +542,10 @@ var CompileResult_js = exports.CompileResult_js = function(result) {
 var CompileResult_log = exports.CompileResult_log = function(result) {
   return result.log.toString();
 };
+function String() {
+}
+function ByteArray() {
+}
 function JsResult() {
   this.context = null;
   this.code = null;
@@ -833,7 +724,7 @@ JsResult.prototype.emitStatement = function(node) {
       this.emitString(node.symbol.name);
       this.emitText(" = function");
       needsSemicolon = true;
-    } else if (isExternSymbol(node.symbol)) {
+    } else if (node.symbol.isExtern()) {
       this.emitText("var ");
       this.emitString(node.symbol.name);
       this.emitText(" = exports.");
@@ -1409,6 +1300,112 @@ function tokenize(source, log) {
   last = eof;
   return first;
 }
+function Source() {
+  this.name = null;
+  this.contents = null;
+}
+function Range() {
+  this.source = null;
+  this.start = 0;
+  this.end = 0;
+}
+Range.prototype.toString = function() {
+  return __imports.String_slice(this.source.contents, this.start, this.end);
+};
+Range.prototype.equals = function(other) {
+  return this.source === other.source && this.start === other.start && this.end === other.end;
+};
+Range.prototype.enclosingLine = function() {
+  var contents = this.source.contents;
+  var start = this.start;
+  var end = this.start;
+  while (start > 0 && __imports.String_get(contents, start - 1) !== 10) {
+    start = start - 1;
+  }
+  while (end + 1 < __imports.String_length(contents) && __imports.String_get(contents, end) !== 10) {
+    end = end + 1;
+  }
+  return createRange(this.source, start, end);
+};
+function createRange(source, start, end) {
+  __imports.assert(start <= end);
+  var range = new Range();
+  range.source = source;
+  range.start = start;
+  range.end = end;
+  return range;
+}
+function spanRanges(left, right) {
+  __imports.assert(left.source === right.source);
+  __imports.assert(left.end <= right.start);
+  return createRange(left.source, left.start, right.end);
+}
+function Diagnostic() {
+  this.range = null;
+  this.message = null;
+  this.next = null;
+}
+function Log() {
+  this.first = null;
+  this.last = null;
+}
+Log.prototype.error = function(range, message) {
+  var diagnostic = new Diagnostic();
+  diagnostic.range = range;
+  diagnostic.message = message;
+  this.append(diagnostic);
+};
+Log.prototype.append = function(diagnostic) {
+  if (this.first === null) {
+    this.first = diagnostic;
+  } else {
+    this.last.next = diagnostic;
+  }
+  this.last = diagnostic;
+};
+Log.prototype.toString = function() {
+  var result = __imports.String_new("");
+  var d = this.first;
+  while (d !== null) {
+    var lineRange = d.range.enclosingLine();
+    var column = d.range.start - lineRange.start;
+    var line = 0;
+    var i = 0;
+    while (i < lineRange.start) {
+      if (__imports.String_get(lineRange.source.contents, i) === 10) {
+        line = line + 1;
+      }
+      i = i + 1;
+    }
+    result = __imports.String_append(result, d.range.source.name);
+    result = __imports.String_appendNew(result, ":");
+    result = __imports.String_append(result, __imports.String_toString(line + 1));
+    result = __imports.String_appendNew(result, ":");
+    result = __imports.String_append(result, __imports.String_toString(column + 1));
+    result = __imports.String_appendNew(result, ": error: ");
+    result = __imports.String_append(result, d.message);
+    result = __imports.String_appendNew(result, "\n");
+    result = __imports.String_append(result, lineRange.toString());
+    result = __imports.String_appendNew(result, "\n");
+    i = 0;
+    while (i < column) {
+      result = __imports.String_appendNew(result, " ");
+      i = i + 1;
+    }
+    if (d.range.end - d.range.start <= 1) {
+      result = __imports.String_appendNew(result, "^");
+    } else {
+      i = d.range.start;
+      while (i < d.range.end && i < lineRange.end) {
+        result = __imports.String_appendNew(result, "~");
+        i = i + 1;
+      }
+    }
+    result = __imports.String_appendNew(result, "\n");
+    d = d.next;
+  }
+  return result;
+};
 function isUnary(kind) {
   return kind >= 27 && kind <= 34;
 }
@@ -2245,6 +2242,11 @@ ParserContext.prototype.parseReturn = function() {
   }
   return createReturn(value).withRange(spanRanges(token.range, semicolon.range));
 };
+ParserContext.prototype.parseEmpty = function() {
+  var token = this.current;
+  this.advance();
+  return createEmpty().withRange(token.range);
+};
 ParserContext.prototype.parseEnum = function(flags) {
   var token = this.current;
   __imports.assert(token.kind === 44);
@@ -2462,9 +2464,7 @@ ParserContext.prototype.parseStatement = function() {
     return this.parseReturn();
   }
   if (this.peek(36)) {
-    var token = this.current;
-    this.advance();
-    return createEmpty().withRange(token.range);
+    return this.parseEmpty();
   }
   var value = this.parseExpression(0);
   if (value === null) {
@@ -2497,116 +2497,120 @@ function parse(firstToken, log) {
   }
   return global;
 }
-function String() {
+function Scope() {
+  this.parent = null;
+  this.symbol = null;
+  this.firstSymbol = null;
+  this.lastSymbol = null;
 }
-function ByteArray() {
-}
-function Source() {
-  this.name = null;
-  this.contents = null;
-}
-function Range() {
-  this.source = null;
-  this.start = 0;
-  this.end = 0;
-}
-Range.prototype.toString = function() {
-  return __imports.String_slice(this.source.contents, this.start, this.end);
-};
-Range.prototype.equals = function(other) {
-  return this.source === other.source && this.start === other.start && this.end === other.end;
-};
-Range.prototype.enclosingLine = function() {
-  var contents = this.source.contents;
-  var start = this.start;
-  var end = this.start;
-  while (start > 0 && __imports.String_get(contents, start - 1) !== 10) {
-    start = start - 1;
+Scope.prototype.findLocal = function(name) {
+  var symbol = this.firstSymbol;
+  while (symbol !== null) {
+    if (__imports.String_equal(symbol.name, name)) {
+      return symbol;
+    }
+    symbol = symbol.next;
   }
-  while (end + 1 < __imports.String_length(contents) && __imports.String_get(contents, end) !== 10) {
-    end = end + 1;
+  return null;
+};
+Scope.prototype.findNested = function(name, mode) {
+  var scope = this;
+  while (scope !== null) {
+    if (scope.symbol === null || scope.symbol.kind !== 0 || mode === 1) {
+      var local = scope.findLocal(name);
+      if (local !== null) {
+        return local;
+      }
+    }
+    scope = scope.parent;
   }
-  return createRange(this.source, start, end);
+  return null;
 };
-function Diagnostic() {
-  this.range = null;
-  this.message = null;
-  this.next = null;
-}
-function Log() {
-  this.first = null;
-  this.last = null;
-}
-Log.prototype.error = function(range, message) {
-  var diagnostic = new Diagnostic();
-  diagnostic.range = range;
-  diagnostic.message = message;
-  this.append(diagnostic);
-};
-Log.prototype.append = function(diagnostic) {
-  if (this.first === null) {
-    this.first = diagnostic;
+Scope.prototype.define = function(log, symbol) {
+  var existing = this.findLocal(symbol.name);
+  if (existing !== null) {
+    log.error(symbol.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Duplicate symbol '"), symbol.name), "'"));
+    return false;
+  }
+  if (this.firstSymbol === null) {
+    this.firstSymbol = symbol;
   } else {
-    this.last.next = diagnostic;
+    this.lastSymbol.next = symbol;
   }
-  this.last = diagnostic;
+  this.lastSymbol = symbol;
+  return true;
 };
-Log.prototype.toString = function() {
-  var result = __imports.String_new("");
-  var d = this.first;
-  while (d !== null) {
-    var lineRange = d.range.enclosingLine();
-    var column = d.range.start - lineRange.start;
-    var line = 0;
-    var i = 0;
-    while (i < lineRange.start) {
-      if (__imports.String_get(lineRange.source.contents, i) === 10) {
-        line = line + 1;
-      }
-      i = i + 1;
-    }
-    result = __imports.String_append(result, d.range.source.name);
-    result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(line + 1));
-    result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(column + 1));
-    result = __imports.String_appendNew(result, ": error: ");
-    result = __imports.String_append(result, d.message);
-    result = __imports.String_appendNew(result, "\n");
-    result = __imports.String_append(result, lineRange.toString());
-    result = __imports.String_appendNew(result, "\n");
-    i = 0;
-    while (i < column) {
-      result = __imports.String_appendNew(result, " ");
-      i = i + 1;
-    }
-    if (d.range.end - d.range.start <= 1) {
-      result = __imports.String_appendNew(result, "^");
-    } else {
-      i = d.range.start;
-      while (i < d.range.end && i < lineRange.end) {
-        result = __imports.String_appendNew(result, "~");
-        i = i + 1;
-      }
-    }
-    result = __imports.String_appendNew(result, "\n");
-    d = d.next;
+Scope.prototype.defineNativeType = function(log, name) {
+  var symbol = new Symbol();
+  symbol.kind = 3;
+  symbol.name = __imports.String_new(name);
+  symbol.resolvedType = new Type();
+  symbol.resolvedType.symbol = symbol;
+  symbol.state = 2;
+  this.define(log, symbol);
+  return symbol.resolvedType;
+};
+function isType(kind) {
+  return kind >= 0 && kind <= 3;
+}
+function isFunction(kind) {
+  return kind >= 4 && kind <= 5;
+}
+function isVariable(kind) {
+  return kind >= 6 && kind <= 9;
+}
+function Symbol() {
+  this.kind = 0;
+  this.name = null;
+  this.node = null;
+  this.range = null;
+  this.scope = null;
+  this.resolvedType = null;
+  this.next = null;
+  this.state = 0;
+  this.offset = 0;
+}
+Symbol.prototype.isEnumValue = function() {
+  return this.node.parent.kind === 8;
+};
+Symbol.prototype.isExtern = function() {
+  return (this.node.flags & 1) !== 0;
+};
+Symbol.prototype.resolvedTypeIntIfEnumValue = function(context) {
+  if (this.isEnumValue()) {
+    return context.intType;
   }
-  return result;
+  return this.resolvedType;
 };
-function createRange(source, start, end) {
-  __imports.assert(start <= end);
-  var range = new Range();
-  range.source = source;
-  range.start = start;
-  range.end = end;
-  return range;
+function Type() {
+  this.symbol = null;
 }
-function spanRanges(left, right) {
-  __imports.assert(left.source === right.source);
-  __imports.assert(left.end <= right.start);
-  return createRange(left.source, left.start, right.end);
-}
+Type.prototype.isClass = function() {
+  return this.symbol.kind === 0;
+};
+Type.prototype.isEnum = function() {
+  return this.symbol.kind === 1;
+};
+Type.prototype.isInteger = function(context) {
+  return this === context.intType || this.isEnum();
+};
+Type.prototype.isReference = function(context) {
+  return this === context.stringType || this.isClass();
+};
+Type.prototype.toString = function() {
+  return this.symbol.name;
+};
+Type.prototype.findMember = function(name) {
+  var child = this.symbol.node.firstChild;
+  while (child !== null) {
+    __imports.assert(child.kind === 1 || child.kind === 10);
+    if (__imports.String_equal(child.symbol.name, name)) {
+      return child.symbol;
+    }
+    child = child.nextSibling;
+  }
+  return null;
+};
 function WasmType() {
   this.id = 0;
   this.next = null;
@@ -2917,7 +2921,7 @@ WasmModule.prototype.prepareFunctions = function(node, context) {
     }
     node.symbol.offset = this.functionCount;
     var fn = this.allocateFunction(node.symbol.name, signatureIndex, body);
-    if (isExternSymbol(node.symbol)) {
+    if (node.symbol.isExtern()) {
       fn.isExported = true;
     }
     wasmAssignLocalVariableOffsets(body, shared);
@@ -3223,7 +3227,7 @@ function wasmWrapType(id) {
   return type;
 }
 function wasmGetType(context, type) {
-  if (type === context.boolType || type.isInteger(context) || typeIsReference(context, type)) {
+  if (type === context.boolType || type.isInteger(context) || type.isReference(context)) {
     return 1;
   }
   if (type === context.voidType) {
