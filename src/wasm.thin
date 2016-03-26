@@ -867,31 +867,39 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
 
   else if (node.kind == NodeKind.CAST) {
     var value = node.castValue();
-    var type = node.resolvedType;
+    var from = value.resolvedType.underlyingType(context);
+    var type = node.resolvedType.underlyingType(context);
 
-    // Sign-extend
-    if (type == context.byteType || type == context.shortType) {
-      var shift = 32 - type.symbol.byteSize * 8;
-      ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
+    // The cast isn't needed if it's to a wider integer type
+    if (from == type || from.symbol.byteSize < type.symbol.byteSize) {
       wasmEmitNode(array, value, context);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-      wasmWriteVarSigned(array, shift);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-      wasmWriteVarSigned(array, shift);
     }
 
-    // Mask
-    else if (type == context.ubyteType || type == context.ushortType) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
-      wasmEmitNode(array, value, context);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-      wasmWriteVarSigned(array, type.integerBitMask());
-    }
-
-    // No cast needed
     else {
-      wasmEmitNode(array, value, context);
+      // Sign-extend
+      if (type == context.byteType || type == context.shortType) {
+        var shift = 32 - type.symbol.byteSize * 8;
+        ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
+        ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
+        wasmEmitNode(array, value, context);
+        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+        wasmWriteVarSigned(array, shift);
+        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+        wasmWriteVarSigned(array, shift);
+      }
+
+      // Mask
+      else if (type == context.ubyteType || type == context.ushortType) {
+        ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
+        wasmEmitNode(array, value, context);
+        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+        wasmWriteVarSigned(array, type.integerBitMask());
+      }
+
+      // No cast needed
+      else {
+        wasmEmitNode(array, value, context);
+      }
     }
   }
 

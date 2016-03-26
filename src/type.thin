@@ -1,3 +1,8 @@
+enum ConversionKind {
+  IMPLICIT,
+  EXPLICIT,
+}
+
 class Type {
   symbol: Symbol;
 
@@ -15,6 +20,10 @@ class Type {
 
   isUnsigned(): bool {
     return (this.symbol.flags & SYMBOL_FLAG_IS_UNSIGNED) != 0;
+  }
+
+  underlyingType(context: CheckContext): Type {
+    return this.isEnum() ? context.intType : this;
   }
 
   integerBitMask(): int {

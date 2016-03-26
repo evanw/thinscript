@@ -71,10 +71,7 @@ class Symbol {
     return (this.node.flags & NODE_FLAG_EXTERN) != 0;
   }
 
-  resolvedTypeIntIfEnumValue(context: CheckContext): Type {
-    if (this.isEnumValue()) {
-      return context.intType;
-    }
-    return this.resolvedType;
+  resolvedTypeUnderlyingIfEnumValue(context: CheckContext): Type {
+    return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
   }
 }

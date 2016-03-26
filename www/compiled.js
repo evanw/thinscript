@@ -59,7 +59,6 @@ function initialize(context, node, parentScope) {
     var symbol = new Symbol();
     symbol.kind = node.kind === 4 ? 0 : 1;
     symbol.name = node.stringValue;
-    symbol.byteSize = 4;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
     parentScope.define(context.log, symbol);
@@ -113,6 +112,7 @@ function initializeSymbol(context, symbol) {
   } else if (symbol.kind === 1) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
+    symbol.byteSize = symbol.resolvedType.underlyingType(context).symbol.byteSize;
   } else if (isFunction(symbol.kind)) {
     var returnType = symbol.node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
@@ -152,7 +152,7 @@ function initializeSymbol(context, symbol) {
       }
       if (value !== null) {
         resolveAsExpression(context, value, symbol.scope);
-        checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), 0);
+        checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
         if (value.kind === 20) {
           symbol.offset = value.intValue;
         } else {
@@ -326,7 +326,7 @@ function resolve(context, node, parentScope) {
     var value = node.variableValue();
     if (value !== null) {
       resolveAsExpression(context, value, parentScope);
-      checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), 0);
+      checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
     } else if (symbol.resolvedType !== context.errorType) {
       node.appendChild(createDefaultValueForType(context, symbol.resolvedType));
     }
@@ -646,9 +646,9 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
   if (parentPrecedence > operatorPrecedence) {
     this.emitText("(");
   }
-  this.emitExpression(node.binaryLeft(), isRightAssociative ? (operatorPrecedence | 0) + 1 : operatorPrecedence);
+  this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 : operatorPrecedence);
   this.emitText(operator);
-  this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : (operatorPrecedence | 0) + 1);
+  this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1);
   if (parentPrecedence > operatorPrecedence) {
     this.emitText(")");
   }
@@ -665,10 +665,13 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   } else if (node.kind === 24) {
     this.emitString(__imports.String_quote(node.stringValue));
   } else if (node.kind === 17) {
-    var value = node.castValue();
-    var type = node.resolvedType;
     var context = this.context;
-    if (type === context.byteType || type === context.shortType) {
+    var value = node.castValue();
+    var from = value.resolvedType.underlyingType(context);
+    var type = node.resolvedType.underlyingType(context);
+    if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
+      this.emitExpression(value, parentPrecedence);
+    } else if (type === context.byteType || type === context.shortType) {
       if (parentPrecedence > 9) {
         this.emitText("(");
       }
@@ -2720,11 +2723,8 @@ Symbol.prototype.isEnumValue = function() {
 Symbol.prototype.isExtern = function() {
   return (this.node.flags & 1) !== 0;
 };
-Symbol.prototype.resolvedTypeIntIfEnumValue = function(context) {
-  if (this.isEnumValue()) {
-    return context.intType;
-  }
-  return this.resolvedType;
+Symbol.prototype.resolvedTypeUnderlyingIfEnumValue = function(context) {
+  return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
 };
 function Type() {
   this.symbol = null;
@@ -2740,6 +2740,9 @@ Type.prototype.isInteger = function() {
 };
 Type.prototype.isUnsigned = function() {
   return (this.symbol.flags & 2) !== 0;
+};
+Type.prototype.underlyingType = function(context) {
+  return this.isEnum() ? context.intType : this;
 };
 Type.prototype.integerBitMask = function() {
   return (1 << this.symbol.byteSize * 8) - 1;
@@ -3296,8 +3299,11 @@ function wasmEmitNode(array, node, context) {
     wasmEmitNode(array, node.unaryValue(), context);
   } else if (node.kind === 17) {
     var value = node.castValue();
-    var type = node.resolvedType;
-    if (type === context.byteType || type === context.shortType) {
+    var from = value.resolvedType.underlyingType(context);
+    var type = node.resolvedType.underlyingType(context);
+    if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
+      wasmEmitNode(array, value, context);
+    } else if (type === context.byteType || type === context.shortType) {
       var shift = 32 - type.symbol.byteSize * 8;
       __imports.ByteArray_appendByte(array, 76);
       __imports.ByteArray_appendByte(array, 74);

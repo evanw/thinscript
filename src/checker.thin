@@ -77,7 +77,6 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     var symbol = new Symbol();
     symbol.kind = node.kind == NodeKind.CLASS ? SymbolKind.TYPE_CLASS : SymbolKind.TYPE_ENUM;
     symbol.name = node.stringValue;
-    symbol.byteSize = 4;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
     parentScope.define(context.log, symbol);
@@ -157,6 +156,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   else if (symbol.kind == SymbolKind.TYPE_ENUM) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
+    symbol.byteSize = symbol.resolvedType.underlyingType(context).symbol.byteSize;
   }
 
   // Function
@@ -217,7 +217,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
       if (value != null) {
         resolveAsExpression(context, value, symbol.scope);
-        checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), ConversionKind.IMPLICIT);
+        checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), ConversionKind.IMPLICIT);
 
         // TODO: Constant folding
         if (value.kind == NodeKind.INT) {
@@ -301,11 +301,6 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
     context.log.error(node.range, String_new("Expected type but found expression"));
     node.resolvedType = context.errorType;
   }
-}
-
-enum ConversionKind {
-  IMPLICIT,
-  EXPLICIT,
 }
 
 function checkConversion(context: CheckContext, node: Node, to: Type, kind: ConversionKind): void {
@@ -463,7 +458,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var value = node.variableValue();
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
-      checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), ConversionKind.IMPLICIT);
+      checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), ConversionKind.IMPLICIT);
     }
 
     else if (symbol.resolvedType != context.errorType) {
