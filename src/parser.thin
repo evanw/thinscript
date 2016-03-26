@@ -27,6 +27,7 @@ function parseInt(range: Range): int {
 }
 
 class ParserContext {
+  previous: Token;
   current: Token;
   log: Log;
 
@@ -45,23 +46,36 @@ class ParserContext {
 
   advance(): void {
     if (!this.peek(TokenKind.END_OF_FILE)) {
+      this.previous = this.current;
       this.current = this.current.next;
     }
   }
 
   unexpectedToken(): void {
-    this.log.error(this.current.range, String_append(
+    this.log.error(this.current.range, String_appendNew(
       String_new("Unexpected "),
-      String_new(tokenToString(this.current.kind))));
+      tokenToString(this.current.kind)));
   }
 
   expect(kind: TokenKind): bool {
     if (!this.peek(kind)) {
-      this.log.error(this.current.range, String_append(String_append(String_append(
-        String_new("Expected "),
-        String_new(tokenToString(kind))),
-        String_new(" but found ")),
-        String_new(tokenToString(this.current.kind))));
+      var previousLine = this.previous.range.enclosingLine();
+      var currentLine = this.current.range.enclosingLine();
+
+      if (previousLine.equals(currentLine)) {
+        this.log.error(this.current.range, String_appendNew(String_appendNew(String_appendNew(
+          String_new("Expected "),
+          tokenToString(kind)),
+          " but found "),
+          tokenToString(this.current.kind)));
+      }
+
+      else {
+        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
+          String_new("Expected "),
+          tokenToString(kind)));
+      }
+
       return false;
     }
 
@@ -486,7 +500,13 @@ class ParserContext {
       var variable = createVariable(member.toString(), createName(text), value);
       node.appendChild(variable.withRange(value != null ? spanRanges(member, value.range) : member).withInternalRange(member));
 
-      if (!this.eat(TokenKind.COMMA)) {
+      // Recover from a terminating semicolon
+      if (this.peek(TokenKind.SEMICOLON)) {
+        this.expect(TokenKind.COMMA);
+        this.advance();
+      }
+
+      else if (!this.eat(TokenKind.COMMA)) {
         break;
       }
     }

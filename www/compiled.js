@@ -1844,6 +1844,7 @@ function parseInt(range) {
   return value;
 }
 function ParserContext() {
+  this.previous = null;
   this.current = null;
   this.log = null;
 }
@@ -1859,15 +1860,22 @@ ParserContext.prototype.eat = function(kind) {
 };
 ParserContext.prototype.advance = function() {
   if (!this.peek(0)) {
+    this.previous = this.current;
     this.current = this.current.next;
   }
 };
 ParserContext.prototype.unexpectedToken = function() {
-  this.log.error(this.current.range, __imports.String_append(__imports.String_new("Unexpected "), __imports.String_new(tokenToString(this.current.kind))));
+  this.log.error(this.current.range, __imports.String_appendNew(__imports.String_new("Unexpected "), tokenToString(this.current.kind)));
 };
 ParserContext.prototype.expect = function(kind) {
   if (!this.peek(kind)) {
-    this.log.error(this.current.range, __imports.String_append(__imports.String_append(__imports.String_append(__imports.String_new("Expected "), __imports.String_new(tokenToString(kind))), __imports.String_new(" but found ")), __imports.String_new(tokenToString(this.current.kind))));
+    var previousLine = this.previous.range.enclosingLine();
+    var currentLine = this.current.range.enclosingLine();
+    if (previousLine.equals(currentLine)) {
+      this.log.error(this.current.range, __imports.String_appendNew(__imports.String_appendNew(__imports.String_appendNew(__imports.String_new("Expected "), tokenToString(kind)), " but found "), tokenToString(this.current.kind)));
+    } else {
+      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), __imports.String_appendNew(__imports.String_new("Expected "), tokenToString(kind)));
+    }
     return false;
   }
   this.advance();
@@ -2259,7 +2267,10 @@ ParserContext.prototype.parseEnum = function(flags) {
     }
     var variable = createVariable(member.toString(), createName(text), value);
     node.appendChild(variable.withRange(value !== null ? spanRanges(member, value.range) : member).withInternalRange(member));
-    if (!this.eat(10)) {
+    if (this.peek(36)) {
+      this.expect(10);
+      this.advance();
+    } else if (!this.eat(10)) {
       break;
     }
   }
@@ -2498,6 +2509,9 @@ function Range() {
 }
 Range.prototype.toString = function() {
   return __imports.String_slice(this.source.contents, this.start, this.end);
+};
+Range.prototype.equals = function(other) {
+  return this.source === other.source && this.start === other.start && this.end === other.end;
 };
 Range.prototype.enclosingLine = function() {
   var contents = this.source.contents;

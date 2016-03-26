@@ -37,6 +37,13 @@ class Range {
     return String_slice(this.source.contents, this.start, this.end);
   }
 
+  equals(other: Range): bool {
+    return
+      this.source == other.source &&
+      this.start == other.start &&
+      this.end == other.end;
+  }
+
   enclosingLine(): Range {
     var contents = this.source.contents;
     var start = this.start;
