@@ -288,6 +288,38 @@ function createDefaultValueForType(context, type) {
   __imports.assert(type.isReference(context));
   return createNull();
 }
+function turnMultiplyIntoShift(node, variable, constant) {
+  var value = constant.intValue;
+  if (node.kind === 48 && constant.kind === 20 && value > 0 && (value & value - 1) === 0) {
+    var shift = -1;
+    while (value !== 0) {
+      value = value >> 1;
+      shift = shift + 1 | 0;
+    }
+    node.kind = 51;
+    constant.intValue = shift;
+    if (node.binaryLeft() === constant) {
+      constant.remove();
+      node.appendChild(constant);
+    }
+    return true;
+  }
+  return false;
+}
+function simplifyBinary(node) {
+  var left = node.binaryLeft();
+  var right = node.binaryRight();
+  if (turnMultiplyIntoShift(node, left, right) || turnMultiplyIntoShift(node, right, left)) {
+  } else if (node.kind === 35 && right.kind === 28) {
+    var value = right.unaryValue();
+    node.kind = 53;
+    value.remove();
+    right.replaceWith(value);
+  } else if (node.kind === 35 && right.kind === 20 && right.intValue < 0) {
+    node.kind = 53;
+    right.intValue = -right.intValue;
+  }
+}
 function resolve(context, node, parentScope) {
   __imports.assert(node.kind === 0 || parentScope !== null);
   if (node.resolvedType !== null) {
@@ -511,7 +543,7 @@ function resolve(context, node, parentScope) {
       } else if (node.kind === 40) {
         output = inputLeft / inputRight | 0;
       } else if (node.kind === 48) {
-        output = inputLeft * inputRight | 0;
+        output = __imul(inputLeft, inputRight);
       } else if (node.kind === 50) {
         output = inputLeft % inputRight | 0;
       } else if (node.kind === 51) {
@@ -524,14 +556,8 @@ function resolve(context, node, parentScope) {
         return;
       }
       node.becomeIntegerConstant(output);
-    } else if (node.kind === 35 && right.kind === 28) {
-      var value = right.unaryValue();
-      node.kind = 53;
-      value.remove();
-      right.replaceWith(value);
-    } else if (node.kind === 35 && right.kind === 20 && right.intValue < 0) {
-      node.kind = 53;
-      right.intValue = -right.intValue;
+    } else {
+      simplifyBinary(node);
     }
   } else if (node.kind === 44 || node.kind === 45 || node.kind === 42 || node.kind === 43) {
     var left = node.binaryLeft();
@@ -639,6 +665,7 @@ function JsResult() {
   this.context = null;
   this.code = null;
   this.indent = 0;
+  this.foundMultiply = false;
 }
 JsResult.prototype.appendIndent = function() {
   var i = this.indent;
@@ -728,7 +755,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
       if (parentPrecedence > 9) {
         this.emitText("(");
       }
-      var shift = __imports.String_toString(32 - (type.symbol.byteSize * 8 | 0) | 0);
+      var shift = __imports.String_toString(32 - (type.symbol.byteSize << 3) | 0);
       this.emitExpression(value, 9);
       this.emitText(" << ");
       this.emitString(shift);
@@ -846,8 +873,6 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     this.emitBinary(node, parentPrecedence, " && ", 3, 0);
   } else if (node.kind === 47) {
     this.emitBinary(node, parentPrecedence, " || ", 2, 0);
-  } else if (node.kind === 48) {
-    this.emitBinary(node, parentPrecedence, " * ", 11, 1);
   } else if (node.kind === 49) {
     this.emitBinary(node, parentPrecedence, " !== ", 7, 0);
   } else if (node.kind === 50) {
@@ -858,6 +883,15 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     this.emitBinary(node, parentPrecedence, " >> ", 9, 0);
   } else if (node.kind === 53) {
     this.emitBinary(node, parentPrecedence, " - ", 10, 1);
+  } else if (node.kind === 48) {
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+    this.emitText("__imul(");
+    this.emitExpression(left, 0);
+    this.emitText(", ");
+    this.emitExpression(right, 0);
+    this.emitText(")");
+    this.foundMultiply = true;
   } else {
     __imports.assert(false);
   }
@@ -1010,6 +1044,11 @@ function jsEmit(global, context) {
   while (child !== null) {
     result.emitStatement(child);
     child = child.nextSibling;
+  }
+  if (result.foundMultiply) {
+    result.emitText("var __imul = Math.imul || function(a, b) {\n");
+    result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    result.emitText("};\n");
   }
   return result.code;
 }
@@ -2095,7 +2134,7 @@ function parseInt(range) {
   }
   while (i < limit) {
     var c = __imports.String_get(source.contents, i);
-    value = (value * base | 0) + (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) | 0;
+    value = __imul(value, base) + (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) | 0;
     i = i + 1 | 0;
   }
   return value;
@@ -2877,7 +2916,7 @@ Type.prototype.underlyingType = function(context) {
   return this.isEnum() ? context.intType : this;
 };
 Type.prototype.integerBitMask = function() {
-  return (1 << this.symbol.byteSize * 8) - 1 | 0;
+  return (1 << (this.symbol.byteSize << 3)) - 1 | 0;
 };
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
@@ -3436,7 +3475,7 @@ function wasmEmitNode(array, node, context) {
     if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
       wasmEmitNode(array, value, context);
     } else if (type === context.byteType || type === context.shortType) {
-      var shift = 32 - (type.symbol.byteSize * 8 | 0) | 0;
+      var shift = 32 - (type.symbol.byteSize << 3) | 0;
       __imports.ByteArray_appendByte(array, 76);
       __imports.ByteArray_appendByte(array, 74);
       wasmEmitNode(array, value, context);
@@ -3574,3 +3613,6 @@ function wasmEmit(global, context, array) {
   module.prepareFunctions(global, context);
   module.emitModule(array, context);
 }
+var __imul = Math.imul || function(a, b) {
+  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;
+};

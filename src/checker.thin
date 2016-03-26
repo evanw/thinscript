@@ -405,6 +405,50 @@ function createDefaultValueForType(context: CheckContext, type: Type): Node {
   return createNull();
 }
 
+function turnMultiplyIntoShift(node: Node, variable: Node, constant: Node): bool {
+  var value = constant.intValue;
+
+  if (node.kind == NodeKind.MULTIPLY && constant.kind == NodeKind.INT && value > 0 && (value & (value - 1)) == 0) {
+    var shift = -1;
+    while (value != 0) {
+      value = value >> 1;
+      shift = shift + 1;
+    }
+    node.kind = NodeKind.SHIFT_LEFT;
+    constant.intValue = shift;
+    if (node.binaryLeft() == constant) {
+      constant.remove();
+      node.appendChild(constant);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function simplifyBinary(node: Node): void {
+  var left = node.binaryLeft();
+  var right = node.binaryRight();
+
+  // Convert multiplication by a power of 2 into a shift
+  if (turnMultiplyIntoShift(node, left, right) || turnMultiplyIntoShift(node, right, left)) {
+  }
+
+  // Flip addition with negation into subtraction
+  else if (node.kind == NodeKind.ADD && right.kind == NodeKind.NEGATIVE) {
+    var value = right.unaryValue();
+    node.kind = NodeKind.SUBTRACT;
+    value.remove();
+    right.replaceWith(value);
+  }
+
+  // Flip addition with negative constants into subtraction
+  else if (node.kind == NodeKind.ADD && right.kind == NodeKind.INT && right.intValue < 0) {
+    node.kind = NodeKind.SUBTRACT;
+    right.intValue = -right.intValue;
+  }
+}
+
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   assert(node.kind == NodeKind.GLOBAL || parentScope != null);
 
@@ -767,18 +811,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       node.becomeIntegerConstant(output);
     }
 
-    // Automatically flip addition with negation into subtraction
-    else if (node.kind == NodeKind.ADD && right.kind == NodeKind.NEGATIVE) {
-      var value = right.unaryValue();
-      node.kind = NodeKind.SUBTRACT;
-      value.remove();
-      right.replaceWith(value);
-    }
-
-    // Automatically flip addition with negative constants into subtraction
-    else if (node.kind == NodeKind.ADD && right.kind == NodeKind.INT && right.intValue < 0) {
-      node.kind = NodeKind.SUBTRACT;
-      right.intValue = -right.intValue;
+    else {
+      simplifyBinary(node);
     }
   }
 

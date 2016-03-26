@@ -7,6 +7,7 @@ class JsResult {
   context: CheckContext;
   code: String;
   indent: int;
+  foundMultiply: bool;
 
   appendIndent(): void {
     var i = this.indent;
@@ -265,12 +266,22 @@ class JsResult {
     else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinary(node, parentPrecedence, " <= ", Precedence.COMPARE, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.LOGICAL_AND) this.emitBinary(node, parentPrecedence, " && ", Precedence.LOGICAL_AND, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.LOGICAL_OR) this.emitBinary(node, parentPrecedence, " || ", Precedence.LOGICAL_OR, EmitBinary.NORMAL);
-    else if (node.kind == NodeKind.MULTIPLY) this.emitBinary(node, parentPrecedence, " * ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
     else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinary(node, parentPrecedence, " !== ", Precedence.EQUAL, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.REMAINDER) this.emitBinary(node, parentPrecedence, " % ", Precedence.MULTIPLY, EmitBinary.CAST_TO_INT);
     else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinary(node, parentPrecedence, " << ", Precedence.SHIFT, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinary(node, parentPrecedence, " >> ", Precedence.SHIFT, EmitBinary.NORMAL);
     else if (node.kind == NodeKind.SUBTRACT) this.emitBinary(node, parentPrecedence, " - ", Precedence.ADD, EmitBinary.CAST_TO_INT);
+
+    else if (node.kind == NodeKind.MULTIPLY) {
+      var left = node.binaryLeft();
+      var right = node.binaryRight();
+      this.emitText("__imul(");
+      this.emitExpression(left, Precedence.LOWEST);
+      this.emitText(", ");
+      this.emitExpression(right, Precedence.LOWEST);
+      this.emitText(")");
+      this.foundMultiply = true;
+    }
 
     else {
       assert(false);
@@ -467,6 +478,12 @@ function jsEmit(global: Node, context: CheckContext): String {
   while (child != null) {
     result.emitStatement(child);
     child = child.nextSibling;
+  }
+
+  if (result.foundMultiply) {
+    result.emitText("var __imul = Math.imul || function(a, b) {\n");
+    result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    result.emitText("};\n");
   }
 
   return result.code;
