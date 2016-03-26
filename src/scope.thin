@@ -58,4 +58,10 @@ class Scope {
     this.define(log, symbol);
     return symbol.resolvedType;
   }
+  defineNativeIntegerType(log: Log, name: string, isUnsigned: bool, byteSize: int): Type {
+    var type = this.defineNativeType(log, name);
+    type.symbol.flags = isUnsigned ? SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED : SYMBOL_FLAG_NATIVE_INTEGER;
+    type.symbol.byteSize = byteSize;
+    return type;
+  }
 }

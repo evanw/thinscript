@@ -9,8 +9,16 @@ class Type {
     return this.symbol.kind == SymbolKind.TYPE_ENUM;
   }
 
-  isInteger(context: CheckContext): bool {
-    return this == context.intType || this.isEnum();
+  isInteger(): bool {
+    return (this.symbol.flags & SYMBOL_FLAG_NATIVE_INTEGER) != 0 || this.isEnum();
+  }
+
+  isUnsigned(): bool {
+    return (this.symbol.flags & SYMBOL_FLAG_IS_UNSIGNED) != 0;
+  }
+
+  integerBitMask(): int {
+    return (1 << (this.symbol.byteSize * 8)) - 1;
   }
 
   isReference(context: CheckContext): bool {

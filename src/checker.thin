@@ -1,11 +1,18 @@
 class CheckContext {
   log: Log;
   currentReturnType: Type;
+
+  // Native types
   boolType: Type;
+  byteType: Type;
   errorType: Type;
   intType: Type;
   nullType: Type;
+  shortType: Type;
   stringType: Type;
+  ubyteType: Type;
+  uintType: Type;
+  ushortType: Type;
   voidType: Type;
 }
 
@@ -52,10 +59,17 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     // Initialize native types
     context.boolType = parentScope.defineNativeType(context.log, "bool");
     context.errorType = parentScope.defineNativeType(context.log, "<error>");
-    context.intType = parentScope.defineNativeType(context.log, "int");
     context.nullType = parentScope.defineNativeType(context.log, "null");
     context.stringType = parentScope.defineNativeType(context.log, "string");
     context.voidType = parentScope.defineNativeType(context.log, "void");
+
+    // Native integer types
+    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", false, 1);
+    context.intType = parentScope.defineNativeIntegerType(context.log, "int", false, 4);
+    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", false, 2);
+    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", true, 1);
+    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", true, 4);
+    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", true, 2);
   }
 
   // Class
@@ -63,6 +77,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     var symbol = new Symbol();
     symbol.kind = node.kind == NodeKind.CLASS ? SymbolKind.TYPE_CLASS : SymbolKind.TYPE_ENUM;
     symbol.name = node.stringValue;
+    symbol.byteSize = 4;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
     parentScope.define(context.log, symbol);
@@ -195,7 +210,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     // Resolve constant values at initialization time
     if (symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
-      if (symbol.resolvedType != context.errorType && !symbol.resolvedType.isInteger(context)) {
+      if (symbol.resolvedType != context.errorType && !symbol.resolvedType.isInteger()) {
         context.log.error(symbol.node.internalRange, String_new("All constants must be integers for now"));
         symbol.resolvedType = context.errorType;
       }
@@ -312,8 +327,17 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
   }
 
   // Check integer conversions
-  if (from.isInteger(context) && to.isInteger(context) && kind == ConversionKind.EXPLICIT) {
-    return;
+  if (from.isInteger() && to.isInteger()) {
+    var mask = to.integerBitMask();
+    var lower = to.isUnsigned() ? 0 : ~mask >> 1;
+    var upper = to.isUnsigned() ? mask : mask >> 1;
+
+    // Only allow lossless conversions implicitly
+    if (kind == ConversionKind.EXPLICIT || from.symbol.byteSize < to.symbol.byteSize ||
+        node.kind == NodeKind.INT && node.intValue >= lower && node.intValue <= upper) {
+      return;
+    }
+
     canCast = true;
   }
 
@@ -345,6 +369,16 @@ function resolveUnary(context: CheckContext, node: Node, parentScope: Scope, exp
   resolveAsExpression(context, value, parentScope);
   checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
   node.resolvedType = expectedType;
+
+  // Automatically fold constants
+  if (value.kind == NodeKind.INT) {
+    var constant = 0;
+    if (node.kind == NodeKind.COMPLEMENT) constant = ~value.intValue;
+    else if (node.kind == NodeKind.NEGATIVE) constant = -value.intValue;
+    else if (node.kind == NodeKind.POSITIVE) constant = value.intValue;
+    else return;
+    node.becomeIntegerConstant(constant);
+  }
 }
 
 function resolveBinary(context: CheckContext, node: Node, parentScope: Scope): void {
@@ -363,7 +397,7 @@ function checkBinary(context: CheckContext, node: Node, expectedType: Type, resu
 }
 
 function createDefaultValueForType(context: CheckContext, type: Type): Node {
-  if (type.isInteger(context)) {
+  if (type.isInteger()) {
     return createInt(0);
   }
 
@@ -432,7 +466,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       checkConversion(context, value, symbol.resolvedTypeIntIfEnumValue(context), ConversionKind.IMPLICIT);
     }
 
-    else {
+    else if (symbol.resolvedType != context.errorType) {
       node.appendChild(createDefaultValueForType(context, symbol.resolvedType));
     }
   }
@@ -723,7 +757,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
-    var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger(context) ? left.resolvedType : context.intType;
+    var expectedType = left.resolvedType == right.resolvedType && left.resolvedType.isInteger() ? left.resolvedType : context.intType;
     checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
     checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
   }

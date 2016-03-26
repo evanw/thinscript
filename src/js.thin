@@ -95,7 +95,75 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.CAST) {
-      this.emitExpression(node.castValue(), parentPrecedence);
+      var value = node.castValue();
+      var type = node.resolvedType;
+      var context = this.context;
+
+      // Sign-extend
+      if (type == context.byteType || type == context.shortType) {
+        if (parentPrecedence > Precedence.SHIFT) {
+          this.emitText("(");
+        }
+
+        var shift = String_toString(32 - type.symbol.byteSize * 8);
+        this.emitExpression(value, Precedence.SHIFT);
+        this.emitText(" << ");
+        this.emitString(shift);
+        this.emitText(" >> ");
+        this.emitString(shift);
+
+        if (parentPrecedence > Precedence.SHIFT) {
+          this.emitText(")");
+        }
+      }
+
+      // Mask
+      else if (type == context.ubyteType || type == context.ushortType) {
+        if (parentPrecedence > Precedence.BITWISE_AND) {
+          this.emitText("(");
+        }
+
+        this.emitExpression(value, Precedence.BITWISE_AND);
+        this.emitText(" & ");
+        this.emitString(String_toString(type.integerBitMask()));
+
+        if (parentPrecedence > Precedence.BITWISE_AND) {
+          this.emitText(")");
+        }
+      }
+
+      // Truncate signed
+      else if (type == context.intType) {
+        if (parentPrecedence > Precedence.BITWISE_OR) {
+          this.emitText("(");
+        }
+
+        this.emitExpression(value, Precedence.BITWISE_OR);
+        this.emitText(" | 0");
+
+        if (parentPrecedence > Precedence.BITWISE_OR) {
+          this.emitText(")");
+        }
+      }
+
+      // Truncate unsigned
+      else if (type == context.uintType) {
+        if (parentPrecedence > Precedence.SHIFT) {
+          this.emitText("(");
+        }
+
+        this.emitExpression(value, Precedence.SHIFT);
+        this.emitText(" >>> 0");
+
+        if (parentPrecedence > Precedence.SHIFT) {
+          this.emitText(")");
+        }
+      }
+
+      // No cast needed
+      else {
+        this.emitExpression(value, parentPrecedence);
+      }
     }
 
     else if (node.kind == NodeKind.DOT) {

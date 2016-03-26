@@ -31,6 +31,9 @@ enum SymbolState {
   INITIALIZED,
 }
 
+const SYMBOL_FLAG_NATIVE_INTEGER = 1;
+const SYMBOL_FLAG_IS_UNSIGNED = 2;
+
 class Symbol {
   kind: SymbolKind;
   name: String;
@@ -40,6 +43,8 @@ class Symbol {
   resolvedType: Type;
   next: Symbol;
   state: SymbolState;
+  flags: int;
+  byteSize: int;
 
   // The "offset" variable is used to store kind-specific information
   //

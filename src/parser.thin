@@ -298,12 +298,16 @@ class ParserContext {
       if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPostfix(NodeKind.POSTFIX_DECREMENT, node, precedence);
 
       // Cast
-      if (this.eat(TokenKind.AS) && precedence < Precedence.UNARY_PREFIX) {
+      if (this.peek(TokenKind.AS) && precedence < Precedence.UNARY_PREFIX) {
+        var token = this.current;
+        this.advance();
+
         var type = this.parseType();
         if (type == null) {
           return null;
         }
-        return createCast(node, type).withRange(spanRanges(node.range, type.range));
+
+        return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token.range);
       }
 
       // Call

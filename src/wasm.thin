@@ -313,7 +313,7 @@ class WasmModule {
     return i;
   }
 
-  emitModule(array: ByteArray): void {
+  emitModule(array: ByteArray, context: CheckContext): void {
     ByteArray_appendByte(array, WASM_MAGIC);
     ByteArray_appendByte(array, WASM_MAGIC >> 8);
     ByteArray_appendByte(array, WASM_MAGIC >> 16);
@@ -329,7 +329,7 @@ class WasmModule {
     this.emitFunctionSignatures(array);
     this.emitMemory(array);
     this.emitExportTable(array);
-    this.emitFunctionBodies(array);
+    this.emitFunctionBodies(array, context);
     this.emitDataSegments(array);
   }
 
@@ -436,7 +436,7 @@ class WasmModule {
     wasmFinishSection(array, section);
   }
 
-  emitFunctionBodies(array: ByteArray): void {
+  emitFunctionBodies(array: ByteArray, context: CheckContext): void {
     if (this.firstFunction == null) {
       return;
     }
@@ -459,7 +459,7 @@ class WasmModule {
 
       var child = fn.body.firstChild;
       while (child != null) {
-        wasmEmitNode(array, child);
+        wasmEmitNode(array, child, context);
         child = child.nextSibling;
       }
 
@@ -641,13 +641,13 @@ function wasmFinishSection(array: ByteArray, offset: int): void {
   wasmPatchVarUnsigned(array, offset, ByteArray_length(array) - offset - 5, ~0);
 }
 
-function emitBinaryExpression(array: ByteArray, node: Node, opcode: int): void {
+function emitBinaryExpression(array: ByteArray, node: Node, opcode: int, context: CheckContext): void {
   ByteArray_appendByte(array, opcode);
-  wasmEmitNode(array, node.binaryLeft());
-  wasmEmitNode(array, node.binaryRight());
+  wasmEmitNode(array, node.binaryLeft(), context);
+  wasmEmitNode(array, node.binaryRight(), context);
 }
 
-function wasmEmitNode(array: ByteArray, node: Node): int {
+function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int {
   if (node.kind == NodeKind.BLOCK) {
     ByteArray_appendByte(array, WASM_OPCODE_BLOCK);
     var offset = ByteArray_length(array);
@@ -655,7 +655,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
     var count = 0;
     var child = node.firstChild;
     while (child != null) {
-      count = count + wasmEmitNode(array, child);
+      count = count + wasmEmitNode(array, child, context);
       child = child.nextSibling;
     }
     wasmPatchVarUnsigned(array, offset, count, ~0);
@@ -681,13 +681,13 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       wasmWriteVarUnsigned(array, 1); // Break out of the immediately enclosing loop
       ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
       ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ); // The conditional is flipped
-      wasmEmitNode(array, value);
+      wasmEmitNode(array, value, context);
       count = count + 1;
     }
 
     var child = body.firstChild;
     while (child != null) {
-      count = count + wasmEmitNode(array, child);
+      count = count + wasmEmitNode(array, child, context);
       child = child.nextSibling;
     }
 
@@ -722,14 +722,14 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NodeKind.EXPRESSION) {
-    wasmEmitNode(array, node.expressionValue());
+    wasmEmitNode(array, node.expressionValue(), context);
   }
 
   else if (node.kind == NodeKind.RETURN) {
     var value = node.returnValue();
     ByteArray_appendByte(array, WASM_OPCODE_RETURN);
     if (value != null) {
-      wasmEmitNode(array, value);
+      wasmEmitNode(array, value, context);
     }
   }
 
@@ -738,7 +738,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
     var child = node.firstChild;
     while (child != null) {
       assert(child.kind == NodeKind.VARIABLE);
-      count = count + wasmEmitNode(array, child);
+      count = count + wasmEmitNode(array, child, context);
       child = child.nextSibling;
     }
     return count;
@@ -747,18 +747,18 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   else if (node.kind == NodeKind.IF) {
     var branch = node.ifFalse();
     ByteArray_appendByte(array, branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.ifValue());
-    wasmEmitNode(array, node.ifTrue());
+    wasmEmitNode(array, node.ifValue(), context);
+    wasmEmitNode(array, node.ifTrue(), context);
     if (branch != null) {
-      wasmEmitNode(array, branch);
+      wasmEmitNode(array, branch, context);
     }
   }
 
   else if (node.kind == NodeKind.HOOK) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.hookValue());
-    wasmEmitNode(array, node.hookTrue());
-    wasmEmitNode(array, node.hookFalse());
+    wasmEmitNode(array, node.hookValue(), context);
+    wasmEmitNode(array, node.hookTrue(), context);
+    wasmEmitNode(array, node.hookFalse(), context);
   }
 
   else if (node.kind == NodeKind.VARIABLE) {
@@ -769,7 +769,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       wasmWriteVarUnsigned(array, node.symbol.offset);
 
       if (value != null) {
-        wasmEmitNode(array, value);
+        wasmEmitNode(array, value, context);
       }
 
       // Default initialization
@@ -820,12 +820,12 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
 
     // Write out the implicit "this" argument
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-      wasmEmitNode(array, value.dotTarget());
+      wasmEmitNode(array, value.dotTarget(), context);
     }
 
     var child = value.nextSibling;
     while (child != null) {
-      wasmEmitNode(array, child);
+      wasmEmitNode(array, child, context);
       child = child.nextSibling;
     }
   }
@@ -843,30 +843,56 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
   }
 
   else if (node.kind == NodeKind.POSITIVE) {
-    wasmEmitNode(array, node.unaryValue());
+    wasmEmitNode(array, node.unaryValue(), context);
   }
 
   else if (node.kind == NodeKind.NEGATIVE) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_SUB);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 0);
-    wasmEmitNode(array, node.unaryValue());
+    wasmEmitNode(array, node.unaryValue(), context);
   }
 
   else if (node.kind == NodeKind.COMPLEMENT) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_XOR);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, ~0);
-    wasmEmitNode(array, node.unaryValue());
+    wasmEmitNode(array, node.unaryValue(), context);
   }
 
   else if (node.kind == NodeKind.NOT) {
     ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ);
-    wasmEmitNode(array, node.unaryValue());
+    wasmEmitNode(array, node.unaryValue(), context);
   }
 
   else if (node.kind == NodeKind.CAST) {
-    wasmEmitNode(array, node.castValue());
+    var value = node.castValue();
+    var type = node.resolvedType;
+
+    // Sign-extend
+    if (type == context.byteType || type == context.shortType) {
+      var shift = 32 - type.symbol.byteSize * 8;
+      ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
+      wasmEmitNode(array, value, context);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, shift);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, shift);
+    }
+
+    // Mask
+    else if (type == context.ubyteType || type == context.ushortType) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
+      wasmEmitNode(array, value, context);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, type.integerBitMask());
+    }
+
+    // No cast needed
+    else {
+      wasmEmitNode(array, value, context);
+    }
   }
 
   else if (node.kind == NodeKind.DOT) {
@@ -876,7 +902,7 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
       wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.dotTarget());
+      wasmEmitNode(array, node.dotTarget(), context);
     }
 
     else {
@@ -893,14 +919,14 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
       ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
       wasmWriteVarUnsigned(array, WASM_I32_LOAD_STORE_ALIGNMENT); // The alignment shift amount is 2 because 1 << 2 is 4, the size of an int
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, left.dotTarget());
-      wasmEmitNode(array, node.binaryRight());
+      wasmEmitNode(array, left.dotTarget(), context);
+      wasmEmitNode(array, node.binaryRight(), context);
     }
 
     else if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
       ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
       wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.binaryRight());
+      wasmEmitNode(array, node.binaryRight(), context);
     }
 
     else {
@@ -908,37 +934,37 @@ function wasmEmitNode(array: ByteArray, node: Node): int {
     }
   }
 
-  else if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD);
-  else if (node.kind == NodeKind.SUBTRACT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB);
-  else if (node.kind == NodeKind.MULTIPLY) emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL);
-  else if (node.kind == NodeKind.DIVIDE) emitBinaryExpression(array, node, WASM_OPCODE_I32_DIV_S);
-  else if (node.kind == NodeKind.REMAINDER) emitBinaryExpression(array, node, WASM_OPCODE_I32_REM_S);
-  else if (node.kind == NodeKind.SHIFT_LEFT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL);
-  else if (node.kind == NodeKind.SHIFT_RIGHT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHR_S);
-  else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND);
-  else if (node.kind == NodeKind.BITWISE_OR) emitBinaryExpression(array, node, WASM_OPCODE_I32_OR);
-  else if (node.kind == NodeKind.BITWISE_XOR) emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR);
-  else if (node.kind == NodeKind.EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ);
-  else if (node.kind == NodeKind.NOT_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_NE);
-  else if (node.kind == NodeKind.LESS_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_LT_S);
-  else if (node.kind == NodeKind.LESS_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_LE_S);
-  else if (node.kind == NodeKind.GREATER_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_GT_S);
-  else if (node.kind == NodeKind.GREATER_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_GE_S);
+  else if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD, context);
+  else if (node.kind == NodeKind.SUBTRACT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB, context);
+  else if (node.kind == NodeKind.MULTIPLY) emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL, context);
+  else if (node.kind == NodeKind.DIVIDE) emitBinaryExpression(array, node, WASM_OPCODE_I32_DIV_S, context);
+  else if (node.kind == NodeKind.REMAINDER) emitBinaryExpression(array, node, WASM_OPCODE_I32_REM_S, context);
+  else if (node.kind == NodeKind.SHIFT_LEFT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL, context);
+  else if (node.kind == NodeKind.SHIFT_RIGHT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHR_S, context);
+  else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND, context);
+  else if (node.kind == NodeKind.BITWISE_OR) emitBinaryExpression(array, node, WASM_OPCODE_I32_OR, context);
+  else if (node.kind == NodeKind.BITWISE_XOR) emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR, context);
+  else if (node.kind == NodeKind.EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ, context);
+  else if (node.kind == NodeKind.NOT_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_NE, context);
+  else if (node.kind == NodeKind.LESS_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_LT_S, context);
+  else if (node.kind == NodeKind.LESS_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_LE_S, context);
+  else if (node.kind == NodeKind.GREATER_THAN) emitBinaryExpression(array, node, WASM_OPCODE_I32_GT_S, context);
+  else if (node.kind == NodeKind.GREATER_THAN_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_GE_S, context);
 
   else if (node.kind == NodeKind.LOGICAL_AND) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.binaryLeft());
-    wasmEmitNode(array, node.binaryRight());
+    wasmEmitNode(array, node.binaryLeft(), context);
+    wasmEmitNode(array, node.binaryRight(), context);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 0);
   }
 
   else if (node.kind == NodeKind.LOGICAL_OR) {
     ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.binaryLeft());
+    wasmEmitNode(array, node.binaryLeft(), context);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, 1);
-    wasmEmitNode(array, node.binaryRight());
+    wasmEmitNode(array, node.binaryRight(), context);
   }
 
   else {
@@ -956,7 +982,7 @@ function wasmWrapType(id: int): WasmType {
 }
 
 function wasmGetType(context: CheckContext, type: Type): int {
-  if (type == context.boolType || type.isInteger(context) || type.isReference(context)) {
+  if (type == context.boolType || type.isInteger() || type.isReference(context)) {
     return WASM_TYPE_I32;
   }
 
@@ -1005,5 +1031,5 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   // Build the string table
   module.collectStrings(global);
   module.prepareFunctions(global, context);
-  module.emitModule(array);
+  module.emitModule(array, context);
 }
