@@ -313,7 +313,12 @@
     };
   }
 
-  function compileAndRunWebAssembly(code, input) {
+  var CompileTarget = {
+    JAVASCRIPT: 1,
+    WEBASSEMBLY: 2,
+  };
+
+  function compileAndRunWebAssembly(code, input, target) {
     var stdlib = loadStdlibForWebAssembly();
     var module = Wasm.instantiateModule(code, {imports: stdlib});
     var exports = module.exports;
@@ -327,7 +332,7 @@
     stdlib.strings.push(input);
     var contentsString = stdlib.strings.length;
 
-    var compiler = exports.Compiler_new();
+    var compiler = exports.Compiler_new(target);
     exports.Compiler_addInput(compiler, nameString, contentsString);
     exports.Compiler_finish(compiler);
 
@@ -339,12 +344,12 @@
     };
   }
 
-  function compileAndRunJavaScript(code, input) {
+  function compileAndRunJavaScript(code, input, target) {
     var stdlib = loadStdlibForJavaScript();
     var exports = {};
     new Function('__imports', 'exports', code)(stdlib, exports);
 
-    var compiler = exports.Compiler_new();
+    var compiler = exports.Compiler_new(target);
     exports.Compiler_addInput(compiler, '<stdin>', input);
     exports.Compiler_finish(compiler);
 
@@ -387,11 +392,13 @@
   }
 
   function compile() {
+    var target = targetJavaScript.checked ? CompileTarget.JAVASCRIPT : CompileTarget.WEBASSEMBLY;
+
     try {
       if (backendWebAssembly.checked) {
-        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value);
+        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value, target);
       } else {
-        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value);
+        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value, target);
       }
     } catch (e) {
       output.value = e && e.stack || e;

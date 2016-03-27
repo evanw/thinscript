@@ -1,25 +1,35 @@
+enum CompileTarget {
+  NONE,
+  JAVASCRIPT,
+  WEBASSEMBLY,
+}
+
 class Compiler {
   log: Log;
   global: Node;
+  target: CompileTarget;
   context: CheckContext;
   wasm: ByteArray;
   js: String;
 
-  initialize(): void {
+  initialize(target: CompileTarget): void {
     assert(this.log == null);
     this.log = new Log();
     this.global = new Node();
     this.global.kind = NodeKind.GLOBAL;
+    this.target = target;
 
-    this.addInput(String_new("<malloc>"), String_new(`
-      var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer
+    if (target == CompileTarget.WEBASSEMBLY) {
+      this.addInput(String_new("<malloc>"), String_new(`
+        var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer
 
-      unsafe function malloc(sizeOf: int): int {
-        var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes
-        mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
-        return offset;
-      }
-    `));
+        unsafe function malloc(sizeOf: int): int {
+          var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes
+          mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
+          return offset;
+        }
+      `));
+    }
   }
 
   addInput(name: String, contents: String): void {
@@ -49,17 +59,22 @@ class Compiler {
       return false;
     }
 
-    this.wasm = ByteArray_new();
-    wasmEmit(this.global, this.context, this.wasm);
+    if (this.target == CompileTarget.JAVASCRIPT) {
+      this.js = jsEmit(this.global, this.context);
+    }
 
-    this.js = jsEmit(this.global, this.context);
+    else if (this.target == CompileTarget.WEBASSEMBLY) {
+      this.wasm = ByteArray_new();
+      wasmEmit(this.global, this.context, this.wasm);
+    }
+
     return true;
   }
 }
 
-extern function Compiler_new(): Compiler {
+extern function Compiler_new(target: CompileTarget): Compiler {
   var compiler = new Compiler();
-  compiler.initialize();
+  compiler.initialize(target);
   return compiler;
 }
 

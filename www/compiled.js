@@ -1,9 +1,3 @@
-var mallocOffset = 0;
-function malloc(sizeOf) {
-  var offset = mallocOffset + 7 & -8;
-  mallocOffset = offset + sizeOf | 0;
-  return offset;
-}
 function CheckContext() {
   this.log = null;
   this.isUnsafeAllowed = false;
@@ -683,16 +677,20 @@ function check(global, log) {
 function Compiler() {
   this.log = null;
   this.global = null;
+  this.target = 0;
   this.context = null;
   this.wasm = null;
   this.js = null;
 }
-Compiler.prototype.initialize = function() {
+Compiler.prototype.initialize = function(target) {
   __imports.assert(this.log === null);
   this.log = new Log();
   this.global = new Node();
   this.global.kind = 0;
-  this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer\n\n      unsafe function malloc(sizeOf: int): int {\n        var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes\n        mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
+  this.target = target;
+  if (target === 2) {
+    this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n        var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer\n\n        unsafe function malloc(sizeOf: int): int {\n          var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes\n          mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n          return offset;\n        }\n      "));
+  }
 };
 Compiler.prototype.addInput = function(name, contents) {
   var source = new Source();
@@ -716,14 +714,17 @@ Compiler.prototype.finish = function() {
   if (this.log.first !== null) {
     return false;
   }
-  this.wasm = __imports.ByteArray_new();
-  wasmEmit(this.global, this.context, this.wasm);
-  this.js = jsEmit(this.global, this.context);
+  if (this.target === 1) {
+    this.js = jsEmit(this.global, this.context);
+  } else if (this.target === 2) {
+    this.wasm = __imports.ByteArray_new();
+    wasmEmit(this.global, this.context, this.wasm);
+  }
   return true;
 };
-var Compiler_new = exports.Compiler_new = function() {
+var Compiler_new = exports.Compiler_new = function(target) {
   var compiler = new Compiler();
-  compiler.initialize();
+  compiler.initialize(target);
   return compiler;
 };
 var Compiler_addInput = exports.Compiler_addInput = function(compiler, name, contents) {

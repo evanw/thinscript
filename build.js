@@ -74,11 +74,16 @@ function loadStdlibForJavaScript() {
   };
 }
 
-function compileAndRunJavaScript(code, sources) {
+var CompileTarget = {
+  JAVASCRIPT: 1,
+  WEBASSEMBLY: 2,
+};
+
+function compileAndRunJavaScript(code, sources, target) {
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
   new Function('__imports', 'exports', code)(stdlib, exports);
-  var compiler = exports.Compiler_new();
+  var compiler = exports.Compiler_new(target);
   sources.forEach(function(source) {
     exports.Compiler_addInput(compiler, source.name, source.contents);
   });
@@ -91,15 +96,24 @@ function compileAndRunJavaScript(code, sources) {
   };
 }
 
+// Always build all targets to catch errors in other targets
 function compile(compiler, sources) {
-  var compiler = compileAndRunJavaScript(compiler, sources);
-
-  if (compiler.log) {
-    process.stdout.write(compiler.log);
+  var compilerJS = compileAndRunJavaScript(compiler, sources, CompileTarget.JAVASCRIPT);
+  if (compilerJS.log) {
+    process.stdout.write(compilerJS.log);
     process.exit(1);
   }
 
-  return compiler;
+  var compilerWASM = compileAndRunJavaScript(compiler, sources, CompileTarget.WEBASSEMBLY);
+  if (compilerWASM.log) {
+    process.stdout.write(compilerWASM.log);
+    process.exit(1);
+  }
+
+  return {
+    wasm: compilerWASM.wasm,
+    js: compilerJS.js,
+  };
 }
 
 var sourceDir = __dirname + '/src';
