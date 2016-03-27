@@ -11,10 +11,22 @@ extern function CompileResult_new(): CompileResult {
   result.log = new Log();
   result.global = new Node();
   result.global.kind = NodeKind.GLOBAL;
+
+  var malloc = CompileResult_addInput(result, String_new("<malloc>"), String_new(`
+    var __mallocOffset = 0;
+
+    function __malloc(sizeOf: int): int {
+      var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes
+      __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
+      return offset;
+    }
+  `));
+  malloc.flags = malloc.flags | SOURCE_FLAG_WASM_ONLY;
+
   return result;
 }
 
-extern function CompileResult_addInput(result: CompileResult, name: String, contents: String): void {
+extern function CompileResult_addInput(result: CompileResult, name: String, contents: String): Source {
   var source = new Source();
   source.name = name;
   source.contents = contents;
@@ -32,6 +44,8 @@ extern function CompileResult_addInput(result: CompileResult, name: String, cont
       }
     }
   }
+
+  return source;
 }
 
 extern function CompileResult_finish(result: CompileResult): void {

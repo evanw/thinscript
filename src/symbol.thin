@@ -9,6 +9,7 @@ enum SymbolKind {
 
   VARIABLE_ARGUMENT,
   VARIABLE_CONSTANT,
+  VARIABLE_GLOBAL,
   VARIABLE_INSTANCE,
   VARIABLE_LOCAL,
 }
@@ -45,6 +46,7 @@ class Symbol {
   state: SymbolState;
   flags: int;
   byteSize: int;
+  maxAlignment: int;
 
   // The "offset" variable is used to store kind-specific information
   //
@@ -58,6 +60,7 @@ class Symbol {
   //
   //   VARIABLE_ARGUMENT: Argument index
   //   VARIABLE_CONSTANT: Integer constant value
+  //   VARIABLE_GLOBAL: Memory address relative to start address
   //   VARIABLE_INSTANCE: Instance offset
   //   VARIABLE_LOCAL: N/A
   //
@@ -85,6 +88,7 @@ class Symbol {
 
     var offset = 0;
     var child = this.node.firstChild;
+    var maxAlignment = 1;
 
     while (child != null) {
       if (child.kind == NodeKind.VARIABLE) {
@@ -92,15 +96,15 @@ class Symbol {
 
         // Ignore invalid members
         if (type != context.errorType) {
-          var byteSize = type.byteSize();
-          assert(isPositivePowerOf2(byteSize));
+          var alignmentOf = type.alignmentOf();
 
           // Align the member to the next available slot
-          offset = (offset + byteSize - 1) & -byteSize;
+          offset = alignToNextMultipleOf(offset, alignmentOf);
+          if (alignmentOf > maxAlignment) maxAlignment = alignmentOf;
 
           // Allocate the member by extending the object
           child.symbol.offset = offset;
-          offset = offset + byteSize;
+          offset = offset + type.sizeOf();
         }
       }
 
@@ -109,5 +113,6 @@ class Symbol {
 
     // All objects must have a non-zero size
     this.byteSize = offset > 0 ? offset : 1;
+    this.maxAlignment = maxAlignment;
   }
 }

@@ -1,6 +1,7 @@
 function CheckContext() {
   this.log = null;
   this.currentReturnType = null;
+  this.nextGlobalVariableOffset = 0;
   this.boolType = null;
   this.byteType = null;
   this.errorType = null;
@@ -13,6 +14,11 @@ function CheckContext() {
   this.ushortType = null;
   this.voidType = null;
 }
+CheckContext.prototype.allocateGlobalVariableOffset = function(sizeOf, alignmentOf) {
+  var offset = alignToNextMultipleOf(this.nextGlobalVariableOffset, alignmentOf);
+  this.nextGlobalVariableOffset = offset + sizeOf | 0;
+  return offset;
+};
 function addScopeToSymbol(symbol, parentScope) {
   var scope = new Scope();
   scope.parent = parentScope;
@@ -29,7 +35,7 @@ function initialize(context, node, parentScope) {
   if (node.parent !== null) {
     var kind = node.kind;
     var parentKind = node.parent.kind;
-    if (kind !== 1 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
+    if (kind !== 1 && kind !== 13 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
       context.log.error(node.range, __imports.String_new("This statement is not allowed here"));
     }
   }
@@ -79,7 +85,7 @@ function initialize(context, node, parentScope) {
     }
   } else if (node.kind === 1) {
     var symbol = new Symbol();
-    symbol.kind = node.parent.kind === 4 ? 8 : node.parent.kind === 10 ? 6 : node.parent.kind === 5 || node.parent.kind === 8 ? 7 : 9;
+    symbol.kind = node.parent.kind === 4 ? 9 : node.parent.kind === 10 ? 6 : node.parent.kind === 5 || node.parent.kind === 8 ? 7 : node.parent.kind === 13 && node.parent.parent.kind === 0 ? 8 : 10;
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
     linkSymbolToNode(symbol, node);
@@ -112,7 +118,9 @@ function initializeSymbol(context, symbol) {
   } else if (symbol.kind === 1) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
-    symbol.byteSize = symbol.resolvedType.underlyingType(context).symbol.byteSize;
+    var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
+    symbol.byteSize = underlyingSymbol.byteSize;
+    symbol.maxAlignment = underlyingSymbol.maxAlignment;
   } else if (isFunction(symbol.kind)) {
     var returnType = symbol.node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
@@ -146,17 +154,14 @@ function initializeSymbol(context, symbol) {
       symbol.resolvedType = context.errorType;
     }
     if (symbol.kind === 7) {
-      if (symbol.resolvedType !== context.errorType && !symbol.resolvedType.isInteger()) {
-        context.log.error(symbol.node.internalRange, __imports.String_new("All constants must be integers for now"));
-        symbol.resolvedType = context.errorType;
-      }
       if (value !== null) {
         resolveAsExpression(context, value, symbol.scope);
         checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
-        if (value.kind === 20) {
+        if (value.kind === 20 || value.kind === 15) {
           symbol.offset = value.intValue;
         } else if (value.resolvedType !== context.errorType) {
-          context.log.error(value.range, __imports.String_new("Constants must be initialized to a single integer for now"));
+          context.log.error(value.range, __imports.String_new("Invalid constant initializer"));
+          symbol.resolvedType = context.errorType;
         }
       } else if (symbol.isEnumValue()) {
         if (symbol.node.previousSibling !== null) {
@@ -329,10 +334,16 @@ function resolve(context, node, parentScope) {
     if (value !== null) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
+      if (symbol.kind === 8 && value.kind !== 20 && value.kind !== 15 && value.kind !== 23) {
+        context.log.error(value.range, __imports.String_new("Global initializers must be compile-time constants"));
+      }
     } else if (symbol.resolvedType !== context.errorType) {
       value = createDefaultValueForType(context, symbol.resolvedType);
       resolveAsExpression(context, value, parentScope);
       node.appendChild(value);
+    }
+    if (symbol.kind === 8 && symbol.resolvedType !== context.errorType) {
+      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.sizeOf(), symbol.resolvedType.alignmentOf());
     }
   } else if (node.kind === 3 || node.kind === 6) {
     var found = false;
@@ -385,8 +396,12 @@ function resolve(context, node, parentScope) {
       initializeSymbol(context, symbol);
       node.symbol = symbol;
       node.resolvedType = symbol.resolvedType;
-      if (node.symbol.kind === 7) {
-        node.becomeIntegerConstant(node.symbol.offset);
+      if (symbol.kind === 7) {
+        if (symbol.resolvedType === context.boolType) {
+          node.becomeBooleanConstant(symbol.offset !== 0);
+        } else {
+          node.becomeIntegerConstant(symbol.offset);
+        }
       }
     }
   } else if (node.kind === 17) {
@@ -631,6 +646,8 @@ var CompileResult_new = exports.CompileResult_new = function() {
   result.log = new Log();
   result.global = new Node();
   result.global.kind = 0;
+  var malloc = CompileResult_addInput(result, __imports.String_new("<malloc>"), __imports.String_new("\n    var __mallocOffset = 0;\n\n    function __malloc(sizeOf: int): int {\n      var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n      __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n      return offset;\n    }\n  "));
+  malloc.flags = malloc.flags | 1;
   return result;
 };
 var CompileResult_addInput = exports.CompileResult_addInput = function(result, name, contents) {
@@ -648,6 +665,7 @@ var CompileResult_addInput = exports.CompileResult_addInput = function(result, n
       }
     }
   }
+  return source;
 };
 var CompileResult_finish = exports.CompileResult_finish = function(result) {
   result.context = check(result.global, result.log);
@@ -672,6 +690,10 @@ function ByteArray() {
 }
 function isPositivePowerOf2(value) {
   return value > 0 && (value & value - 1) === 0;
+}
+function alignToNextMultipleOf(offset, alignment) {
+  __imports.assert(isPositivePowerOf2(alignment));
+  return (offset + alignment | 0) - 1 & -alignment;
 }
 function JsResult() {
   this.context = null;
@@ -926,6 +948,9 @@ JsResult.prototype.emitStatement = function(node) {
     if (body === null) {
       return;
     }
+    if (jsShouldSkipNode(node)) {
+      return;
+    }
     var needsSemicolon = false;
     this.appendIndent();
     if (node.parent.kind === 4) {
@@ -1012,6 +1037,9 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitBlock(node);
     this.emitText("\n");
   } else if (node.kind === 13) {
+    if (jsShouldSkipNode(node)) {
+      return;
+    }
     this.appendIndent();
     this.emitText("var ");
     var child = node.firstChild;
@@ -1028,6 +1056,9 @@ JsResult.prototype.emitStatement = function(node) {
     }
     this.emitText(";\n");
   } else if (node.kind === 4) {
+    if (jsShouldSkipNode(node)) {
+      return;
+    }
     this.appendIndent();
     this.emitText("function ");
     this.emitString(node.symbol.name);
@@ -1060,6 +1091,9 @@ JsResult.prototype.emitStatement = function(node) {
     __imports.assert(false);
   }
 };
+function jsShouldSkipNode(node) {
+  return (node.range.source.flags & 1) !== 0;
+}
 function jsEmit(global, context) {
   var result = new JsResult();
   result.context = context;
@@ -1562,6 +1596,7 @@ function tokenize(source, log) {
 function Source() {
   this.name = null;
   this.contents = null;
+  this.flags = 0;
 }
 function Range() {
   this.source = null;
@@ -1813,6 +1848,12 @@ Node.prototype.becomeIntegerConstant = function(value) {
   this.kind = 20;
   this.symbol = null;
   this.intValue = value;
+  this.removeChildren();
+};
+Node.prototype.becomeBooleanConstant = function(value) {
+  this.kind = 15;
+  this.symbol = null;
+  this.intValue = value ? 1 : 0;
   this.removeChildren();
 };
 Node.prototype.isType = function() {
@@ -2932,19 +2973,20 @@ Scope.prototype.define = function(log, symbol) {
   this.lastSymbol = symbol;
   return true;
 };
-Scope.prototype.defineNativeType = function(log, name, byteSize) {
+Scope.prototype.defineNativeType = function(log, name, byteSizeAndMaxAlignment) {
   var symbol = new Symbol();
   symbol.kind = 3;
   symbol.name = __imports.String_new(name);
-  symbol.byteSize = byteSize;
+  symbol.byteSize = byteSizeAndMaxAlignment;
+  symbol.maxAlignment = byteSizeAndMaxAlignment;
   symbol.resolvedType = new Type();
   symbol.resolvedType.symbol = symbol;
   symbol.state = 2;
   this.define(log, symbol);
   return symbol.resolvedType;
 };
-Scope.prototype.defineNativeIntegerType = function(log, name, byteSize, isUnsigned) {
-  var type = this.defineNativeType(log, name, byteSize);
+Scope.prototype.defineNativeIntegerType = function(log, name, byteSizeAndMaxAlignment, isUnsigned) {
+  var type = this.defineNativeType(log, name, byteSizeAndMaxAlignment);
   type.symbol.flags = isUnsigned ? 3 : 1;
   return type;
 };
@@ -2955,7 +2997,7 @@ function isFunction(kind) {
   return kind >= 4 && kind <= 5;
 }
 function isVariable(kind) {
-  return kind >= 6 && kind <= 9;
+  return kind >= 6 && kind <= 10;
 }
 function Symbol() {
   this.kind = 0;
@@ -2968,6 +3010,7 @@ function Symbol() {
   this.state = 0;
   this.flags = 0;
   this.byteSize = 0;
+  this.maxAlignment = 0;
   this.offset = 0;
 }
 Symbol.prototype.isEnumValue = function() {
@@ -2986,20 +3029,24 @@ Symbol.prototype.determineClassLayout = function(context) {
   }
   var offset = 0;
   var child = this.node.firstChild;
+  var maxAlignment = 1;
   while (child !== null) {
     if (child.kind === 1) {
       var type = child.symbol.resolvedType;
       if (type !== context.errorType) {
-        var byteSize = type.byteSize();
-        __imports.assert(isPositivePowerOf2(byteSize));
-        offset = (offset + byteSize | 0) - 1 & -byteSize;
+        var alignmentOf = type.alignmentOf();
+        offset = alignToNextMultipleOf(offset, alignmentOf);
+        if (alignmentOf > maxAlignment) {
+          maxAlignment = alignmentOf;
+        }
         child.symbol.offset = offset;
-        offset = offset + byteSize | 0;
+        offset = offset + type.sizeOf() | 0;
       }
     }
     child = child.nextSibling;
   }
   this.byteSize = offset > 0 ? offset : 1;
+  this.maxAlignment = maxAlignment;
 };
 function Type() {
   this.symbol = null;
@@ -3025,8 +3072,11 @@ Type.prototype.integerBitMask = function() {
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
 };
-Type.prototype.byteSize = function() {
+Type.prototype.sizeOf = function() {
   return this.isClass() ? 4 : this.symbol.byteSize;
+};
+Type.prototype.alignmentOf = function() {
+  return this.sizeOf();
 };
 Type.prototype.toString = function() {
   return this.symbol.name;
@@ -3098,7 +3148,19 @@ function WasmModule() {
   this.lastSignature = null;
   this.signatureCount = 0;
   this.memoryInitializer = null;
+  this.heapPointerOffset = 0;
+  this.mallocFunctionIndex = 0;
+  this.context = null;
 }
+WasmModule.prototype.growMemoryInitializer = function() {
+  var array = this.memoryInitializer;
+  var current = __imports.ByteArray_length(array);
+  var length = this.context.nextGlobalVariableOffset;
+  while (current < length) {
+    __imports.ByteArray_appendByte(array, 0);
+    current = current + 1 | 0;
+  }
+};
 WasmModule.prototype.allocateImport = function(signatureIndex, mod, name) {
   var result = new WasmImport();
   result.signatureIndex = signatureIndex;
@@ -3151,7 +3213,7 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
   this.signatureCount = this.signatureCount + 1 | 0;
   return i;
 };
-WasmModule.prototype.emitModule = function(array, context) {
+WasmModule.prototype.emitModule = function(array) {
   __imports.ByteArray_appendByte(array, 1836278016);
   __imports.ByteArray_appendByte(array, 7172961);
   __imports.ByteArray_appendByte(array, 28019);
@@ -3165,7 +3227,7 @@ WasmModule.prototype.emitModule = function(array, context) {
   this.emitFunctionSignatures(array);
   this.emitMemory(array);
   this.emitExportTable(array);
-  this.emitFunctionBodies(array, context);
+  this.emitFunctionBodies(array);
   this.emitDataSegments(array);
 };
 WasmModule.prototype.emitSignatures = function(array) {
@@ -3251,7 +3313,7 @@ WasmModule.prototype.emitExportTable = function(array) {
   }
   wasmFinishSection(array, section);
 };
-WasmModule.prototype.emitFunctionBodies = function(array, context) {
+WasmModule.prototype.emitFunctionBodies = function(array) {
   if (this.firstFunction === null) {
     return;
   }
@@ -3270,7 +3332,7 @@ WasmModule.prototype.emitFunctionBodies = function(array, context) {
     }
     var child = fn.body.firstChild;
     while (child !== null) {
-      wasmEmitNode(array, child, context);
+      this.emitNode(array, child);
       child = child.nextSibling;
     }
     wasmPatchVarUnsigned(array, bodyLength, (__imports.ByteArray_length(array) - bodyLength | 0) - 5 | 0, -1);
@@ -3279,51 +3341,45 @@ WasmModule.prototype.emitFunctionBodies = function(array, context) {
   wasmFinishSection(array, section);
 };
 WasmModule.prototype.emitDataSegments = function(array) {
+  this.growMemoryInitializer();
+  var memoryInitializer = this.memoryInitializer;
+  var initalizerLength = __imports.ByteArray_length(memoryInitializer);
+  var initialHeapPointer = alignToNextMultipleOf(initalizerLength + 8 | 0, 8);
+  var heapPointerOffset = this.heapPointerOffset;
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset, initialHeapPointer);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 1 | 0, initialHeapPointer >> 8);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 2 | 0, initialHeapPointer >> 16);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 3 | 0, initialHeapPointer >> 24);
   var section = wasmStartSection(array, __imports.String_new("data_segments"));
   wasmWriteVarUnsigned(array, 1);
-  var memoryInitializer = this.memoryInitializer;
-  var byteOffset = 8;
-  var byteCount = __imports.ByteArray_length(memoryInitializer);
-  var initialHeapOffset = (byteOffset + byteCount | 0) + 7 & -8;
-  __imports.assert(byteCount >= 4);
-  wasmWriteVarUnsigned(array, byteOffset);
-  wasmWriteVarUnsigned(array, byteCount);
-  __imports.ByteArray_setByte(memoryInitializer, 0, initialHeapOffset);
-  __imports.ByteArray_setByte(memoryInitializer, 1, initialHeapOffset >> 8);
-  __imports.ByteArray_setByte(memoryInitializer, 2, initialHeapOffset >> 16);
-  __imports.ByteArray_setByte(memoryInitializer, 3, initialHeapOffset >> 24);
+  wasmWriteVarUnsigned(array, 8);
+  wasmWriteVarUnsigned(array, initalizerLength);
   var i = 0;
-  while (i < byteCount) {
+  while (i < initalizerLength) {
     __imports.ByteArray_appendByte(array, __imports.ByteArray_getByte(memoryInitializer, i));
     i = i + 1 | 0;
   }
   wasmFinishSection(array, section);
 };
-WasmModule.prototype.collectStrings = function(node) {
+WasmModule.prototype.prepareToEmit = function(node) {
   if (node.kind === 25) {
-    var memoryInitializer = this.memoryInitializer;
-    node.intValue = __imports.ByteArray_length(memoryInitializer) + 8 | 0;
     var text = node.stringValue;
+    var length = __imports.String_length(text);
+    var offset = this.context.allocateGlobalVariableOffset(length + 1 | 0, 1);
+    this.growMemoryInitializer();
+    var memoryInitializer = this.memoryInitializer;
     var i = 0;
-    var count = __imports.String_length(text);
-    while (i < count) {
-      __imports.ByteArray_appendByte(memoryInitializer, __imports.String_get(text, i));
+    while (i < length) {
+      __imports.ByteArray_setByte(memoryInitializer, offset + i | 0, __imports.String_get(text, i));
       i = i + 1 | 0;
     }
-    __imports.ByteArray_appendByte(memoryInitializer, 0);
-  }
-  var child = node.firstChild;
-  while (child !== null) {
-    this.collectStrings(child);
-    child = child.nextSibling;
-  }
-};
-WasmModule.prototype.prepareFunctions = function(node, context) {
-  if (node.kind === 0 || node.kind === 4) {
-    var child = node.firstChild;
-    while (child !== null) {
-      this.prepareFunctions(child, context);
-      child = child.nextSibling;
+    __imports.ByteArray_setByte(memoryInitializer, offset + length | 0, 0);
+    node.intValue = offset;
+  } else if (node.kind === 1) {
+    var symbol = node.symbol;
+    if (node.symbol.kind === 8 && __imports.String_equalNew(symbol.name, "__mallocOffset")) {
+      __imports.assert(this.heapPointerOffset === -1);
+      this.heapPointerOffset = symbol.offset;
     }
   } else if (node.kind === 10) {
     var returnType = node.functionReturnType();
@@ -3332,7 +3388,7 @@ WasmModule.prototype.prepareFunctions = function(node, context) {
     var argumentTypesLast = null;
     var argument = node.firstChild;
     while (argument !== returnType) {
-      var type = wasmWrapType(wasmGetType(context, argument.variableType().resolvedType));
+      var type = wasmWrapType(this.getType(argument.variableType().resolvedType));
       if (argumentTypesFirst === null) {
         argumentTypesFirst = type;
       } else {
@@ -3342,22 +3398,346 @@ WasmModule.prototype.prepareFunctions = function(node, context) {
       shared.nextLocalOffset = shared.nextLocalOffset + 1 | 0;
       argument = argument.nextSibling;
     }
-    var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+    var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(this.getType(returnType.resolvedType)));
     var body = node.functionBody();
+    var symbol = node.symbol;
     if (body === null) {
-      node.symbol.offset = this.importCount;
-      this.allocateImport(signatureIndex, __imports.String_new("imports"), node.symbol.name);
+      symbol.offset = this.importCount;
+      this.allocateImport(signatureIndex, __imports.String_new("imports"), symbol.name);
       node = node.nextSibling;
       return;
     }
-    node.symbol.offset = this.functionCount;
-    var fn = this.allocateFunction(node.symbol.name, signatureIndex, body);
-    if (node.symbol.isExtern()) {
+    symbol.offset = this.functionCount;
+    var fn = this.allocateFunction(symbol.name, signatureIndex, body);
+    if (symbol.kind === 5 && __imports.String_equalNew(symbol.name, "__malloc")) {
+      __imports.assert(this.mallocFunctionIndex === -1);
+      this.mallocFunctionIndex = symbol.offset;
+    }
+    if (symbol.isExtern()) {
       fn.isExported = true;
     }
     wasmAssignLocalVariableOffsets(body, shared);
     fn.intLocalCount = shared.intLocalCount;
   }
+  var child = node.firstChild;
+  while (child !== null) {
+    this.prepareToEmit(child);
+    child = child.nextSibling;
+  }
+};
+WasmModule.prototype.emitBinaryExpression = function(array, node, opcode) {
+  __imports.ByteArray_appendByte(array, opcode);
+  this.emitNode(array, node.binaryLeft());
+  this.emitNode(array, node.binaryRight());
+};
+WasmModule.prototype.emitLoadFromMemory = function(array, type, relativeBase, offset) {
+  var sizeOf = type.sizeOf();
+  if (sizeOf === 1) {
+    __imports.ByteArray_appendByte(array, type.isUnsigned() ? 33 : 32);
+    wasmWriteVarUnsigned(array, 0);
+  } else if (sizeOf === 2) {
+    __imports.ByteArray_appendByte(array, type.isUnsigned() ? 35 : 34);
+    wasmWriteVarUnsigned(array, 1);
+  } else if (sizeOf === 4) {
+    __imports.ByteArray_appendByte(array, 42);
+    wasmWriteVarUnsigned(array, 2);
+  } else {
+    __imports.assert(false);
+  }
+  wasmWriteVarUnsigned(array, offset);
+  if (relativeBase !== null) {
+    this.emitNode(array, relativeBase);
+  } else {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarUnsigned(array, 0);
+  }
+};
+WasmModule.prototype.emitStoreToMemory = function(array, type, relativeBase, offset, value) {
+  var sizeOf = type.sizeOf();
+  if (sizeOf === 1) {
+    __imports.ByteArray_appendByte(array, 46);
+    wasmWriteVarUnsigned(array, 0);
+  } else if (sizeOf === 2) {
+    __imports.ByteArray_appendByte(array, 47);
+    wasmWriteVarUnsigned(array, 1);
+  } else if (sizeOf === 4) {
+    __imports.ByteArray_appendByte(array, 51);
+    wasmWriteVarUnsigned(array, 2);
+  } else {
+    __imports.assert(false);
+  }
+  wasmWriteVarUnsigned(array, offset);
+  if (relativeBase !== null) {
+    this.emitNode(array, relativeBase);
+  } else {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarUnsigned(array, 0);
+  }
+  this.emitNode(array, value);
+};
+WasmModule.prototype.emitNode = function(array, node) {
+  __imports.assert(!isExpression(node) || node.resolvedType !== null);
+  if (node.kind === 2) {
+    __imports.ByteArray_appendByte(array, 1);
+    var offset = __imports.ByteArray_length(array);
+    wasmWriteVarUnsigned(array, -1);
+    var count = 0;
+    var child = node.firstChild;
+    while (child !== null) {
+      count = count + this.emitNode(array, child) | 0;
+      child = child.nextSibling;
+    }
+    wasmPatchVarUnsigned(array, offset, count, -1);
+  } else if (node.kind === 14) {
+    var value = node.whileValue();
+    var body = node.whileBody();
+    if (value.kind === 15 && value.intValue === 0) {
+      return 0;
+    }
+    __imports.ByteArray_appendByte(array, 2);
+    var offset = __imports.ByteArray_length(array);
+    wasmWriteVarUnsigned(array, -1);
+    var count = 0;
+    if (value.kind !== 15) {
+      __imports.ByteArray_appendByte(array, 7);
+      wasmWriteVarUnsigned(array, 1);
+      __imports.ByteArray_appendByte(array, 0);
+      __imports.ByteArray_appendByte(array, 90);
+      this.emitNode(array, value);
+      count = count + 1 | 0;
+    }
+    var child = body.firstChild;
+    while (child !== null) {
+      count = count + this.emitNode(array, child) | 0;
+      child = child.nextSibling;
+    }
+    __imports.ByteArray_appendByte(array, 6);
+    wasmWriteVarUnsigned(array, 0);
+    __imports.ByteArray_appendByte(array, 0);
+    count = count + 1 | 0;
+    wasmPatchVarUnsigned(array, offset, count, -1);
+  } else if (node.kind === 3 || node.kind === 6) {
+    var label = 0;
+    var parent = node.parent;
+    while (parent !== null && parent.kind !== 14) {
+      if (parent.kind === 2) {
+        label = label + 1 | 0;
+      }
+      parent = parent.parent;
+    }
+    __imports.assert(label > 0);
+    __imports.ByteArray_appendByte(array, 6);
+    wasmWriteVarUnsigned(array, label - (node.kind === 3 ? 0 : 1) | 0);
+    __imports.ByteArray_appendByte(array, 0);
+  } else if (node.kind === 7) {
+    return 0;
+  } else if (node.kind === 9) {
+    this.emitNode(array, node.expressionValue());
+  } else if (node.kind === 12) {
+    var value = node.returnValue();
+    __imports.ByteArray_appendByte(array, 20);
+    if (value !== null) {
+      this.emitNode(array, value);
+    }
+  } else if (node.kind === 13) {
+    var count = 0;
+    var child = node.firstChild;
+    while (child !== null) {
+      __imports.assert(child.kind === 1);
+      count = count + this.emitNode(array, child) | 0;
+      child = child.nextSibling;
+    }
+    return count;
+  } else if (node.kind === 11) {
+    var branch = node.ifFalse();
+    __imports.ByteArray_appendByte(array, branch === null ? 3 : 4);
+    this.emitNode(array, node.ifValue());
+    this.emitNode(array, node.ifTrue());
+    if (branch !== null) {
+      this.emitNode(array, branch);
+    }
+  } else if (node.kind === 19) {
+    __imports.ByteArray_appendByte(array, 4);
+    this.emitNode(array, node.hookValue());
+    this.emitNode(array, node.hookTrue());
+    this.emitNode(array, node.hookFalse());
+  } else if (node.kind === 1) {
+    var value = node.variableValue();
+    if (node.symbol.kind === 10) {
+      __imports.ByteArray_appendByte(array, 15);
+      wasmWriteVarUnsigned(array, node.symbol.offset);
+      if (value !== null) {
+        this.emitNode(array, value);
+      } else {
+        __imports.ByteArray_appendByte(array, 10);
+        wasmWriteVarSigned(array, 0);
+      }
+    } else {
+      __imports.assert(false);
+    }
+  } else if (node.kind === 21) {
+    var symbol = node.symbol;
+    if (symbol.kind === 6 || symbol.kind === 10) {
+      __imports.ByteArray_appendByte(array, 14);
+      wasmWriteVarUnsigned(array, symbol.offset);
+    } else if (symbol.kind === 8) {
+      this.emitLoadFromMemory(array, symbol.resolvedType, null, symbol.offset + 8 | 0);
+    } else {
+      __imports.assert(false);
+    }
+  } else if (node.kind === 23) {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, 0);
+  } else if (node.kind === 20 || node.kind === 15) {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, node.intValue);
+  } else if (node.kind === 25) {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, node.intValue + 8 | 0);
+  } else if (node.kind === 16) {
+    var value = node.callValue();
+    var symbol = value.symbol;
+    __imports.assert(isFunction(symbol.kind));
+    __imports.ByteArray_appendByte(array, symbol.node.functionBody() === null ? 31 : 18);
+    wasmWriteVarUnsigned(array, symbol.offset);
+    if (symbol.kind === 4) {
+      this.emitNode(array, value.dotTarget());
+    }
+    var child = value.nextSibling;
+    while (child !== null) {
+      this.emitNode(array, child);
+      child = child.nextSibling;
+    }
+  } else if (node.kind === 22) {
+    var type = node.newType();
+    __imports.assert(type.symbol.kind === 0);
+    __imports.ByteArray_appendByte(array, 18);
+    wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
+    __imports.assert(type.symbol.byteSize > 0);
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, type.symbol.byteSize);
+  } else if (node.kind === 31) {
+    this.emitNode(array, node.unaryValue());
+  } else if (node.kind === 29) {
+    __imports.ByteArray_appendByte(array, 65);
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, 0);
+    this.emitNode(array, node.unaryValue());
+  } else if (node.kind === 28) {
+    __imports.ByteArray_appendByte(array, 73);
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, -1);
+    this.emitNode(array, node.unaryValue());
+  } else if (node.kind === 30) {
+    __imports.ByteArray_appendByte(array, 90);
+    this.emitNode(array, node.unaryValue());
+  } else if (node.kind === 17) {
+    var value = node.castValue();
+    var context = this.context;
+    var from = value.resolvedType.underlyingType(context);
+    var type = node.resolvedType.underlyingType(context);
+    if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
+      this.emitNode(array, value);
+    } else if (type === context.byteType || type === context.shortType) {
+      var shift = 32 - (type.symbol.byteSize << 3) | 0;
+      __imports.ByteArray_appendByte(array, 76);
+      __imports.ByteArray_appendByte(array, 74);
+      this.emitNode(array, value);
+      __imports.ByteArray_appendByte(array, 10);
+      wasmWriteVarSigned(array, shift);
+      __imports.ByteArray_appendByte(array, 10);
+      wasmWriteVarSigned(array, shift);
+    } else if (type === context.ubyteType || type === context.ushortType) {
+      __imports.ByteArray_appendByte(array, 71);
+      this.emitNode(array, value);
+      __imports.ByteArray_appendByte(array, 10);
+      wasmWriteVarSigned(array, type.integerBitMask() | 0);
+    } else {
+      this.emitNode(array, value);
+    }
+  } else if (node.kind === 18) {
+    var symbol = node.symbol;
+    if (symbol.kind === 9) {
+      this.emitLoadFromMemory(array, symbol.resolvedType, node.dotTarget(), symbol.offset);
+    } else {
+      __imports.assert(false);
+    }
+  } else if (node.kind === 37) {
+    var left = node.binaryLeft();
+    var symbol = left.symbol;
+    if (symbol.kind === 9) {
+      this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, node.binaryRight());
+    } else if (symbol.kind === 8) {
+      this.emitStoreToMemory(array, symbol.resolvedType, null, symbol.offset + 8 | 0, node.binaryRight());
+    } else if (symbol.kind === 6 || symbol.kind === 10) {
+      __imports.ByteArray_appendByte(array, 15);
+      wasmWriteVarUnsigned(array, symbol.offset);
+      this.emitNode(array, node.binaryRight());
+    } else {
+      __imports.assert(false);
+    }
+  } else if (node.kind === 47) {
+    __imports.ByteArray_appendByte(array, 4);
+    this.emitNode(array, node.binaryLeft());
+    this.emitNode(array, node.binaryRight());
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, 0);
+  } else if (node.kind === 48) {
+    __imports.ByteArray_appendByte(array, 4);
+    this.emitNode(array, node.binaryLeft());
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, 1);
+    this.emitNode(array, node.binaryRight());
+  } else {
+    var isUnsigned = node.isUnsignedOperator();
+    if (node.kind === 36) {
+      this.emitBinaryExpression(array, node, 64);
+    } else if (node.kind === 38) {
+      this.emitBinaryExpression(array, node, 71);
+    } else if (node.kind === 39) {
+      this.emitBinaryExpression(array, node, 72);
+    } else if (node.kind === 40) {
+      this.emitBinaryExpression(array, node, 73);
+    } else if (node.kind === 42) {
+      this.emitBinaryExpression(array, node, 77);
+    } else if (node.kind === 49) {
+      this.emitBinaryExpression(array, node, 66);
+    } else if (node.kind === 50) {
+      this.emitBinaryExpression(array, node, 78);
+    } else if (node.kind === 52) {
+      this.emitBinaryExpression(array, node, 74);
+    } else if (node.kind === 54) {
+      this.emitBinaryExpression(array, node, 65);
+    } else if (node.kind === 41) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 68 : 67);
+    } else if (node.kind === 43) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 85 : 83);
+    } else if (node.kind === 44) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 86 : 84);
+    } else if (node.kind === 45) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 81 : 79);
+    } else if (node.kind === 46) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 82 : 80);
+    } else if (node.kind === 51) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 70 : 69);
+    } else if (node.kind === 53) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 75 : 76);
+    } else {
+      __imports.assert(false);
+    }
+  }
+  return 1;
+};
+WasmModule.prototype.getType = function(type) {
+  var context = this.context;
+  if (type === context.boolType || type.isInteger() || type.isReference(context)) {
+    return 1;
+  }
+  if (type === context.voidType) {
+    return 0;
+  }
+  __imports.assert(false);
+  return 0;
 };
 function wasmPatchVarUnsigned(array, offset, value, maxValue) {
   while (true) {
@@ -3419,303 +3799,11 @@ function wasmStartSection(array, name) {
 function wasmFinishSection(array, offset) {
   wasmPatchVarUnsigned(array, offset, (__imports.ByteArray_length(array) - offset | 0) - 5 | 0, -1);
 }
-function emitBinaryExpression(array, node, opcode, context) {
-  __imports.ByteArray_appendByte(array, opcode);
-  wasmEmitNode(array, node.binaryLeft(), context);
-  wasmEmitNode(array, node.binaryRight(), context);
-}
-function wasmEmitNode(array, node, context) {
-  __imports.assert(!isExpression(node) || node.resolvedType !== null);
-  if (node.kind === 2) {
-    __imports.ByteArray_appendByte(array, 1);
-    var offset = __imports.ByteArray_length(array);
-    wasmWriteVarUnsigned(array, -1);
-    var count = 0;
-    var child = node.firstChild;
-    while (child !== null) {
-      count = count + wasmEmitNode(array, child, context) | 0;
-      child = child.nextSibling;
-    }
-    wasmPatchVarUnsigned(array, offset, count, -1);
-  } else if (node.kind === 14) {
-    var value = node.whileValue();
-    var body = node.whileBody();
-    if (value.kind === 15 && value.intValue === 0) {
-      return 0;
-    }
-    __imports.ByteArray_appendByte(array, 2);
-    var offset = __imports.ByteArray_length(array);
-    wasmWriteVarUnsigned(array, -1);
-    var count = 0;
-    if (value.kind !== 15) {
-      __imports.ByteArray_appendByte(array, 7);
-      wasmWriteVarUnsigned(array, 1);
-      __imports.ByteArray_appendByte(array, 0);
-      __imports.ByteArray_appendByte(array, 90);
-      wasmEmitNode(array, value, context);
-      count = count + 1 | 0;
-    }
-    var child = body.firstChild;
-    while (child !== null) {
-      count = count + wasmEmitNode(array, child, context) | 0;
-      child = child.nextSibling;
-    }
-    __imports.ByteArray_appendByte(array, 6);
-    wasmWriteVarUnsigned(array, 0);
-    __imports.ByteArray_appendByte(array, 0);
-    count = count + 1 | 0;
-    wasmPatchVarUnsigned(array, offset, count, -1);
-  } else if (node.kind === 3 || node.kind === 6) {
-    var label = 0;
-    var parent = node.parent;
-    while (parent !== null && parent.kind !== 14) {
-      if (parent.kind === 2) {
-        label = label + 1 | 0;
-      }
-      parent = parent.parent;
-    }
-    __imports.assert(label > 0);
-    __imports.ByteArray_appendByte(array, 6);
-    wasmWriteVarUnsigned(array, label - (node.kind === 3 ? 0 : 1) | 0);
-    __imports.ByteArray_appendByte(array, 0);
-  } else if (node.kind === 7) {
-    return 0;
-  } else if (node.kind === 9) {
-    wasmEmitNode(array, node.expressionValue(), context);
-  } else if (node.kind === 12) {
-    var value = node.returnValue();
-    __imports.ByteArray_appendByte(array, 20);
-    if (value !== null) {
-      wasmEmitNode(array, value, context);
-    }
-  } else if (node.kind === 13) {
-    var count = 0;
-    var child = node.firstChild;
-    while (child !== null) {
-      __imports.assert(child.kind === 1);
-      count = count + wasmEmitNode(array, child, context) | 0;
-      child = child.nextSibling;
-    }
-    return count;
-  } else if (node.kind === 11) {
-    var branch = node.ifFalse();
-    __imports.ByteArray_appendByte(array, branch === null ? 3 : 4);
-    wasmEmitNode(array, node.ifValue(), context);
-    wasmEmitNode(array, node.ifTrue(), context);
-    if (branch !== null) {
-      wasmEmitNode(array, branch, context);
-    }
-  } else if (node.kind === 19) {
-    __imports.ByteArray_appendByte(array, 4);
-    wasmEmitNode(array, node.hookValue(), context);
-    wasmEmitNode(array, node.hookTrue(), context);
-    wasmEmitNode(array, node.hookFalse(), context);
-  } else if (node.kind === 1) {
-    var value = node.variableValue();
-    if (node.symbol.kind === 9) {
-      __imports.ByteArray_appendByte(array, 15);
-      wasmWriteVarUnsigned(array, node.symbol.offset);
-      if (value !== null) {
-        wasmEmitNode(array, value, context);
-      } else {
-        __imports.ByteArray_appendByte(array, 10);
-        wasmWriteVarSigned(array, 0);
-      }
-    } else {
-      __imports.assert(false);
-    }
-  } else if (node.kind === 21) {
-    if (node.symbol.kind === 6 || node.symbol.kind === 9) {
-      __imports.ByteArray_appendByte(array, 14);
-      wasmWriteVarUnsigned(array, node.symbol.offset);
-    } else {
-      __imports.assert(false);
-    }
-  } else if (node.kind === 23) {
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, 0);
-  } else if (node.kind === 20 || node.kind === 15) {
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, node.intValue);
-  } else if (node.kind === 25) {
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, node.intValue);
-  } else if (node.kind === 16) {
-    var value = node.callValue();
-    var symbol = value.symbol;
-    __imports.assert(isFunction(symbol.kind));
-    __imports.ByteArray_appendByte(array, symbol.node.functionBody() === null ? 31 : 18);
-    wasmWriteVarUnsigned(array, symbol.offset);
-    if (symbol.kind === 4) {
-      wasmEmitNode(array, value.dotTarget(), context);
-    }
-    var child = value.nextSibling;
-    while (child !== null) {
-      wasmEmitNode(array, child, context);
-      child = child.nextSibling;
-    }
-  } else if (node.kind === 22) {
-    var type = node.newType();
-    __imports.assert(type.symbol.kind === 0);
-    __imports.ByteArray_appendByte(array, 31);
-    wasmWriteVarUnsigned(array, 0);
-    __imports.assert(type.symbol.byteSize > 0);
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, type.symbol.byteSize);
-  } else if (node.kind === 31) {
-    wasmEmitNode(array, node.unaryValue(), context);
-  } else if (node.kind === 29) {
-    __imports.ByteArray_appendByte(array, 65);
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, 0);
-    wasmEmitNode(array, node.unaryValue(), context);
-  } else if (node.kind === 28) {
-    __imports.ByteArray_appendByte(array, 73);
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, -1);
-    wasmEmitNode(array, node.unaryValue(), context);
-  } else if (node.kind === 30) {
-    __imports.ByteArray_appendByte(array, 90);
-    wasmEmitNode(array, node.unaryValue(), context);
-  } else if (node.kind === 17) {
-    var value = node.castValue();
-    var from = value.resolvedType.underlyingType(context);
-    var type = node.resolvedType.underlyingType(context);
-    if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
-      wasmEmitNode(array, value, context);
-    } else if (type === context.byteType || type === context.shortType) {
-      var shift = 32 - (type.symbol.byteSize << 3) | 0;
-      __imports.ByteArray_appendByte(array, 76);
-      __imports.ByteArray_appendByte(array, 74);
-      wasmEmitNode(array, value, context);
-      __imports.ByteArray_appendByte(array, 10);
-      wasmWriteVarSigned(array, shift);
-      __imports.ByteArray_appendByte(array, 10);
-      wasmWriteVarSigned(array, shift);
-    } else if (type === context.ubyteType || type === context.ushortType) {
-      __imports.ByteArray_appendByte(array, 71);
-      wasmEmitNode(array, value, context);
-      __imports.ByteArray_appendByte(array, 10);
-      wasmWriteVarSigned(array, type.integerBitMask() | 0);
-    } else {
-      wasmEmitNode(array, value, context);
-    }
-  } else if (node.kind === 18) {
-    var symbol = node.symbol;
-    if (symbol.kind === 8) {
-      var type = symbol.resolvedType;
-      var byteSize = type.byteSize();
-      if (byteSize === 1) {
-        __imports.ByteArray_appendByte(array, type.isUnsigned() ? 33 : 32);
-        wasmWriteVarUnsigned(array, 0);
-      } else if (byteSize === 2) {
-        __imports.ByteArray_appendByte(array, type.isUnsigned() ? 35 : 34);
-        wasmWriteVarUnsigned(array, 1);
-      } else if (byteSize === 4) {
-        __imports.ByteArray_appendByte(array, 42);
-        wasmWriteVarUnsigned(array, 2);
-      } else {
-        __imports.assert(false);
-      }
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.dotTarget(), context);
-    } else {
-      __imports.assert(false);
-    }
-  } else if (node.kind === 37) {
-    var left = node.binaryLeft();
-    var symbol = left.symbol;
-    if (symbol.kind === 8) {
-      var byteSize = symbol.resolvedType.byteSize();
-      if (byteSize === 1) {
-        __imports.ByteArray_appendByte(array, 46);
-        wasmWriteVarUnsigned(array, 0);
-      } else if (byteSize === 2) {
-        __imports.ByteArray_appendByte(array, 47);
-        wasmWriteVarUnsigned(array, 1);
-      } else if (byteSize === 4) {
-        __imports.ByteArray_appendByte(array, 51);
-        wasmWriteVarUnsigned(array, 2);
-      } else {
-        __imports.assert(false);
-      }
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, left.dotTarget(), context);
-      wasmEmitNode(array, node.binaryRight(), context);
-    } else if (symbol.kind === 6 || symbol.kind === 9) {
-      __imports.ByteArray_appendByte(array, 15);
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.binaryRight(), context);
-    } else {
-      __imports.assert(false);
-    }
-  } else if (node.kind === 47) {
-    __imports.ByteArray_appendByte(array, 4);
-    wasmEmitNode(array, node.binaryLeft(), context);
-    wasmEmitNode(array, node.binaryRight(), context);
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, 0);
-  } else if (node.kind === 48) {
-    __imports.ByteArray_appendByte(array, 4);
-    wasmEmitNode(array, node.binaryLeft(), context);
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, 1);
-    wasmEmitNode(array, node.binaryRight(), context);
-  } else {
-    var isUnsigned = node.isUnsignedOperator();
-    if (node.kind === 36) {
-      emitBinaryExpression(array, node, 64, context);
-    } else if (node.kind === 38) {
-      emitBinaryExpression(array, node, 71, context);
-    } else if (node.kind === 39) {
-      emitBinaryExpression(array, node, 72, context);
-    } else if (node.kind === 40) {
-      emitBinaryExpression(array, node, 73, context);
-    } else if (node.kind === 42) {
-      emitBinaryExpression(array, node, 77, context);
-    } else if (node.kind === 49) {
-      emitBinaryExpression(array, node, 66, context);
-    } else if (node.kind === 50) {
-      emitBinaryExpression(array, node, 78, context);
-    } else if (node.kind === 52) {
-      emitBinaryExpression(array, node, 74, context);
-    } else if (node.kind === 54) {
-      emitBinaryExpression(array, node, 65, context);
-    } else if (node.kind === 41) {
-      emitBinaryExpression(array, node, isUnsigned ? 68 : 67, context);
-    } else if (node.kind === 43) {
-      emitBinaryExpression(array, node, isUnsigned ? 85 : 83, context);
-    } else if (node.kind === 44) {
-      emitBinaryExpression(array, node, isUnsigned ? 86 : 84, context);
-    } else if (node.kind === 45) {
-      emitBinaryExpression(array, node, isUnsigned ? 81 : 79, context);
-    } else if (node.kind === 46) {
-      emitBinaryExpression(array, node, isUnsigned ? 82 : 80, context);
-    } else if (node.kind === 51) {
-      emitBinaryExpression(array, node, isUnsigned ? 70 : 69, context);
-    } else if (node.kind === 53) {
-      emitBinaryExpression(array, node, isUnsigned ? 75 : 76, context);
-    } else {
-      __imports.assert(false);
-    }
-  }
-  return 1;
-}
 function wasmWrapType(id) {
   __imports.assert(id === 0 || id === 1);
   var type = new WasmType();
   type.id = id;
   return type;
-}
-function wasmGetType(context, type) {
-  if (type === context.boolType || type.isInteger() || type.isReference(context)) {
-    return 1;
-  }
-  if (type === context.voidType) {
-    return 0;
-  }
-  __imports.assert(false);
-  return 0;
 }
 function WasmSharedOffset() {
   this.nextLocalOffset = 0;
@@ -3723,7 +3811,7 @@ function WasmSharedOffset() {
 }
 function wasmAssignLocalVariableOffsets(node, shared) {
   if (node.kind === 1) {
-    __imports.assert(node.symbol.kind === 9);
+    __imports.assert(node.symbol.kind === 10);
     node.symbol.offset = shared.nextLocalOffset;
     shared.nextLocalOffset = shared.nextLocalOffset + 1 | 0;
     shared.intLocalCount = shared.intLocalCount + 1 | 0;
@@ -3736,16 +3824,14 @@ function wasmAssignLocalVariableOffsets(node, shared) {
 }
 function wasmEmit(global, context, array) {
   var module = new WasmModule();
+  module.context = context;
   module.memoryInitializer = __imports.ByteArray_new();
-  __imports.ByteArray_appendByte(module.memoryInitializer, 0);
-  __imports.ByteArray_appendByte(module.memoryInitializer, 0);
-  __imports.ByteArray_appendByte(module.memoryInitializer, 0);
-  __imports.ByteArray_appendByte(module.memoryInitializer, 0);
-  var signatureIndex = module.allocateSignature(wasmWrapType(1), wasmWrapType(1));
-  module.allocateImport(signatureIndex, __imports.String_new("imports"), __imports.String_new("new"));
-  module.collectStrings(global);
-  module.prepareFunctions(global, context);
-  module.emitModule(array, context);
+  module.mallocFunctionIndex = -1;
+  module.heapPointerOffset = -1;
+  module.prepareToEmit(global);
+  __imports.assert(module.mallocFunctionIndex !== -1);
+  __imports.assert(module.heapPointerOffset !== -1);
+  module.emitModule(array);
 }
 var __imul = Math.imul || function(a, b) {
   return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;

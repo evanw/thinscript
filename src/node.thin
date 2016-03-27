@@ -249,6 +249,13 @@ class Node {
     this.removeChildren();
   }
 
+  becomeBooleanConstant(value: bool): void {
+    this.kind = NodeKind.BOOL;
+    this.symbol = null;
+    this.intValue = value ? 1 : 0;
+    this.removeChildren();
+  }
+
   isType(): bool {
     return this.kind == NodeKind.TYPE || this.symbol != null && isType(this.symbol.kind);
   }

@@ -36,8 +36,12 @@ class Type {
     return this == context.stringType || this.isClass();
   }
 
-  byteSize(): int {
+  sizeOf(): int {
     return this.isClass() ? POINTER_SIZE : this.symbol.byteSize;
+  }
+
+  alignmentOf(): int {
+    return this.sizeOf(); // This is true right now
   }
 
   toString(): String {

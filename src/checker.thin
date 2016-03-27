@@ -1,6 +1,7 @@
 class CheckContext {
   log: Log;
   currentReturnType: Type;
+  nextGlobalVariableOffset: int;
 
   // Native types
   boolType: Type;
@@ -14,6 +15,12 @@ class CheckContext {
   uintType: Type;
   ushortType: Type;
   voidType: Type;
+
+  allocateGlobalVariableOffset(sizeOf: int, alignmentOf: int): int {
+    var offset = alignToNextMultipleOf(this.nextGlobalVariableOffset, alignmentOf);
+    this.nextGlobalVariableOffset = offset + sizeOf;
+    return offset;
+  }
 }
 
 function addScopeToSymbol(symbol: Symbol, parentScope: Scope): void {
@@ -36,8 +43,8 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     var parentKind = node.parent.kind;
 
     // Validate node placement
-    if (kind != NodeKind.VARIABLE && (kind != NodeKind.FUNCTION || parentKind != NodeKind.CLASS) && (parentKind == NodeKind.GLOBAL) !=
-        (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
+    if (kind != NodeKind.VARIABLE && kind != NodeKind.VARIABLES && (kind != NodeKind.FUNCTION || parentKind != NodeKind.CLASS) &&
+        (parentKind == NodeKind.GLOBAL) != (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
       context.log.error(node.range, String_new("This statement is not allowed here"));
     }
   }
@@ -111,6 +118,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
       node.parent.kind == NodeKind.CLASS ? SymbolKind.VARIABLE_INSTANCE :
       node.parent.kind == NodeKind.FUNCTION ? SymbolKind.VARIABLE_ARGUMENT :
       node.parent.kind == NodeKind.CONSTANTS || node.parent.kind == NodeKind.ENUM ? SymbolKind.VARIABLE_CONSTANT :
+      node.parent.kind == NodeKind.VARIABLES && node.parent.parent.kind == NodeKind.GLOBAL ? SymbolKind.VARIABLE_GLOBAL :
       SymbolKind.VARIABLE_LOCAL;
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
@@ -156,7 +164,9 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   else if (symbol.kind == SymbolKind.TYPE_ENUM) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
-    symbol.byteSize = symbol.resolvedType.underlyingType(context).symbol.byteSize;
+    var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
+    symbol.byteSize = underlyingSymbol.byteSize;
+    symbol.maxAlignment = underlyingSymbol.maxAlignment;
   }
 
   // Function
@@ -210,22 +220,17 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     // Resolve constant values at initialization time
     if (symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
-      if (symbol.resolvedType != context.errorType && !symbol.resolvedType.isInteger()) {
-        context.log.error(symbol.node.internalRange, String_new("All constants must be integers for now"));
-        symbol.resolvedType = context.errorType;
-      }
-
       if (value != null) {
         resolveAsExpression(context, value, symbol.scope);
         checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), ConversionKind.IMPLICIT);
 
-        // TODO: Constant folding
-        if (value.kind == NodeKind.INT) {
+        if (value.kind == NodeKind.INT || value.kind == NodeKind.BOOL) {
           symbol.offset = value.intValue;
         }
 
         else if (value.resolvedType != context.errorType) {
-          context.log.error(value.range, String_new("Constants must be initialized to a single integer for now"));
+          context.log.error(value.range, String_new("Invalid constant initializer"));
+          symbol.resolvedType = context.errorType;
         }
       }
 
@@ -489,12 +494,22 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), ConversionKind.IMPLICIT);
+
+      // Variable initializers must be compile-time constants
+      if (symbol.kind == SymbolKind.VARIABLE_GLOBAL && value.kind != NodeKind.INT && value.kind != NodeKind.BOOL && value.kind != NodeKind.NULL) {
+        context.log.error(value.range, String_new("Global initializers must be compile-time constants"));
+      }
     }
 
     else if (symbol.resolvedType != context.errorType) {
       value = createDefaultValueForType(context, symbol.resolvedType);
       resolveAsExpression(context, value, parentScope);
       node.appendChild(value);
+    }
+
+    // Allocate global variables
+    if (symbol.kind == SymbolKind.VARIABLE_GLOBAL && symbol.resolvedType != context.errorType) {
+      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.sizeOf(), symbol.resolvedType.alignmentOf());
     }
   }
 
@@ -589,8 +604,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       node.resolvedType = symbol.resolvedType;
 
       // Inline constants
-      if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
-        node.becomeIntegerConstant(node.symbol.offset);
+      if (symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+        if (symbol.resolvedType == context.boolType) {
+          node.becomeBooleanConstant(symbol.offset != 0);
+        } else {
+          node.becomeIntegerConstant(symbol.offset);
+        }
       }
     }
   }

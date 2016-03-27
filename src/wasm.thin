@@ -177,8 +177,7 @@ const WASM_OPCODE_I64_REINTERPRET_F64 = 181;
 const WASM_MAGIC = 0x6D736100;
 const WASM_VERSION = 10;
 const WASM_SIZE_IN_PAGES = 256;
-const WASM_MEMORY_INITIALIZER_OFFSET = 8; // Leave space for "null"
-const WASM_MALLOC_FUNCTION_INDEX = 0;
+const WASM_MEMORY_INITIALIZER_BASE = 8; // Leave space for "null"
 
 const WASM_TYPE_VOID = 0;
 const WASM_TYPE_I32 = 1;
@@ -256,6 +255,20 @@ class WasmModule {
   signatureCount: int;
 
   memoryInitializer: ByteArray;
+  heapPointerOffset: int;
+  mallocFunctionIndex: int;
+  context: CheckContext;
+
+  growMemoryInitializer(): void {
+    var array = this.memoryInitializer;
+    var current = ByteArray_length(array);
+    var length = this.context.nextGlobalVariableOffset;
+
+    while (current < length) {
+      ByteArray_appendByte(array, 0);
+      current = current + 1;
+    }
+  }
 
   allocateImport(signatureIndex: int, mod: String, name: String): WasmImport {
     var result = new WasmImport();
@@ -313,7 +326,7 @@ class WasmModule {
     return i;
   }
 
-  emitModule(array: ByteArray, context: CheckContext): void {
+  emitModule(array: ByteArray): void {
     ByteArray_appendByte(array, WASM_MAGIC);
     ByteArray_appendByte(array, WASM_MAGIC >> 8);
     ByteArray_appendByte(array, WASM_MAGIC >> 16);
@@ -329,7 +342,7 @@ class WasmModule {
     this.emitFunctionSignatures(array);
     this.emitMemory(array);
     this.emitExportTable(array);
-    this.emitFunctionBodies(array, context);
+    this.emitFunctionBodies(array);
     this.emitDataSegments(array);
   }
 
@@ -436,7 +449,7 @@ class WasmModule {
     wasmFinishSection(array, section);
   }
 
-  emitFunctionBodies(array: ByteArray, context: CheckContext): void {
+  emitFunctionBodies(array: ByteArray): void {
     if (this.firstFunction == null) {
       return;
     }
@@ -459,7 +472,7 @@ class WasmModule {
 
       var child = fn.body.firstChild;
       while (child != null) {
-        wasmEmitNode(array, child, context);
+        this.emitNode(array, child);
         child = child.nextSibling;
       }
 
@@ -471,27 +484,27 @@ class WasmModule {
   }
 
   emitDataSegments(array: ByteArray): void {
+    this.growMemoryInitializer();
+    var memoryInitializer = this.memoryInitializer;
+    var initalizerLength = ByteArray_length(memoryInitializer);
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+
+    // Pass the initial heap pointer to "malloc"
+    var heapPointerOffset = this.heapPointerOffset;
+    ByteArray_setByte(memoryInitializer, heapPointerOffset, initialHeapPointer);
+    ByteArray_setByte(memoryInitializer, heapPointerOffset + 1, initialHeapPointer >> 8);
+    ByteArray_setByte(memoryInitializer, heapPointerOffset + 2, initialHeapPointer >> 16);
+    ByteArray_setByte(memoryInitializer, heapPointerOffset + 3, initialHeapPointer >> 24);
+
     var section = wasmStartSection(array, String_new("data_segments"));
     wasmWriteVarUnsigned(array, 1);
 
-    var memoryInitializer = this.memoryInitializer;
-    var byteOffset = WASM_MEMORY_INITIALIZER_OFFSET;
-    var byteCount = ByteArray_length(memoryInitializer);
-    var initialHeapOffset = (byteOffset + byteCount + 7) & ~7;
-    assert(byteCount >= 4);
+    wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
+    wasmWriteVarUnsigned(array, initalizerLength);
 
-    wasmWriteVarUnsigned(array, byteOffset);
-    wasmWriteVarUnsigned(array, byteCount);
-
-    // Pass the initial heap offset to the runtime
-    ByteArray_setByte(memoryInitializer, 0, initialHeapOffset);
-    ByteArray_setByte(memoryInitializer, 1, initialHeapOffset >> 8);
-    ByteArray_setByte(memoryInitializer, 2, initialHeapOffset >> 16);
-    ByteArray_setByte(memoryInitializer, 3, initialHeapOffset >> 24);
-
-    // Put the string table next after that
+    // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < byteCount) {
+    while (i < initalizerLength) {
       ByteArray_appendByte(array, ByteArray_getByte(memoryInitializer, i));
       i = i + 1;
     }
@@ -499,33 +512,29 @@ class WasmModule {
     wasmFinishSection(array, section);
   }
 
-  collectStrings(node: Node): void {
+  prepareToEmit(node: Node): void {
     if (node.kind == NodeKind.STRING) {
-      var memoryInitializer = this.memoryInitializer;
-      node.intValue = WASM_MEMORY_INITIALIZER_OFFSET + ByteArray_length(memoryInitializer);
       var text = node.stringValue;
+      var length = String_length(text);
+      var offset = this.context.allocateGlobalVariableOffset(length + 1, 1);;
+      this.growMemoryInitializer();
+      var memoryInitializer = this.memoryInitializer;
       var i = 0;
-      var count = String_length(text);
-      while (i < count) {
-        ByteArray_appendByte(memoryInitializer, String_get(text, i));
+      while (i < length) {
+        ByteArray_setByte(memoryInitializer, offset + i, String_get(text, i));
         i = i + 1;
       }
-      ByteArray_appendByte(memoryInitializer, 0);
+      ByteArray_setByte(memoryInitializer, offset + length, 0);
+      node.intValue = offset;
     }
 
-    var child = node.firstChild;
-    while (child != null) {
-      this.collectStrings(child);
-      child = child.nextSibling;
-    }
-  }
+    else if (node.kind == NodeKind.VARIABLE) {
+      var symbol = node.symbol;
 
-  prepareFunctions(node: Node, context: CheckContext): void {
-    if (node.kind == NodeKind.GLOBAL || node.kind == NodeKind.CLASS) {
-      var child = node.firstChild;
-      while (child != null) {
-        this.prepareFunctions(child, context);
-        child = child.nextSibling;
+      // Make sure the heap offset is tracked
+      if (node.symbol.kind == SymbolKind.VARIABLE_GLOBAL && String_equalNew(symbol.name, "__mallocOffset")) {
+        assert(this.heapPointerOffset == -1);
+        this.heapPointerOffset = symbol.offset;
       }
     }
 
@@ -538,7 +547,7 @@ class WasmModule {
       // Make sure to include the implicit "this" variable as a normal argument
       var argument = node.firstChild;
       while (argument != returnType) {
-        var type = wasmWrapType(wasmGetType(context, argument.variableType().resolvedType));
+        var type = wasmWrapType(this.getType(argument.variableType().resolvedType));
 
         if (argumentTypesFirst == null) argumentTypesFirst = type;
         else argumentTypesLast.next = type;
@@ -547,22 +556,29 @@ class WasmModule {
         shared.nextLocalOffset = shared.nextLocalOffset + 1;
         argument = argument.nextSibling;
       }
-      var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(wasmGetType(context, returnType.resolvedType)));
+      var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(this.getType(returnType.resolvedType)));
       var body = node.functionBody();
+      var symbol = node.symbol;
 
       // Functions without bodies are imports
       if (body == null) {
-        node.symbol.offset = this.importCount;
-        this.allocateImport(signatureIndex, String_new("imports"), node.symbol.name);
+        symbol.offset = this.importCount;
+        this.allocateImport(signatureIndex, String_new("imports"), symbol.name);
         node = node.nextSibling;
         return;
       }
 
-      node.symbol.offset = this.functionCount;
-      var fn = this.allocateFunction(node.symbol.name, signatureIndex, body);
+      symbol.offset = this.functionCount;
+      var fn = this.allocateFunction(symbol.name, signatureIndex, body);
+
+      // Make sure "malloc" is tracked
+      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && String_equalNew(symbol.name, "__malloc")) {
+        assert(this.mallocFunctionIndex == -1);
+        this.mallocFunctionIndex = symbol.offset;
+      }
 
       // Only export "extern" functions
-      if (node.symbol.isExtern()) {
+      if (symbol.isExtern()) {
         fn.isExported = true;
       }
 
@@ -570,6 +586,453 @@ class WasmModule {
       wasmAssignLocalVariableOffsets(body, shared);
       fn.intLocalCount = shared.intLocalCount;
     }
+
+    var child = node.firstChild;
+    while (child != null) {
+      this.prepareToEmit(child);
+      child = child.nextSibling;
+    }
+  }
+
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: int): void {
+    ByteArray_appendByte(array, opcode);
+    this.emitNode(array, node.binaryLeft());
+    this.emitNode(array, node.binaryRight());
+  }
+
+  emitLoadFromMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int): void {
+    var sizeOf = type.sizeOf();
+
+    if (sizeOf == 1) {
+      ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
+      wasmWriteVarUnsigned(array, 0);
+    }
+
+    else if (sizeOf == 2) {
+      ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD16_U : WASM_OPCODE_I32_LOAD16_S);
+      wasmWriteVarUnsigned(array, 1);
+    }
+
+    else if (sizeOf == 4) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
+      wasmWriteVarUnsigned(array, 2);
+    }
+
+    else {
+      assert(false);
+    }
+
+    wasmWriteVarUnsigned(array, offset);
+
+    // Relative address
+    if (relativeBase != null) {
+      this.emitNode(array, relativeBase);
+    }
+
+    // Absolute address
+    else {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarUnsigned(array, 0);
+    }
+  }
+
+  emitStoreToMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int, value: Node): void {
+    var sizeOf = type.sizeOf();
+
+    if (sizeOf == 1) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE8);
+      wasmWriteVarUnsigned(array, 0);
+    }
+
+    else if (sizeOf == 2) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE16);
+      wasmWriteVarUnsigned(array, 1);
+    }
+
+    else if (sizeOf == 4) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
+      wasmWriteVarUnsigned(array, 2);
+    }
+
+    else {
+      assert(false);
+    }
+
+    wasmWriteVarUnsigned(array, offset);
+
+    // Relative address
+    if (relativeBase != null) {
+      this.emitNode(array, relativeBase);
+    }
+
+    // Absolute address
+    else {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarUnsigned(array, 0);
+    }
+
+    this.emitNode(array, value);
+  }
+
+  emitNode(array: ByteArray, node: Node): int {
+    assert(!isExpression(node) || node.resolvedType != null);
+
+    if (node.kind == NodeKind.BLOCK) {
+      ByteArray_appendByte(array, WASM_OPCODE_BLOCK);
+      var offset = ByteArray_length(array);
+      wasmWriteVarUnsigned(array, ~0);
+      var count = 0;
+      var child = node.firstChild;
+      while (child != null) {
+        count = count + this.emitNode(array, child);
+        child = child.nextSibling;
+      }
+      wasmPatchVarUnsigned(array, offset, count, ~0);
+    }
+
+    else if (node.kind == NodeKind.WHILE) {
+      var value = node.whileValue();
+      var body = node.whileBody();
+
+      // Ignore "while (false) { ... }"
+      if (value.kind == NodeKind.BOOL && value.intValue == 0) {
+        return 0;
+      }
+
+      ByteArray_appendByte(array, WASM_OPCODE_LOOP);
+      var offset = ByteArray_length(array);
+      wasmWriteVarUnsigned(array, ~0);
+      var count = 0;
+
+      // Emit the condition as "loop { if (!condition) break; }" as long as it's not a "while (true)" loop
+      if (value.kind != NodeKind.BOOL) {
+        ByteArray_appendByte(array, WASM_OPCODE_BR_IF);
+        wasmWriteVarUnsigned(array, 1); // Break out of the immediately enclosing loop
+        ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
+        ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ); // The conditional is flipped
+        this.emitNode(array, value);
+        count = count + 1;
+      }
+
+      var child = body.firstChild;
+      while (child != null) {
+        count = count + this.emitNode(array, child);
+        child = child.nextSibling;
+      }
+
+      // Jump back to the top (this doesn't happen automatically)
+      ByteArray_appendByte(array, WASM_OPCODE_BR);
+      wasmWriteVarUnsigned(array, 0); // Continue back to the immediately enclosing loop
+      ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
+      count = count + 1;
+
+      wasmPatchVarUnsigned(array, offset, count, ~0);
+    }
+
+    else if (node.kind == NodeKind.BREAK || node.kind == NodeKind.CONTINUE) {
+      var label = 0;
+      var parent = node.parent;
+
+      while (parent != null && parent.kind != NodeKind.WHILE) {
+        if (parent.kind == NodeKind.BLOCK) {
+          label = label + 1;
+        }
+        parent = parent.parent;
+      }
+
+      assert(label > 0);
+      ByteArray_appendByte(array, WASM_OPCODE_BR);
+      wasmWriteVarUnsigned(array, label - (node.kind == NodeKind.BREAK ? 0 : 1));
+      ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
+    }
+
+    else if (node.kind == NodeKind.EMPTY) {
+      return 0;
+    }
+
+    else if (node.kind == NodeKind.EXPRESSION) {
+      this.emitNode(array, node.expressionValue());
+    }
+
+    else if (node.kind == NodeKind.RETURN) {
+      var value = node.returnValue();
+      ByteArray_appendByte(array, WASM_OPCODE_RETURN);
+      if (value != null) {
+        this.emitNode(array, value);
+      }
+    }
+
+    else if (node.kind == NodeKind.VARIABLES) {
+      var count = 0;
+      var child = node.firstChild;
+      while (child != null) {
+        assert(child.kind == NodeKind.VARIABLE);
+        count = count + this.emitNode(array, child);
+        child = child.nextSibling;
+      }
+      return count;
+    }
+
+    else if (node.kind == NodeKind.IF) {
+      var branch = node.ifFalse();
+      ByteArray_appendByte(array, branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
+      this.emitNode(array, node.ifValue());
+      this.emitNode(array, node.ifTrue());
+      if (branch != null) {
+        this.emitNode(array, branch);
+      }
+    }
+
+    else if (node.kind == NodeKind.HOOK) {
+      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      this.emitNode(array, node.hookValue());
+      this.emitNode(array, node.hookTrue());
+      this.emitNode(array, node.hookFalse());
+    }
+
+    else if (node.kind == NodeKind.VARIABLE) {
+      var value = node.variableValue();
+
+      if (node.symbol.kind == SymbolKind.VARIABLE_LOCAL) {
+        ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
+        wasmWriteVarUnsigned(array, node.symbol.offset);
+
+        if (value != null) {
+          this.emitNode(array, value);
+        }
+
+        // Default initialization
+        else {
+          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          wasmWriteVarSigned(array, 0);
+        }
+      }
+
+      else {
+        assert(false);
+      }
+    }
+
+    else if (node.kind == NodeKind.NAME) {
+      var symbol = node.symbol;
+
+      if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
+        ByteArray_appendByte(array, WASM_OPCODE_GET_LOCAL);
+        wasmWriteVarUnsigned(array, symbol.offset);
+      }
+
+      else if (symbol.kind == SymbolKind.VARIABLE_GLOBAL) {
+        this.emitLoadFromMemory(array, symbol.resolvedType, null, WASM_MEMORY_INITIALIZER_BASE + symbol.offset);
+      }
+
+      else {
+        assert(false);
+      }
+    }
+
+    else if (node.kind == NodeKind.NULL) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, 0);
+    }
+
+    else if (node.kind == NodeKind.INT || node.kind == NodeKind.BOOL) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, node.intValue);
+    }
+
+    else if (node.kind == NodeKind.STRING) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, WASM_MEMORY_INITIALIZER_BASE + node.intValue);
+    }
+
+    else if (node.kind == NodeKind.CALL) {
+      var value = node.callValue();
+      var symbol = value.symbol;
+      assert(isFunction(symbol.kind));
+
+      ByteArray_appendByte(array, symbol.node.functionBody() == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
+      wasmWriteVarUnsigned(array, symbol.offset);
+
+      // Write out the implicit "this" argument
+      if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+        this.emitNode(array, value.dotTarget());
+      }
+
+      var child = value.nextSibling;
+      while (child != null) {
+        this.emitNode(array, child);
+        child = child.nextSibling;
+      }
+    }
+
+    else if (node.kind == NodeKind.NEW) {
+      var type = node.newType();
+      assert(type.symbol.kind == SymbolKind.TYPE_CLASS);
+
+      ByteArray_appendByte(array, WASM_OPCODE_CALL);
+      wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
+
+      // Pass the object size as the first argument
+      assert(type.symbol.byteSize > 0);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, type.symbol.byteSize);
+    }
+
+    else if (node.kind == NodeKind.POSITIVE) {
+      this.emitNode(array, node.unaryValue());
+    }
+
+    else if (node.kind == NodeKind.NEGATIVE) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_SUB);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, 0);
+      this.emitNode(array, node.unaryValue());
+    }
+
+    else if (node.kind == NodeKind.COMPLEMENT) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_XOR);
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, ~0);
+      this.emitNode(array, node.unaryValue());
+    }
+
+    else if (node.kind == NodeKind.NOT) {
+      ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ);
+      this.emitNode(array, node.unaryValue());
+    }
+
+    else if (node.kind == NodeKind.CAST) {
+      var value = node.castValue();
+      var context = this.context;
+      var from = value.resolvedType.underlyingType(context);
+      var type = node.resolvedType.underlyingType(context);
+
+      // The cast isn't needed if it's to a wider integer type
+      if (from == type || from.symbol.byteSize < type.symbol.byteSize) {
+        this.emitNode(array, value);
+      }
+
+      else {
+        // Sign-extend
+        if (type == context.byteType || type == context.shortType) {
+          var shift = 32 - type.symbol.byteSize * 8;
+          ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
+          ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
+          this.emitNode(array, value);
+          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          wasmWriteVarSigned(array, shift);
+          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          wasmWriteVarSigned(array, shift);
+        }
+
+        // Mask
+        else if (type == context.ubyteType || type == context.ushortType) {
+          ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
+          this.emitNode(array, value);
+          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          wasmWriteVarSigned(array, type.integerBitMask() as int);
+        }
+
+        // No cast needed
+        else {
+          this.emitNode(array, value);
+        }
+      }
+    }
+
+    else if (node.kind == NodeKind.DOT) {
+      var symbol = node.symbol;
+
+      if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
+        this.emitLoadFromMemory(array, symbol.resolvedType, node.dotTarget(), symbol.offset);
+      }
+
+      else {
+        assert(false);
+      }
+    }
+
+    else if (node.kind == NodeKind.ASSIGN) {
+      var left = node.binaryLeft();
+      var symbol = left.symbol;
+
+      if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
+        this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, node.binaryRight());
+      }
+
+      else if (symbol.kind == SymbolKind.VARIABLE_GLOBAL) {
+        this.emitStoreToMemory(array, symbol.resolvedType, null, WASM_MEMORY_INITIALIZER_BASE + symbol.offset, node.binaryRight());
+      }
+
+      else if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
+        ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
+        wasmWriteVarUnsigned(array, symbol.offset);
+        this.emitNode(array, node.binaryRight());
+      }
+
+      else {
+        assert(false);
+      }
+    }
+
+    else if (node.kind == NodeKind.LOGICAL_AND) {
+      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      this.emitNode(array, node.binaryLeft());
+      this.emitNode(array, node.binaryRight());
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, 0);
+    }
+
+    else if (node.kind == NodeKind.LOGICAL_OR) {
+      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      this.emitNode(array, node.binaryLeft());
+      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      wasmWriteVarSigned(array, 1);
+      this.emitNode(array, node.binaryRight());
+    }
+
+    else {
+      var isUnsigned = node.isUnsignedOperator();
+
+      if (node.kind == NodeKind.ADD) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD);
+      else if (node.kind == NodeKind.BITWISE_AND) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_AND);
+      else if (node.kind == NodeKind.BITWISE_OR) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_OR);
+      else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR);
+      else if (node.kind == NodeKind.EQUAL) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ);
+      else if (node.kind == NodeKind.MULTIPLY) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL);
+      else if (node.kind == NodeKind.NOT_EQUAL) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_NE);
+      else if (node.kind == NodeKind.SHIFT_LEFT) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL);
+      else if (node.kind == NodeKind.SUBTRACT) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB);
+
+      else if (node.kind == NodeKind.DIVIDE) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_DIV_U : WASM_OPCODE_I32_DIV_S);
+      else if (node.kind == NodeKind.GREATER_THAN) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GT_U : WASM_OPCODE_I32_GT_S);
+      else if (node.kind == NodeKind.GREATER_THAN_EQUAL) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GE_U : WASM_OPCODE_I32_GE_S);
+      else if (node.kind == NodeKind.LESS_THAN) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LT_U : WASM_OPCODE_I32_LT_S);
+      else if (node.kind == NodeKind.LESS_THAN_EQUAL) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LE_U : WASM_OPCODE_I32_LE_S);
+      else if (node.kind == NodeKind.REMAINDER) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_REM_U : WASM_OPCODE_I32_REM_S);
+      else if (node.kind == NodeKind.SHIFT_RIGHT) this.emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_SHR_U : WASM_OPCODE_I32_SHR_S);
+
+      else {
+        assert(false);
+      }
+    }
+
+    return 1;
+  }
+
+  getType(type: Type): int {
+    var context = this.context;
+
+    if (type == context.boolType || type.isInteger() || type.isReference(context)) {
+      return WASM_TYPE_I32;
+    }
+
+    if (type == context.voidType) {
+      return WASM_TYPE_VOID;
+    }
+
+    assert(false);
+    return WASM_TYPE_VOID;
   }
 }
 
@@ -641,411 +1104,11 @@ function wasmFinishSection(array: ByteArray, offset: int): void {
   wasmPatchVarUnsigned(array, offset, ByteArray_length(array) - offset - 5, ~0);
 }
 
-function emitBinaryExpression(array: ByteArray, node: Node, opcode: int, context: CheckContext): void {
-  ByteArray_appendByte(array, opcode);
-  wasmEmitNode(array, node.binaryLeft(), context);
-  wasmEmitNode(array, node.binaryRight(), context);
-}
-
-function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int {
-  assert(!isExpression(node) || node.resolvedType != null);
-
-  if (node.kind == NodeKind.BLOCK) {
-    ByteArray_appendByte(array, WASM_OPCODE_BLOCK);
-    var offset = ByteArray_length(array);
-    wasmWriteVarUnsigned(array, ~0);
-    var count = 0;
-    var child = node.firstChild;
-    while (child != null) {
-      count = count + wasmEmitNode(array, child, context);
-      child = child.nextSibling;
-    }
-    wasmPatchVarUnsigned(array, offset, count, ~0);
-  }
-
-  else if (node.kind == NodeKind.WHILE) {
-    var value = node.whileValue();
-    var body = node.whileBody();
-
-    // Ignore "while (false) { ... }"
-    if (value.kind == NodeKind.BOOL && value.intValue == 0) {
-      return 0;
-    }
-
-    ByteArray_appendByte(array, WASM_OPCODE_LOOP);
-    var offset = ByteArray_length(array);
-    wasmWriteVarUnsigned(array, ~0);
-    var count = 0;
-
-    // Emit the condition as "loop { if (!condition) break; }" as long as it's not a "while (true)" loop
-    if (value.kind != NodeKind.BOOL) {
-      ByteArray_appendByte(array, WASM_OPCODE_BR_IF);
-      wasmWriteVarUnsigned(array, 1); // Break out of the immediately enclosing loop
-      ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
-      ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ); // The conditional is flipped
-      wasmEmitNode(array, value, context);
-      count = count + 1;
-    }
-
-    var child = body.firstChild;
-    while (child != null) {
-      count = count + wasmEmitNode(array, child, context);
-      child = child.nextSibling;
-    }
-
-    // Jump back to the top (this doesn't happen automatically)
-    ByteArray_appendByte(array, WASM_OPCODE_BR);
-    wasmWriteVarUnsigned(array, 0); // Continue back to the immediately enclosing loop
-    ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
-    count = count + 1;
-
-    wasmPatchVarUnsigned(array, offset, count, ~0);
-  }
-
-  else if (node.kind == NodeKind.BREAK || node.kind == NodeKind.CONTINUE) {
-    var label = 0;
-    var parent = node.parent;
-
-    while (parent != null && parent.kind != NodeKind.WHILE) {
-      if (parent.kind == NodeKind.BLOCK) {
-        label = label + 1;
-      }
-      parent = parent.parent;
-    }
-
-    assert(label > 0);
-    ByteArray_appendByte(array, WASM_OPCODE_BR);
-    wasmWriteVarUnsigned(array, label - (node.kind == NodeKind.BREAK ? 0 : 1));
-    ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
-  }
-
-  else if (node.kind == NodeKind.EMPTY) {
-    return 0;
-  }
-
-  else if (node.kind == NodeKind.EXPRESSION) {
-    wasmEmitNode(array, node.expressionValue(), context);
-  }
-
-  else if (node.kind == NodeKind.RETURN) {
-    var value = node.returnValue();
-    ByteArray_appendByte(array, WASM_OPCODE_RETURN);
-    if (value != null) {
-      wasmEmitNode(array, value, context);
-    }
-  }
-
-  else if (node.kind == NodeKind.VARIABLES) {
-    var count = 0;
-    var child = node.firstChild;
-    while (child != null) {
-      assert(child.kind == NodeKind.VARIABLE);
-      count = count + wasmEmitNode(array, child, context);
-      child = child.nextSibling;
-    }
-    return count;
-  }
-
-  else if (node.kind == NodeKind.IF) {
-    var branch = node.ifFalse();
-    ByteArray_appendByte(array, branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.ifValue(), context);
-    wasmEmitNode(array, node.ifTrue(), context);
-    if (branch != null) {
-      wasmEmitNode(array, branch, context);
-    }
-  }
-
-  else if (node.kind == NodeKind.HOOK) {
-    ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.hookValue(), context);
-    wasmEmitNode(array, node.hookTrue(), context);
-    wasmEmitNode(array, node.hookFalse(), context);
-  }
-
-  else if (node.kind == NodeKind.VARIABLE) {
-    var value = node.variableValue();
-
-    if (node.symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-      ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
-      wasmWriteVarUnsigned(array, node.symbol.offset);
-
-      if (value != null) {
-        wasmEmitNode(array, value, context);
-      }
-
-      // Default initialization
-      else {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-        wasmWriteVarSigned(array, 0);
-      }
-    }
-
-    else {
-      assert(false);
-    }
-  }
-
-  else if (node.kind == NodeKind.NAME) {
-    if (node.symbol.kind == SymbolKind.VARIABLE_ARGUMENT || node.symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-      ByteArray_appendByte(array, WASM_OPCODE_GET_LOCAL);
-      wasmWriteVarUnsigned(array, node.symbol.offset);
-    }
-
-    else {
-      assert(false);
-    }
-  }
-
-  else if (node.kind == NodeKind.NULL) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, 0);
-  }
-
-  else if (node.kind == NodeKind.INT || node.kind == NodeKind.BOOL) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, node.intValue);
-  }
-
-  else if (node.kind == NodeKind.STRING) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, node.intValue); // The string offset is stored in "intValue"
-  }
-
-  else if (node.kind == NodeKind.CALL) {
-    var value = node.callValue();
-    var symbol = value.symbol;
-    assert(isFunction(symbol.kind));
-
-    ByteArray_appendByte(array, symbol.node.functionBody() == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
-    wasmWriteVarUnsigned(array, symbol.offset);
-
-    // Write out the implicit "this" argument
-    if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-      wasmEmitNode(array, value.dotTarget(), context);
-    }
-
-    var child = value.nextSibling;
-    while (child != null) {
-      wasmEmitNode(array, child, context);
-      child = child.nextSibling;
-    }
-  }
-
-  else if (node.kind == NodeKind.NEW) {
-    var type = node.newType();
-    assert(type.symbol.kind == SymbolKind.TYPE_CLASS);
-
-    ByteArray_appendByte(array, WASM_OPCODE_CALL_IMPORT);
-    wasmWriteVarUnsigned(array, WASM_MALLOC_FUNCTION_INDEX);
-
-    // Pass the object size as the first argument
-    assert(type.symbol.byteSize > 0);
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, type.symbol.byteSize);
-  }
-
-  else if (node.kind == NodeKind.POSITIVE) {
-    wasmEmitNode(array, node.unaryValue(), context);
-  }
-
-  else if (node.kind == NodeKind.NEGATIVE) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_SUB);
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, 0);
-    wasmEmitNode(array, node.unaryValue(), context);
-  }
-
-  else if (node.kind == NodeKind.COMPLEMENT) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_XOR);
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, ~0);
-    wasmEmitNode(array, node.unaryValue(), context);
-  }
-
-  else if (node.kind == NodeKind.NOT) {
-    ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ);
-    wasmEmitNode(array, node.unaryValue(), context);
-  }
-
-  else if (node.kind == NodeKind.CAST) {
-    var value = node.castValue();
-    var from = value.resolvedType.underlyingType(context);
-    var type = node.resolvedType.underlyingType(context);
-
-    // The cast isn't needed if it's to a wider integer type
-    if (from == type || from.symbol.byteSize < type.symbol.byteSize) {
-      wasmEmitNode(array, value, context);
-    }
-
-    else {
-      // Sign-extend
-      if (type == context.byteType || type == context.shortType) {
-        var shift = 32 - type.symbol.byteSize * 8;
-        ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
-        ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
-        wasmEmitNode(array, value, context);
-        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-        wasmWriteVarSigned(array, shift);
-        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-        wasmWriteVarSigned(array, shift);
-      }
-
-      // Mask
-      else if (type == context.ubyteType || type == context.ushortType) {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
-        wasmEmitNode(array, value, context);
-        ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-        wasmWriteVarSigned(array, type.integerBitMask() as int);
-      }
-
-      // No cast needed
-      else {
-        wasmEmitNode(array, value, context);
-      }
-    }
-  }
-
-  else if (node.kind == NodeKind.DOT) {
-    var symbol = node.symbol;
-
-    if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
-      var type = symbol.resolvedType;
-      var byteSize = type.byteSize();
-
-      if (byteSize == 1) {
-        ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
-        wasmWriteVarUnsigned(array, 0);
-      }
-
-      else if (byteSize == 2) {
-        ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD16_U : WASM_OPCODE_I32_LOAD16_S);
-        wasmWriteVarUnsigned(array, 1);
-      }
-
-      else if (byteSize == 4) {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
-        wasmWriteVarUnsigned(array, 2);
-      }
-
-      else {
-        assert(false);
-      }
-
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.dotTarget(), context);
-    }
-
-    else {
-      assert(false);
-    }
-  }
-
-  else if (node.kind == NodeKind.ASSIGN) {
-    var left = node.binaryLeft();
-    var symbol = left.symbol;
-
-    if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
-      var byteSize = symbol.resolvedType.byteSize();
-
-      if (byteSize == 1) {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE8);
-        wasmWriteVarUnsigned(array, 0);
-      }
-
-      else if (byteSize == 2) {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE16);
-        wasmWriteVarUnsigned(array, 1);
-      }
-
-      else if (byteSize == 4) {
-        ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
-        wasmWriteVarUnsigned(array, 2);
-      }
-
-      else {
-        assert(false);
-      }
-
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, left.dotTarget(), context);
-      wasmEmitNode(array, node.binaryRight(), context);
-    }
-
-    else if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-      ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
-      wasmWriteVarUnsigned(array, symbol.offset);
-      wasmEmitNode(array, node.binaryRight(), context);
-    }
-
-    else {
-      assert(false);
-    }
-  }
-
-  else if (node.kind == NodeKind.LOGICAL_AND) {
-    ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.binaryLeft(), context);
-    wasmEmitNode(array, node.binaryRight(), context);
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, 0);
-  }
-
-  else if (node.kind == NodeKind.LOGICAL_OR) {
-    ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
-    wasmEmitNode(array, node.binaryLeft(), context);
-    ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
-    wasmWriteVarSigned(array, 1);
-    wasmEmitNode(array, node.binaryRight(), context);
-  }
-
-  else {
-    var isUnsigned = node.isUnsignedOperator();
-
-    if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD, context);
-    else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND, context);
-    else if (node.kind == NodeKind.BITWISE_OR) emitBinaryExpression(array, node, WASM_OPCODE_I32_OR, context);
-    else if (node.kind == NodeKind.BITWISE_XOR) emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR, context);
-    else if (node.kind == NodeKind.EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_EQ, context);
-    else if (node.kind == NodeKind.MULTIPLY) emitBinaryExpression(array, node, WASM_OPCODE_I32_MUL, context);
-    else if (node.kind == NodeKind.NOT_EQUAL) emitBinaryExpression(array, node, WASM_OPCODE_I32_NE, context);
-    else if (node.kind == NodeKind.SHIFT_LEFT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SHL, context);
-    else if (node.kind == NodeKind.SUBTRACT) emitBinaryExpression(array, node, WASM_OPCODE_I32_SUB, context);
-
-    else if (node.kind == NodeKind.DIVIDE) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_DIV_U : WASM_OPCODE_I32_DIV_S, context);
-    else if (node.kind == NodeKind.GREATER_THAN) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GT_U : WASM_OPCODE_I32_GT_S, context);
-    else if (node.kind == NodeKind.GREATER_THAN_EQUAL) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_GE_U : WASM_OPCODE_I32_GE_S, context);
-    else if (node.kind == NodeKind.LESS_THAN) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LT_U : WASM_OPCODE_I32_LT_S, context);
-    else if (node.kind == NodeKind.LESS_THAN_EQUAL) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_LE_U : WASM_OPCODE_I32_LE_S, context);
-    else if (node.kind == NodeKind.REMAINDER) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_REM_U : WASM_OPCODE_I32_REM_S, context);
-    else if (node.kind == NodeKind.SHIFT_RIGHT) emitBinaryExpression(array, node, isUnsigned ? WASM_OPCODE_I32_SHR_U : WASM_OPCODE_I32_SHR_S, context);
-
-    else {
-      assert(false);
-    }
-  }
-
-  return 1;
-}
-
 function wasmWrapType(id: int): WasmType {
   assert(id == WASM_TYPE_VOID || id == WASM_TYPE_I32);
   var type = new WasmType();
   type.id = id;
   return type;
-}
-
-function wasmGetType(context: CheckContext, type: Type): int {
-  if (type == context.boolType || type.isInteger() || type.isReference(context)) {
-    return WASM_TYPE_I32;
-  }
-
-  if (type == context.voidType) {
-    return WASM_TYPE_VOID;
-  }
-
-  assert(false);
-  return WASM_TYPE_VOID;
 }
 
 class WasmSharedOffset {
@@ -1070,20 +1133,19 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
 
 function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   var module = new WasmModule();
+  module.context = context;
   module.memoryInitializer = ByteArray_new();
 
-  // Make room for the initial heap offset
-  ByteArray_appendByte(module.memoryInitializer, 0);
-  ByteArray_appendByte(module.memoryInitializer, 0);
-  ByteArray_appendByte(module.memoryInitializer, 0);
-  ByteArray_appendByte(module.memoryInitializer, 0);
+  // Set these to invalid values since "0" is valid
+  module.mallocFunctionIndex = -1;
+  module.heapPointerOffset = -1;
 
-  // The "malloc" equivalent is in the standard library
-  var signatureIndex = module.allocateSignature(wasmWrapType(WASM_TYPE_I32), wasmWrapType(WASM_TYPE_I32));
-  module.allocateImport(signatureIndex, String_new("imports"), String_new("new"));
+  // Emission requires two passes
+  module.prepareToEmit(global);
 
-  // Build the string table
-  module.collectStrings(global);
-  module.prepareFunctions(global, context);
-  module.emitModule(array, context);
+  // The standard library must be included
+  assert(module.mallocFunctionIndex != -1);
+  assert(module.heapPointerOffset != -1);
+
+  module.emitModule(array);
 }

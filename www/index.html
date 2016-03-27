@@ -151,15 +151,7 @@
     var stdlib = {
       arrays: arrays,
       strings: strings,
-      heapOffset: 0,
       bytes: null,
-
-      'new': function(size) {
-        var result = stdlib.heapOffset;
-        size = (size + 7) & ~7;
-        stdlib.heapOffset += size; // Use a simple bump allocator for now
-        return result;
-      },
 
       assert: function(truth) {
         if (!truth) {
@@ -323,7 +315,6 @@
     var memory = exports.memory;
 
     stdlib.bytes = new Uint8Array(memory);
-    stdlib.heapOffset = new Int32Array(memory)[2];
 
     stdlib.strings.push('<stdin>');
     var nameString = stdlib.strings.length;

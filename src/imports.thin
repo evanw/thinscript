@@ -27,3 +27,8 @@ function ByteArray_appendByte(self: ByteArray, byte: int): void;
 function isPositivePowerOf2(value: int): bool {
   return value > 0 && (value & (value - 1)) == 0;
 }
+
+function alignToNextMultipleOf(offset: int, alignment: int): int {
+  assert(isPositivePowerOf2(alignment));
+  return (offset + alignment - 1) & -alignment;
+}
