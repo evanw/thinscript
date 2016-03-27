@@ -499,7 +499,7 @@ class WasmModule {
     memoryInitializer.set(heapPointerOffset + 3, (initialHeapPointer >> 24) as ubyte);
 
     var section = wasmStartSection(array, String_new("data_segments"));
-    wasmWriteVarUnsigned(array, 1);
+    wasmWriteVarUnsigned(array, 1); // A single section containing everything
 
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
     wasmWriteVarUnsigned(array, initalizerLength);

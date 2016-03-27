@@ -18,18 +18,17 @@ class ByteArray {
 
   get(index: int): ubyte {
     unsafe {
-      if (this._handle != 0) {
-        return ByteArray_getByte(this._handle, index);
-      }
+      assert(this._handle != 0);
+      assert(index >= 0 && index < this.length());
+      return ByteArray_getByte(this._handle, index);
     }
-    return 0;
   }
 
   set(index: int, value: ubyte): void {
     unsafe {
-      if (this._handle != 0) {
-        ByteArray_setByte(this._handle, index, value);
-      }
+      assert(this._handle != 0);
+      assert(index >= 0 && index < this.length());
+      ByteArray_setByte(this._handle, index, value);
     }
   }
 

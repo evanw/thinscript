@@ -1105,17 +1105,16 @@ ByteArray.prototype.length = function() {
 };
 
 ByteArray.prototype.get = function(index) {
-  if (this._handle !== 0) {
-    return globals.ByteArray_getByte(this._handle, index);
-  }
+  globals.assert(this._handle !== 0);
+  globals.assert(index >= 0 && index < this.length());
 
-  return 0;
+  return globals.ByteArray_getByte(this._handle, index);
 };
 
 ByteArray.prototype.set = function(index, value) {
-  if (this._handle !== 0) {
-    globals.ByteArray_setByte(this._handle, index, value);
-  }
+  globals.assert(this._handle !== 0);
+  globals.assert(index >= 0 && index < this.length());
+  globals.ByteArray_setByte(this._handle, index, value);
 };
 
 ByteArray.prototype.append = function(value) {

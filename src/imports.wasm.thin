@@ -16,18 +16,15 @@ class ByteArray {
 
   get(index: int): ubyte {
     unsafe {
-      if ((index as uint) >= this._length) {
-        return ((this._data as int + index) as UBytePtr).value;
-      }
-      return 0;
+      assert((index as uint) < this._length);
+      return ((this._data as int + index) as UBytePtr).value;
     }
   }
 
   set(index: int, value: ubyte): void {
     unsafe {
-      if ((index as uint) < this._length) {
-        ((this._data as int + index) as UBytePtr).value = value;
-      }
+      assert((index as uint) < this._length);
+      ((this._data as int + index) as UBytePtr).value = value;
     }
   }
 
