@@ -203,8 +203,13 @@
         return strings[self - 1] === parseString(stdlib.bytes, other);
       },
 
-      String_toString: function(value) {
-        strings.push(value.toString());
+      String_toStringSigned: function(value) {
+        strings.push((value | 0).toString());
+        return strings.length;
+      },
+
+      String_toStringUnsigned: function(value) {
+        strings.push((value >>> 0).toString());
         return strings.length;
       },
 
@@ -277,8 +282,12 @@
         return self === other;
       },
 
-      String_toString: function(value) {
-        return value.toString();
+      String_toStringSigned: function(value) {
+        return (value | 0).toString();
+      },
+
+      String_toStringUnsigned: function(value) {
+        return (value >>> 0).toString();
       },
 
       String_quote: function(self) {

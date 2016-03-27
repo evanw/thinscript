@@ -647,6 +647,8 @@ function emitBinaryExpression(array: ByteArray, node: Node, opcode: int, context
 }
 
 function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int {
+  assert(!isExpression(node) || node.resolvedType != null);
+
   if (node.kind == NodeKind.BLOCK) {
     ByteArray_appendByte(array, WASM_OPCODE_BLOCK);
     var offset = ByteArray_length(array);
@@ -997,7 +999,7 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
   }
 
   else {
-    var isUnsigned = node.binaryLeft().resolvedType.isUnsigned();
+    var isUnsigned = node.isUnsignedOperator();
 
     if (node.kind == NodeKind.ADD) emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD, context);
     else if (node.kind == NodeKind.BITWISE_AND) emitBinaryExpression(array, node, WASM_OPCODE_I32_AND, context);

@@ -492,7 +492,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
 
     else if (symbol.resolvedType != context.errorType) {
-      node.appendChild(createDefaultValueForType(context, symbol.resolvedType));
+      value = createDefaultValueForType(context, symbol.resolvedType);
+      resolveAsExpression(context, value, parentScope);
+      node.appendChild(value);
     }
   }
 
@@ -520,7 +522,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.INT) {
-    node.resolvedType = context.intType;
+    node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
   }
 
   else if (node.kind == NodeKind.STRING) {
@@ -787,6 +789,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolveAsExpression(context, right, parentScope);
 
     var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+    if (commonType == context.uintType) {
+      node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
+    }
     checkConversion(context, left, commonType, ConversionKind.IMPLICIT);
     checkConversion(context, right, commonType, ConversionKind.IMPLICIT);
     node.resolvedType = commonType;
@@ -828,6 +833,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       leftType == rightType && leftType.isEnum() ? leftType :
       binaryHasUnsignedArguments(node) ? context.uintType :
       context.intType;
+    if (expectedType == context.uintType) {
+      node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
+    }
     checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
     checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
     node.resolvedType = context.boolType;
@@ -855,7 +863,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (leftType != context.errorType && rightType != context.errorType && (leftType == rightType ? leftType == context.voidType :
         (leftType != context.nullType || !rightType.isReference(context)) &&
-        (rightType != context.nullType || !leftType.isReference(context)))) {
+        (rightType != context.nullType || !leftType.isReference(context)) &&
+        (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
+        (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
       context.log.error(node.range, String_appendNew(String_append(String_appendNew(String_append(
         String_new("Cannot compare type '"),
         leftType.toString()),
@@ -870,7 +880,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolveAsExpression(context, value, parentScope);
     var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
     checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
-    node.resolvedType = expectedType;
+    node.resolvedType = node.kind == NodeKind.NEGATIVE ? context.intType : expectedType;
 
     // Automatically fold constants
     if (value.kind == NodeKind.INT) {

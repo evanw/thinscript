@@ -82,6 +82,7 @@ function isExpression(node: Node): bool {
 }
 
 const NODE_FLAG_EXTERN = 1;
+const NODE_FLAG_UNSIGNED_OPERATOR = 2;
 
 class Node {
   kind: NodeKind;
@@ -105,6 +106,14 @@ class Node {
 
   isNonNegativeInteger(): bool {
     return this.kind == NodeKind.INT && this.intValue >= 0;
+  }
+
+  isExtern(): bool {
+    return (this.flags & NODE_FLAG_EXTERN) != 0;
+  }
+
+  isUnsignedOperator(): bool {
+    return (this.flags & NODE_FLAG_UNSIGNED_OPERATOR) != 0;
   }
 
   childCount(): int {

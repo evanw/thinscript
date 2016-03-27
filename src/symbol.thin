@@ -68,7 +68,7 @@ class Symbol {
   }
 
   isExtern(): bool {
-    return (this.node.flags & NODE_FLAG_EXTERN) != 0;
+    return this.node.isExtern();
   }
 
   resolvedTypeUnderlyingIfEnumValue(context: CheckContext): Type {

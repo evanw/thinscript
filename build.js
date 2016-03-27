@@ -40,8 +40,12 @@ function loadStdlibForJavaScript() {
       return self === other;
     },
 
-    String_toString: function(value) {
-      return value.toString();
+    String_toStringSigned: function(value) {
+      return (value | 0).toString();
+    },
+
+    String_toStringUnsigned: function(value) {
+      return (value >>> 0).toString();
     },
 
     String_quote: function(self) {

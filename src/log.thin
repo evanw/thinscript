@@ -93,9 +93,9 @@ class Log {
 
       result = String_append(result, d.range.source.name);
       result = String_appendNew(result, ":");
-      result = String_append(result, String_toString(line + 1));
+      result = String_append(result, String_toStringSigned(line + 1));
       result = String_appendNew(result, ":");
-      result = String_append(result, String_toString(column + 1));
+      result = String_append(result, String_toStringSigned(column + 1));
       result = String_appendNew(result, ": error: ");
       result = String_append(result, d.message);
       result = String_appendNew(result, "\n");

@@ -330,7 +330,9 @@ function resolve(context, node, parentScope) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
     } else if (symbol.resolvedType !== context.errorType) {
-      node.appendChild(createDefaultValueForType(context, symbol.resolvedType));
+      value = createDefaultValueForType(context, symbol.resolvedType);
+      resolveAsExpression(context, value, parentScope);
+      node.appendChild(value);
     }
   } else if (node.kind === 3 || node.kind === 6) {
     var found = false;
@@ -350,7 +352,7 @@ function resolve(context, node, parentScope) {
   } else if (node.kind === 5 || node.kind === 13) {
     resolveChildren(context, node, parentScope);
   } else if (node.kind === 20) {
-    node.resolvedType = context.intType;
+    node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
   } else if (node.kind === 25) {
     node.resolvedType = context.stringType;
   } else if (node.kind === 15) {
@@ -503,6 +505,9 @@ function resolve(context, node, parentScope) {
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
     var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+    if (commonType === context.uintType) {
+      node.flags = node.flags | 2;
+    }
     checkConversion(context, left, commonType, 0);
     checkConversion(context, right, commonType, 0);
     node.resolvedType = commonType;
@@ -545,6 +550,9 @@ function resolve(context, node, parentScope) {
     var leftType = left.resolvedType;
     var rightType = right.resolvedType;
     var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+    if (expectedType === context.uintType) {
+      node.flags = node.flags | 2;
+    }
     checkConversion(context, left, expectedType, 0);
     checkConversion(context, right, expectedType, 0);
     node.resolvedType = context.boolType;
@@ -564,7 +572,7 @@ function resolve(context, node, parentScope) {
     node.resolvedType = context.boolType;
     var leftType = left.resolvedType;
     var rightType = right.resolvedType;
-    if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)))) {
+    if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
       context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot compare type '"), leftType.toString()), "' with type '"), rightType.toString()), "'"));
     }
   } else if (node.kind === 28 || node.kind === 29 || node.kind === 31) {
@@ -572,7 +580,7 @@ function resolve(context, node, parentScope) {
     resolveAsExpression(context, value, parentScope);
     var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
     checkConversion(context, value, expectedType, 0);
-    node.resolvedType = expectedType;
+    node.resolvedType = node.kind === 29 ? context.intType : expectedType;
     if (value.kind === 20) {
       var input = value.intValue;
       var output = input;
@@ -716,8 +724,8 @@ JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
 JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
   var isRightAssociative = node.kind === 37;
   var parentKind = node.parent.kind;
-  var shouldCastToInt = mode === 1 && parentKind !== 52 && parentKind !== 53 && parentKind !== 39 && parentKind !== 38 && parentKind !== 40;
-  var isUnsigned = node.resolvedType.isUnsigned();
+  var isUnsigned = node.isUnsignedOperator();
+  var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 52 && parentKind !== 53 && parentKind !== 39 && parentKind !== 38 && parentKind !== 40);
   var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
   if (parentPrecedence > selfPrecedence) {
     this.emitText("(");
@@ -739,6 +747,7 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
   }
 };
 JsResult.prototype.emitExpression = function(node, parentPrecedence) {
+  __imports.assert(node.resolvedType !== null);
   if (node.kind === 21) {
     this.emitString(node.symbol.name);
   } else if (node.kind === 23) {
@@ -746,7 +755,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   } else if (node.kind === 15) {
     this.emitText(node.intValue !== 0 ? "true" : "false");
   } else if (node.kind === 20) {
-    this.emitString(__imports.String_toString(node.intValue));
+    this.emitString(node.resolvedType.isUnsigned() ? __imports.String_toStringUnsigned(node.intValue >>> 0) : __imports.String_toStringSigned(node.intValue));
   } else if (node.kind === 25) {
     this.emitString(__imports.String_quote(node.stringValue));
   } else if (node.kind === 17) {
@@ -760,7 +769,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
       if (parentPrecedence > 9) {
         this.emitText("(");
       }
-      var shift = __imports.String_toString(32 - (type.symbol.byteSize << 3) | 0);
+      var shift = __imports.String_toStringSigned(32 - (type.symbol.byteSize << 3) | 0);
       this.emitExpression(value, 9);
       this.emitText(" << ");
       this.emitString(shift);
@@ -775,7 +784,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
       }
       this.emitExpression(value, 6);
       this.emitText(" & ");
-      this.emitString(__imports.String_toString(type.integerBitMask() | 0));
+      this.emitString(__imports.String_toStringUnsigned(type.integerBitMask()));
       if (parentPrecedence > 6) {
         this.emitText(")");
       }
@@ -885,18 +894,28 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   } else if (node.kind === 52) {
     this.emitBinary(node, parentPrecedence, " << ", 9, 0);
   } else if (node.kind === 53) {
-    this.emitBinary(node, parentPrecedence, node.resolvedType.isUnsigned() ? " >>> " : " >> ", 9, 0);
+    this.emitBinary(node, parentPrecedence, node.isUnsignedOperator() ? " >>> " : " >> ", 9, 0);
   } else if (node.kind === 54) {
     this.emitBinary(node, parentPrecedence, " - ", 10, 1);
   } else if (node.kind === 49) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
+    var isUnsigned = node.isUnsignedOperator();
+    if (isUnsigned && parentPrecedence > 9) {
+      this.emitText("(");
+    }
     this.emitText("__imul(");
     this.emitExpression(left, 0);
     this.emitText(", ");
     this.emitExpression(right, 0);
     this.emitText(")");
     this.foundMultiply = true;
+    if (isUnsigned) {
+      this.emitText(" >>> 0");
+      if (parentPrecedence > 9) {
+        this.emitText(")");
+      }
+    }
   } else {
     __imports.assert(false);
   }
@@ -1619,9 +1638,9 @@ Log.prototype.toString = function() {
     }
     result = __imports.String_append(result, d.range.source.name);
     result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(line + 1 | 0));
+    result = __imports.String_append(result, __imports.String_toStringSigned(line + 1 | 0));
     result = __imports.String_appendNew(result, ":");
-    result = __imports.String_append(result, __imports.String_toString(column + 1 | 0));
+    result = __imports.String_append(result, __imports.String_toStringSigned(column + 1 | 0));
     result = __imports.String_appendNew(result, ": error: ");
     result = __imports.String_append(result, d.message);
     result = __imports.String_appendNew(result, "\n");
@@ -1679,6 +1698,12 @@ Node.prototype.isNegativeInteger = function() {
 };
 Node.prototype.isNonNegativeInteger = function() {
   return this.kind === 20 && this.intValue >= 0;
+};
+Node.prototype.isExtern = function() {
+  return (this.flags & 1) !== 0;
+};
+Node.prototype.isUnsignedOperator = function() {
+  return (this.flags & 2) !== 0;
 };
 Node.prototype.childCount = function() {
   var count = 0;
@@ -2135,7 +2160,7 @@ function createParseError() {
   node.kind = 24;
   return node;
 }
-function parseInt(range) {
+function parseInt(range, node) {
   var source = range.source;
   var i = range.start;
   var limit = range.end;
@@ -2156,10 +2181,16 @@ function parseInt(range) {
   }
   while (i < limit) {
     var c = __imports.String_get(source.contents, i);
-    value = __imul(value, base) + (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) | 0;
+    var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
+    var baseValue = __imul(value, base) >>> 0;
+    if (baseValue / base >>> 0 !== value || baseValue > (-1 >>> 0) - digit >>> 0) {
+      return false;
+    }
+    value = baseValue + digit >>> 0;
     i = i + 1 | 0;
   }
-  return value;
+  node.intValue = value | 0;
+  return true;
 }
 function ParserContext() {
   this.previous = null;
@@ -2298,9 +2329,13 @@ ParserContext.prototype.parsePrefix = function(mode) {
       return createString(text).withRange(token.range);
     }
     if (this.peek(3)) {
-      var value = parseInt(token.range);
+      var value = createInt(0);
+      if (!parseInt(token.range, value)) {
+        this.log.error(token.range, __imports.String_new("Integer literal is too big to fit in 32 bits"));
+        value = createParseError();
+      }
       this.advance();
-      return createInt(value).withRange(token.range);
+      return value.withRange(token.range);
     }
     if (this.eat(60)) {
       return createBool(true).withRange(token.range);
@@ -2936,7 +2971,7 @@ Symbol.prototype.isEnumValue = function() {
   return this.node.parent.kind === 8;
 };
 Symbol.prototype.isExtern = function() {
-  return (this.node.flags & 1) !== 0;
+  return this.node.isExtern();
 };
 Symbol.prototype.resolvedTypeUnderlyingIfEnumValue = function(context) {
   return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
@@ -3387,6 +3422,7 @@ function emitBinaryExpression(array, node, opcode, context) {
   wasmEmitNode(array, node.binaryRight(), context);
 }
 function wasmEmitNode(array, node, context) {
+  __imports.assert(!isExpression(node) || node.resolvedType !== null);
   if (node.kind === 2) {
     __imports.ByteArray_appendByte(array, 1);
     var offset = __imports.ByteArray_length(array);
@@ -3622,7 +3658,7 @@ function wasmEmitNode(array, node, context) {
     wasmWriteVarSigned(array, 1);
     wasmEmitNode(array, node.binaryRight(), context);
   } else {
-    var isUnsigned = node.binaryLeft().resolvedType.isUnsigned();
+    var isUnsigned = node.isUnsignedOperator();
     if (node.kind === 36) {
       emitBinaryExpression(array, node, 64, context);
     } else if (node.kind === 38) {
