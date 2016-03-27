@@ -86,7 +86,7 @@ var CompileTarget = {
 function compileAndRunJavaScript(code, sources, target) {
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
-  new Function('__imports', 'exports', code)(stdlib, exports);
+  new Function('globals', 'exports', code)(stdlib, exports);
   var compiler = exports.Compiler_new(target);
   sources.forEach(function(source) {
     if (/\.js\./.test(source.name) && target !== CompileTarget.JAVASCRIPT ||

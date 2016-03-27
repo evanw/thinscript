@@ -81,42 +81,46 @@
   var downloadName = null;
   var blobToDownload = null;
 
-  var example =
-    'class Link {\n' +
-    '  value: int;\n' +
-    '  next: Link;\n' +
-    '}\n' +
-    '\n' +
-    'class List {\n' +
-    '  first: Link;\n' +
-    '  last: Link;\n' +
-    '\n' +
-    '  append(value: int): void {\n' +
-    '    var link = new Link();\n' +
-    '    link.value = value;\n' +
-    '\n' +
-    '    // Append the new link to the end of the chain\n' +
-    '    if (this.first == null) this.first = link;\n' +
-    '    else this.last.next = link;\n' +
-    '    this.last = link;\n' +
-    '  }\n' +
-    '}\n' +
-    '\n' +
-    'extern function main(): int {\n' +
-    '  var list = new List();\n' +
-    '  list.append(1);\n' +
-    '  list.append(2);\n' +
-    '  list.append(3);\n' +
-    '\n' +
-    '  var total = 0;\n' +
-    '  var link = list.first;\n' +
-    '  while (link != null) {\n' +
-    '    total = total + link.value;\n' +
-    '    link = link.next;\n' +
-    '  }\n' +
-    '\n' +
-    '  return total;\n' +
-    '}\n';
+  var example = [
+    'declare function print(text: string): void;',
+    '',
+    'class Link {',
+    '  value: int;',
+    '  next: Link;',
+    '}',
+    '',
+    'class List {',
+    '  first: Link;',
+    '  last: Link;',
+    '',
+    '  append(value: int): void {',
+    '    var link = new Link();',
+    '    link.value = value;',
+    '',
+    '    // Append the new link to the end of the chain',
+    '    if (this.first == null) this.first = link;',
+    '    else this.last.next = link;',
+    '    this.last = link;',
+    '  }',
+    '}',
+    '',
+    'extern function main(): int {',
+    '  var list = new List();',
+    '  list.append(1);',
+    '  list.append(2);',
+    '  list.append(3);',
+    '',
+    '  var total = 0;',
+    '  var link = list.first;',
+    '  while (link != null) {',
+    '    total = total + link.value;',
+    '    link = link.next;',
+    '  }',
+    '',
+    '  print("hello, world\\n");',
+    '  return total;',
+    '}',
+  ].join('\n') + '\n';
 
   function fetch(url, responseType, callback) {
     var xhr = new XMLHttpRequest;
@@ -337,7 +341,7 @@
   function compileAndRunJavaScript(code, input, target) {
     var stdlib = loadStdlibForJavaScript();
     var exports = {};
-    new Function('__imports', 'exports', code)(stdlib, exports);
+    new Function('globals', 'exports', code)(stdlib, exports);
 
     var compiler = exports.Compiler_new(target);
     exports.Compiler_addInput(compiler, '<stdin>', input);

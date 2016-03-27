@@ -244,7 +244,7 @@ class JsResult {
     else if (node.kind == NodeKind.CALL) {
       var value = node.callValue();
       if (value.symbol.node.functionBody() == null) {
-        this.emitText("__imports.");
+        this.emitText("globals.");
       }
       this.emitExpression(value, Precedence.UNARY_POSTFIX);
       this.emitText("(");
