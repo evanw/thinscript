@@ -1,42 +1,3 @@
-function ByteArray() {
-  this._handle = 0;
-}
-ByteArray.prototype.length = function() {
-  {
-    if (this._handle !== 0) {
-      return __imports.ByteArray_length(this._handle);
-    }
-  }
-  return 0;
-};
-ByteArray.prototype.get = function(index) {
-  {
-    if (this._handle !== 0) {
-      return __imports.ByteArray_getByte(this._handle, index);
-    }
-  }
-  return 0;
-};
-ByteArray.prototype.set = function(index, value) {
-  {
-    if (this._handle !== 0) {
-      __imports.ByteArray_setByte(this._handle, index, value);
-    }
-  }
-};
-ByteArray.prototype.append = function(value) {
-  {
-    if (this._handle === 0) {
-      this._handle = __imports.ByteArray_new();
-    }
-    __imports.ByteArray_appendByte(this._handle, value);
-  }
-};
-ByteArray.prototype.handle = function() {
-  {
-    return this._handle;
-  }
-};
 function CheckContext() {
   this.log = null;
   this.isUnsafeAllowed = false;
@@ -752,9 +713,7 @@ Compiler.prototype.initialize = function(target) {
   this.global = new Node();
   this.global.kind = 0;
   this.target = target;
-  if (target === 1) {
-    this.addInput(__imports.String_new("<native>"), __imports.String_new(libraryJS()));
-  } else if (target === 2) {
+  if (target === 2) {
     this.addInput(__imports.String_new("<native>"), __imports.String_new(libraryWASM()));
   }
 };
@@ -808,6 +767,35 @@ var Compiler_js = exports.Compiler_js = function(compiler) {
 var Compiler_log = exports.Compiler_log = function(compiler) {
   return compiler.log.toString();
 };
+function ByteArray() {
+  this._handle = 0;
+}
+ByteArray.prototype.length = function() {
+  if (this._handle !== 0) {
+    return __imports.ByteArray_length(this._handle);
+  }
+  return 0;
+};
+ByteArray.prototype.get = function(index) {
+  if (this._handle !== 0) {
+    return __imports.ByteArray_getByte(this._handle, index);
+  }
+  return 0;
+};
+ByteArray.prototype.set = function(index, value) {
+  if (this._handle !== 0) {
+    __imports.ByteArray_setByte(this._handle, index, value);
+  }
+};
+ByteArray.prototype.append = function(value) {
+  if (this._handle === 0) {
+    this._handle = __imports.ByteArray_new();
+  }
+  __imports.ByteArray_appendByte(this._handle, value);
+};
+ByteArray.prototype.handle = function() {
+  return this._handle;
+};
 function String() {
 }
 function isPositivePowerOf2(value) {
@@ -836,14 +824,16 @@ JsResult.prototype.emitText = function(text) {
 JsResult.prototype.emitString = function(text) {
   this.code = __imports.String_append(this.code, text);
 };
+JsResult.prototype.emitStatements = function(node) {
+  while (node !== null) {
+    this.emitStatement(node);
+    node = node.nextSibling;
+  }
+};
 JsResult.prototype.emitBlock = function(node) {
   this.emitText("{\n");
   this.indent = this.indent + 1 | 0;
-  var child = node.firstChild;
-  while (child !== null) {
-    this.emitStatement(child);
-    child = child.nextSibling;
-  }
+  this.emitStatements(node.firstChild);
   this.indent = this.indent - 1 | 0;
   this.appendIndent();
   this.emitText("}");
@@ -1152,9 +1142,13 @@ JsResult.prototype.emitStatement = function(node) {
       this.emitText("return;\n");
     }
   } else if (node.kind === 2) {
-    this.appendIndent();
-    this.emitBlock(node);
-    this.emitText("\n");
+    if (node.parent.kind === 2) {
+      this.emitStatements(node.firstChild);
+    } else {
+      this.appendIndent();
+      this.emitBlock(node);
+      this.emitText("\n");
+    }
   } else if (node.kind === 14) {
     this.appendIndent();
     this.emitText("var ");
@@ -1743,11 +1737,8 @@ function tokenize(source, log) {
   last = eof;
   return first;
 }
-function libraryJS() {
-  return "\nunsafe function ByteArray_new(): int;\nunsafe function ByteArray_length(self: int): int;\nunsafe function ByteArray_getByte(self: int, index: int): ubyte;\nunsafe function ByteArray_setByte(self: int, index: int, byte: ubyte): void;\nunsafe function ByteArray_appendByte(self: int, byte: ubyte): void;\n\nclass ByteArray {\n  unsafe _handle: int;\n\n  length(): int {\n    unsafe {\n      if (this._handle != 0) {\n        return ByteArray_length(this._handle);\n      }\n    }\n    return 0;\n  }\n\n  get(index: int): ubyte {\n    unsafe {\n      if (this._handle != 0) {\n        return ByteArray_getByte(this._handle, index);\n      }\n    }\n    return 0;\n  }\n\n  set(index: int, value: ubyte): void {\n    unsafe {\n      if (this._handle != 0) {\n        ByteArray_setByte(this._handle, index, value);\n      }\n    }\n  }\n\n  append(value: ubyte): void {\n    unsafe {\n      if (this._handle == 0) {\n        this._handle = ByteArray_new();\n      }\n      ByteArray_appendByte(this._handle, value);\n    }\n  }\n\n  handle(): int {\n    unsafe {\n      return this._handle;\n    }\n  }\n}\n";
-}
 function libraryWASM() {
-  return "\nclass ByteArray {\n  unsafe _data: uint;\n  unsafe _length: uint;\n  unsafe _capacity: uint;\n\n  length(): int {\n    unsafe {\n      return this._length as int;\n    }\n  }\n\n  get(index: int): ubyte {\n    unsafe {\n      if ((index as uint) >= this._length) {\n        return ((this._data as int + index) as UBytePtr).value;\n      }\n      return 0;\n    }\n  }\n\n  set(index: int, value: ubyte): void {\n    unsafe {\n      if ((index as uint) < this._length) {\n        ((this._data as int + index) as UBytePtr).value = value;\n      }\n    }\n  }\n\n  append(value: ubyte): void {\n    unsafe {\n      var offset = this._length;\n      this._resize(offset + 1);\n      ((this._data + offset) as UBytePtr).value = value;\n    }\n  }\n\n  handle(): int {\n    unsafe {\n      return this as int;\n    }\n  }\n\n  _resize(length: uint): void {\n    unsafe {\n      if (length > this._capacity) {\n        var capacity = length * 2;\n        var data = malloc(capacity);\n        memcpy(data, this._data, this._length);\n        this._capacity = capacity;\n        this._data = data;\n      }\n      this._length = length;\n    }\n  }\n}\n\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\nunsafe class IntPtr {\n  value: int;\n}\n\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n\nunsafe function memcpy(to: uint, from: uint, length: uint): void {\n  // Early out: nothing to do\n  if (from == to || length == 0) {\n    return;\n  }\n\n  // Forwards\n  if (from > to) {\n    while (length != 0) {\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      to = to + 1;\n      from = from + 1;\n      length = length - 1;\n    }\n  }\n\n  // Backwards\n  else {\n    to = to + length;\n    from = from + length;\n    while (length != 0) {\n      to = to - 1;\n      from = from - 1;\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      length = length - 1;\n    }\n  }\n}\n";
+  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n\nunsafe function memcpy(to: uint, from: uint, length: uint): void {\n  // Early out: nothing to do\n  if (from == to || length == 0) {\n    return;\n  }\n\n  // Forwards\n  if (from > to) {\n    while (length != 0) {\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      to = to + 1;\n      from = from + 1;\n      length = length - 1;\n    }\n  }\n\n  // Backwards\n  else {\n    to = to + length;\n    from = from + length;\n    while (length != 0) {\n      to = to - 1;\n      from = from - 1;\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      length = length - 1;\n    }\n  }\n}\n";
 }
 function Source() {
   this.name = null;

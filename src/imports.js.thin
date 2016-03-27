@@ -1,0 +1,50 @@
+unsafe function ByteArray_new(): int;
+unsafe function ByteArray_length(self: int): int;
+unsafe function ByteArray_getByte(self: int, index: int): ubyte;
+unsafe function ByteArray_setByte(self: int, index: int, byte: ubyte): void;
+unsafe function ByteArray_appendByte(self: int, byte: ubyte): void;
+
+class ByteArray {
+  unsafe _handle: int;
+
+  length(): int {
+    unsafe {
+      if (this._handle != 0) {
+        return ByteArray_length(this._handle);
+      }
+    }
+    return 0;
+  }
+
+  get(index: int): ubyte {
+    unsafe {
+      if (this._handle != 0) {
+        return ByteArray_getByte(this._handle, index);
+      }
+    }
+    return 0;
+  }
+
+  set(index: int, value: ubyte): void {
+    unsafe {
+      if (this._handle != 0) {
+        ByteArray_setByte(this._handle, index, value);
+      }
+    }
+  }
+
+  append(value: ubyte): void {
+    unsafe {
+      if (this._handle == 0) {
+        this._handle = ByteArray_new();
+      }
+      ByteArray_appendByte(this._handle, value);
+    }
+  }
+
+  handle(): int {
+    unsafe {
+      return this._handle;
+    }
+  }
+}

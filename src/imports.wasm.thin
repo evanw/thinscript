@@ -1,0 +1,55 @@
+class ByteArray {
+  unsafe _data: uint;
+  unsafe _length: uint;
+  unsafe _capacity: uint;
+
+  length(): int {
+    unsafe {
+      return this._length as int;
+    }
+  }
+
+  get(index: int): ubyte {
+    unsafe {
+      if ((index as uint) >= this._length) {
+        return ((this._data as int + index) as UBytePtr).value;
+      }
+      return 0;
+    }
+  }
+
+  set(index: int, value: ubyte): void {
+    unsafe {
+      if ((index as uint) < this._length) {
+        ((this._data as int + index) as UBytePtr).value = value;
+      }
+    }
+  }
+
+  append(value: ubyte): void {
+    unsafe {
+      var offset = this._length;
+      this._resize(offset + 1);
+      ((this._data + offset) as UBytePtr).value = value;
+    }
+  }
+
+  handle(): int {
+    unsafe {
+      return this as int;
+    }
+  }
+
+  _resize(length: uint): void {
+    unsafe {
+      if (length > this._capacity) {
+        var capacity = length * 2;
+        var data = malloc(capacity);
+        memcpy(data, this._data, this._length);
+        this._capacity = capacity;
+        this._data = data;
+      }
+      this._length = length;
+    }
+  }
+}

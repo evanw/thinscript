@@ -89,6 +89,10 @@ function compileAndRunJavaScript(code, sources, target) {
   new Function('__imports', 'exports', code)(stdlib, exports);
   var compiler = exports.Compiler_new(target);
   sources.forEach(function(source) {
+    if (/\.js\./.test(source.name) && target !== CompileTarget.JAVASCRIPT ||
+        /\.wasm\./.test(source.name) && target !== CompileTarget.WEBASSEMBLY) {
+      return;
+    }
     exports.Compiler_addInput(compiler, source.name, source.contents);
   });
   exports.Compiler_finish(compiler);

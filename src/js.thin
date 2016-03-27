@@ -25,16 +25,17 @@ class JsResult {
     this.code = String_append(this.code, text);
   }
 
+  emitStatements(node: Node): void {
+    while (node != null) {
+      this.emitStatement(node);
+      node = node.nextSibling;
+    }
+  }
+
   emitBlock(node: Node): void {
     this.emitText("{\n");
     this.indent = this.indent + 1;
-    var child = node.firstChild;
-
-    while (child != null) {
-      this.emitStatement(child);
-      child = child.nextSibling;
-    }
-
+    this.emitStatements(node.firstChild);
     this.indent = this.indent - 1;
     this.appendIndent();
     this.emitText("}");
@@ -424,9 +425,13 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.BLOCK) {
-      this.appendIndent();
-      this.emitBlock(node);
-      this.emitText("\n");
+      if (node.parent.kind == NodeKind.BLOCK) {
+        this.emitStatements(node.firstChild);
+      } else {
+        this.appendIndent();
+        this.emitBlock(node);
+        this.emitText("\n");
+      }
     }
 
     else if (node.kind == NodeKind.VARIABLES) {

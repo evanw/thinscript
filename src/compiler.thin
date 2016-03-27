@@ -19,11 +19,7 @@ class Compiler {
     this.global.kind = NodeKind.GLOBAL;
     this.target = target;
 
-    if (target == CompileTarget.JAVASCRIPT) {
-      this.addInput(String_new("<native>"), String_new(libraryJS()));
-    }
-
-    else if (target == CompileTarget.WEBASSEMBLY) {
+    if (target == CompileTarget.WEBASSEMBLY) {
       this.addInput(String_new("<native>"), String_new(libraryWASM()));
     }
   }
