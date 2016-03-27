@@ -5098,8 +5098,8 @@ WasmModule.prototype.emitFunctionSignatures = function(array) {
 
 WasmModule.prototype.emitMemory = function(array) {
   var section = wasmStartSection(array, globals.String_new("memory"));
-  wasmWriteVarUnsigned(array, 256);
-  wasmWriteVarUnsigned(array, 256);
+  wasmWriteVarUnsigned(array, 64);
+  wasmWriteVarUnsigned(array, 64);
   wasmWriteVarUnsigned(array, 1);
   wasmFinishSection(array, section);
 };

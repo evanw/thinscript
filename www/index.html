@@ -8,49 +8,127 @@
 
   h1, p {
     padding-right: 50px;
+    clear: both;
   }
 
-  #backend-wasm[disabled] + span,
-  #backend-wasm[disabled] + span + span {
-    color: #BBB;
+  h1 {
+    margin-bottom: 50px;
   }
 
-  #backend-wasm + span + span {
+  p {
+    max-width: 800px;
+    margin: 0 0 30px 0;
+  }
+
+  h2 {
+    clear: both;
+    margin: 0;
+    height: 50px;
+    line-height: 30px;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .not-supported-warning-text {
     display: none;
   }
 
-  #backend-wasm[disabled] + span + span {
+  .wasm-unavailable .wasm-backend-text {
+    color: #BBB;
+  }
+
+  .wasm-unavailable .not-supported-warning-text {
     display: inline;
   }
 
   button {
-    float: right;
+    position: absolute;
+    width: 100px;
+    height: 30px;
+    top: 50px;
+    right: 50px;
+    background: white;
+    border: 1px solid #BBB;
+    border-top-right-radius: 5px;
+    border-bottom-left-radius: 5px;
+    font: inherit;
+    line-height: 20px;
+    padding: 1px 0;
+    background: linear-gradient(white, #F7F7F7);
+    cursor: pointer;
+    color: black;
   }
 
   textarea {
     width: 100%;
     height: 400px;
-    font: 12px/130% monospace;
+    resize: vertical;
+  }
+
+  button:active:not(:disabled) {
+    background: linear-gradient(#EEE, #F7F7F7);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    padding: 2px 0 0 0;
+  }
+
+  button:focus, textarea:focus {
+    outline: none;
+    border-color: #777;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
+
+  textarea:focus + button {
+    border-color: #777;
+  }
+
+  button:disabled {
+    color: black;
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  textarea, code {
+    font: 12px/130% Consolas, monospace;
+  }
+
+  textarea {
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    padding: 5px;
   }
 
   section {
+    position: relative;
     width: 50%;
     float: left;
-    padding-right: 50px;
+    padding: 0 50px 50px 0;
     box-sizing: border-box;
+  }
+
+  .spacer {
+    height: 50px;
   }
 </style>
 <body>
   <h1>ThinScript Compiler Demo</h1>
+
   <p>
-    Compile using:
-    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
-    <label><input type="radio" name="backend" id="backend-wasm"><span> WebAssembly</span><span> (not supported by your browser)</span></label>
-    <br>
-    Compile to:
-    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
-    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly</label>
+    ThinScript is an experimental programming language that compiles to both WebAssembly and JavaScript.
+    It's meant to be a thin layer on top of WebAssembly that makes it easier to work with: no dependencies and fast compile times.
+    The syntax is inspired by TypeScript and the compiler is <a href="https://github.com/evanw/thinscript">open source</a> and bootstrapped (it can compile itself).
   </p>
+
+  <p>
+    This is still an experiment and isn't intended for real use yet.
+    The generated code currently doesn't delete anything.
+    WebAssembly is a volatile work-in-progress and the binary format will be changed before the final release.
+    Debugging support for WebAssembly is non-existent in current implementations.
+    You get the idea.
+  </p>
+
+  <div class="spacer"></div>
 
   <section>
     <h2>Input</h2>
@@ -58,15 +136,44 @@
   </section>
 
   <section>
-    <h2>Output <button id="download">Download</button></h2>
+    <h2>Output</h2>
     <textarea id="output" readonly></textarea>
+    <button id="download">Download</button>
+  </section>
+
+  <p>
+    <b>Compile using:</b>
+    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
+    <label><input type="radio" name="backend" id="backend-wasm"> <span class="wasm-backend-text">WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></span></label>
+    <br>
+    <b>Compile to:</b>
+    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
+    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
+  </p>
+
+  <div class="spacer"></div>
+
+  <section>
+    <h2>Usage</h2>
+    <textarea id="usage" readonly></textarea>
+    <button id="run">Run</button>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <textarea id="log" readonly></textarea>
+    <button id="clear" disabled>Clear</button>
   </section>
 </body>
 <script>
 
 (function() {
+  var run = document.getElementById('run');
+  var clear = document.getElementById('clear');
   var input = document.getElementById('input');
   var output = document.getElementById('output');
+  var usage = document.getElementById('usage');
+  var log = document.getElementById('log');
   var download = document.getElementById('download');
 
   var backendWebAssembly = document.getElementById('backend-wasm');
@@ -79,9 +186,15 @@
   var loadedJavaScript = null;
 
   var downloadName = null;
+  var javaScriptToRun = null;
+  var webAssemblyToRun = null;
   var blobToDownload = null;
 
-  var example = [
+  function joinLines(lines) {
+    return lines.join('\n');
+  }
+
+  var example = joinLines([
     'declare function print(text: string): void;',
     '',
     'class Link {',
@@ -117,10 +230,10 @@
     '    link = link.next;',
     '  }',
     '',
-    '  print("hello, world\\n");',
+    '  print("hello, world");',
     '  return total;',
     '}',
-  ].join('\n') + '\n';
+  ]) + '\n';
 
   function fetch(url, responseType, callback) {
     var xhr = new XMLHttpRequest;
@@ -390,9 +503,11 @@
 
     try {
       if (backendWebAssembly.checked) {
-        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value, target);
+        var compilerJS = compileAndRunWebAssembly(loadedWebAssembly, input.value, CompileTarget.JAVASCRIPT);
+        var compilerWASM = compileAndRunWebAssembly(loadedWebAssembly, input.value, CompileTarget.WEBASSEMBLY);
       } else {
-        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value, target);
+        var compilerJS = compileAndRunJavaScript(loadedJavaScript, input.value, CompileTarget.JAVASCRIPT);
+        var compilerWASM = compileAndRunJavaScript(loadedJavaScript, input.value, CompileTarget.WEBASSEMBLY);
       }
     } catch (e) {
       var message = e + '';
@@ -405,23 +520,67 @@
       return;
     }
 
-    if (compiler.log) {
-      output.value = compiler.log;
+    var log = compilerJS.log || compilerWASM.log;
+
+    if (log) {
+      output.value = log;
       downloadName = 'log.txt';
-      blobToDownload = new Blob([compiler.log], {type: 'text/plain'});
+      blobToDownload = new Blob([log], {type: 'text/plain'});
     }
 
     else if (targetJavaScript.checked) {
-      output.value = compiler.js;
+      output.value = compilerJS.js;
       downloadName = 'compiled.js';
-      blobToDownload = new Blob([compiler.js], {type: 'text/plain'});
+      blobToDownload = new Blob([compilerJS.js], {type: 'text/plain'});
     }
 
     else {
-      output.value = compiler.wasm && hexdump(compiler.wasm);
+      output.value = compilerWASM.wasm && hexdump(compilerWASM.wasm);
       downloadName = 'compiled.wasm';
-      blobToDownload = new Blob([compiler.wasm], {type: 'application/octet-stream'});
+      blobToDownload = new Blob([compilerWASM.wasm], {type: 'application/octet-stream'});
     }
+
+    javaScriptToRun = joinLines([
+      'function compileAndRunJavaScript(compiled) {',
+      '  var globals = {',
+      '    print: function(text) {',
+      '      console.log(text);',
+      '    },',
+      '  };',
+      '  var exports = {};',
+      '  var code = new Function("globals", "exports", compiled)',
+      '  code(globals, exports);',
+      '  var result = exports.main();',
+      '  console.log("result:", result);',
+      '}',
+      '',
+      'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || '') + ');',
+    ]);
+
+    webAssemblyToRun = joinLines([
+      'function compileAndRunWebAssembly(compiled) {',
+      '  var extractString = function(ptr) {',
+      '    var text = "";',
+      '    while (ptr && bytes[ptr]) {',
+      '      text += String.fromCharCode(bytes[ptr++]);',
+      '    }',
+      '    return text;',
+      '  };',
+      '  var globals = {',
+      '    print: function(ptr) {',
+      '      console.log(extractString(ptr));',
+      '    },',
+      '  };',
+      '  var exports = Wasm.instantiateModule(compiled, {globals: globals}).exports;',
+      '  var bytes = new Uint8Array(exports.memory);',
+      '  var result = exports.main();',
+      '  console.log("result:", result);',
+      '}',
+      '',
+      'compileAndRunWebAssembly(new Uint8Array([' + (compilerWASM.wasm ? Array.prototype.slice.call(compilerWASM.wasm).join(', ') : '') + ']));',
+    ]);
+
+    usage.textContent = targetWebAssembly.checked ? webAssemblyToRun : javaScriptToRun;
   }
 
   function downloadCompiledResult() {
@@ -431,6 +590,34 @@
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  function runCompiledResult() {
+    var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? webAssemblyToRun : javaScriptToRun);
+    var target =
+      targetJavaScript.checked ? 'JavaScript' :
+      supportsWebAssembly() ? 'WebAssembly' :
+      'JavaScript (WebAssembly is not supported by your browser)';
+    clear.disabled = false;
+    log.value += (log.value !== '' ? '\n\n' : '') + 'Running using ' + target + ':';
+    code({
+      log: function() {
+        log.value += (log.value !== '' ? '\n' : '') + '> ' + Array.prototype.map.call(arguments, function(item) {
+          var text = item + '';
+          return text === '' || text.indexOf('\n') !== -1 ? JSON.stringify(text) : text;
+        }).join(' ');
+        log.scrollTop = log.scrollHeight;
+      },
+    });
+  }
+
+  function clearLog() {
+    log.value = '';
+    clear.disabled = true;
+  }
+
+  function supportsWebAssembly() {
+    return typeof Wasm !== 'undefined';
   }
 
   function main() {
@@ -446,12 +633,15 @@
         targetJavaScript.onchange = compile;
         input.oninput = compile;
         download.onclick = downloadCompiledResult;
+        run.onclick = runCompiledResult;
+        clear.onclick = clearLog;
 
-        if (typeof Wasm !== 'undefined') {
+        if (supportsWebAssembly()) {
           backendWebAssembly.checked = true;
         } else {
           backendJavaScript.checked = true;
           backendWebAssembly.disabled = true;
+          document.body.className = 'wasm-unavailable';
         }
 
         input.value = example;
