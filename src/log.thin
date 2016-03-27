@@ -1,9 +1,6 @@
-const SOURCE_FLAG_WASM_ONLY = 1;
-
 class Source {
   name: String;
   contents: String;
-  flags: int;
 }
 
 class Range {

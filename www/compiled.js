@@ -1,5 +1,12 @@
+var mallocOffset = 0;
+function malloc(sizeOf) {
+  var offset = mallocOffset + 7 & -8;
+  mallocOffset = offset + sizeOf | 0;
+  return offset;
+}
 function CheckContext() {
   this.log = null;
+  this.isUnsafeAllowed = false;
   this.currentReturnType = null;
   this.nextGlobalVariableOffset = 0;
   this.boolType = null;
@@ -35,7 +42,7 @@ function initialize(context, node, parentScope) {
   if (node.parent !== null) {
     var kind = node.kind;
     var parentKind = node.parent.kind;
-    if (kind !== 1 && kind !== 13 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
+    if (kind !== 1 && kind !== 14 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
       context.log.error(node.range, __imports.String_new("This statement is not allowed here"));
     }
   }
@@ -85,7 +92,7 @@ function initialize(context, node, parentScope) {
     }
   } else if (node.kind === 1) {
     var symbol = new Symbol();
-    symbol.kind = node.parent.kind === 4 ? 9 : node.parent.kind === 10 ? 6 : node.parent.kind === 5 || node.parent.kind === 8 ? 7 : node.parent.kind === 13 && node.parent.parent.kind === 0 ? 8 : 10;
+    symbol.kind = node.parent.kind === 4 ? 9 : node.parent.kind === 10 ? 6 : node.parent.kind === 5 || node.parent.kind === 8 ? 7 : node.parent.kind === 14 && node.parent.parent.kind === 0 ? 8 : 10;
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
     linkSymbolToNode(symbol, node);
@@ -157,7 +164,7 @@ function initializeSymbol(context, symbol) {
       if (value !== null) {
         resolveAsExpression(context, value, symbol.scope);
         checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
-        if (value.kind === 20 || value.kind === 15) {
+        if (value.kind === 22 || value.kind === 17) {
           symbol.offset = value.intValue;
         } else if (value.resolvedType !== context.errorType) {
           context.log.error(value.range, __imports.String_new("Invalid constant initializer"));
@@ -226,13 +233,16 @@ function checkConversion(context, node, to, kind) {
   __imports.assert(to !== null);
   if (from === to || from === context.errorType || to === context.errorType) {
     return;
-  }
-  if (from === context.nullType && to.isReference(context)) {
+  } else if (from === context.nullType && to.isReference(context)) {
     return;
-  }
-  if (from.isInteger() && to.isInteger()) {
+  } else if (context.isUnsafeAllowed && (from.isReference(context) || to.isReference(context))) {
+    if (kind === 1) {
+      return;
+    }
+    canCast = true;
+  } else if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
-    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 20 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
+    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 22 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
       return;
     }
     canCast = true;
@@ -243,7 +253,7 @@ function checkConversion(context, node, to, kind) {
 }
 function checkStorage(context, target) {
   __imports.assert(isExpression(target));
-  if (target.resolvedType !== context.errorType && (target.kind !== 21 && target.kind !== 18 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
+  if (target.resolvedType !== context.errorType && (target.kind !== 23 && target.kind !== 20 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
     context.log.error(target.range, __imports.String_new("Cannot store to this location"));
     target.resolvedType = context.errorType;
   }
@@ -261,38 +271,38 @@ function createDefaultValueForType(context, type) {
 function simplifyBinary(node) {
   var left = node.binaryLeft();
   var right = node.binaryRight();
-  if ((node.kind === 36 || node.kind === 49) && left.kind === 20 && right.kind !== 20) {
+  if ((node.kind === 39 || node.kind === 52 || node.kind === 41 || node.kind === 42 || node.kind === 43) && left.kind === 22 && right.kind !== 22) {
     left.remove();
     node.appendChild(left);
     left = node.binaryLeft();
     right = node.binaryRight();
   }
-  if ((node.kind === 49 || (node.kind === 41 || node.kind === 51) && node.resolvedType.isUnsigned()) && right.kind === 20 && isPositivePowerOf2(right.intValue)) {
+  if ((node.kind === 52 || (node.kind === 44 || node.kind === 54) && node.resolvedType.isUnsigned()) && right.kind === 22 && isPositivePowerOf2(right.intValue)) {
     var shift = -1;
     var value = right.intValue;
     while (value !== 0) {
       value = value >> 1;
       shift = shift + 1 | 0;
     }
-    if (node.kind === 49) {
-      node.kind = 52;
+    if (node.kind === 52) {
+      node.kind = 55;
       right.intValue = shift;
-    } else if (node.kind === 41) {
-      node.kind = 53;
+    } else if (node.kind === 44) {
+      node.kind = 56;
       right.intValue = shift;
-    } else if (node.kind === 51) {
-      node.kind = 38;
+    } else if (node.kind === 54) {
+      node.kind = 41;
       right.intValue = right.intValue - 1 | 0;
     } else {
       __imports.assert(false);
     }
-  } else if (node.kind === 36 && right.kind === 29) {
+  } else if (node.kind === 39 && right.kind === 32) {
     var value = right.unaryValue();
-    node.kind = 54;
+    node.kind = 57;
     value.remove();
     right.replaceWith(value);
-  } else if (node.kind === 36 && right.isNegativeInteger()) {
-    node.kind = 54;
+  } else if (node.kind === 39 && right.isNegativeInteger()) {
+    node.kind = 57;
     right.intValue = -right.intValue;
   }
 }
@@ -302,6 +312,13 @@ function binaryHasUnsignedArguments(node) {
   var leftType = left.resolvedType;
   var rightType = right.resolvedType;
   return leftType.isUnsigned() && rightType.isUnsigned() || leftType.isUnsigned() && right.isNonNegativeInteger() || left.isNonNegativeInteger() && rightType.isUnsigned();
+}
+function isSymbolAccessAllowed(context, symbol, range) {
+  if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
+    context.log.error(range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot use unsafe symbol '"), symbol.name), "' here"));
+    return false;
+  }
+  return true;
 }
 function resolve(context, node, parentScope) {
   __imports.assert(node.kind === 0 || parentScope !== null);
@@ -323,9 +340,12 @@ function resolve(context, node, parentScope) {
     initializeSymbol(context, node.symbol);
     if (body !== null) {
       var oldReturnType = context.currentReturnType;
+      var oldUnsafeAllowed = context.isUnsafeAllowed;
       context.currentReturnType = node.functionReturnType().resolvedType;
+      context.isUnsafeAllowed = node.isUnsafe();
       resolveChildren(context, body, node.scope);
       context.currentReturnType = oldReturnType;
+      context.isUnsafeAllowed = oldUnsafeAllowed;
     }
   } else if (node.kind === 1) {
     var symbol = node.symbol;
@@ -334,7 +354,7 @@ function resolve(context, node, parentScope) {
     if (value !== null) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
-      if (symbol.kind === 8 && value.kind !== 20 && value.kind !== 15 && value.kind !== 23) {
+      if (symbol.kind === 8 && value.kind !== 22 && value.kind !== 17 && value.kind !== 25) {
         context.log.error(value.range, __imports.String_new("Global initializers must be compile-time constants"));
       }
     } else if (symbol.resolvedType !== context.errorType) {
@@ -343,13 +363,13 @@ function resolve(context, node, parentScope) {
       node.appendChild(value);
     }
     if (symbol.kind === 8 && symbol.resolvedType !== context.errorType) {
-      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.sizeOf(), symbol.resolvedType.alignmentOf());
+      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(), symbol.resolvedType.variableAlignmentOf());
     }
   } else if (node.kind === 3 || node.kind === 6) {
     var found = false;
     var n = node;
     while (n !== null) {
-      if (n.kind === 14) {
+      if (n.kind === 15) {
         found = true;
         break;
       }
@@ -359,27 +379,46 @@ function resolve(context, node, parentScope) {
       context.log.error(node.range, __imports.String_new("Cannot use this statement outside of a loop"));
     }
   } else if (node.kind === 2) {
+    var oldUnsafeAllowed = context.isUnsafeAllowed;
+    if (node.isUnsafe()) {
+      context.isUnsafeAllowed = true;
+    }
     resolveChildren(context, node, node.scope);
-  } else if (node.kind === 5 || node.kind === 13) {
+    context.isUnsafeAllowed = oldUnsafeAllowed;
+  } else if (node.kind === 5 || node.kind === 14) {
     resolveChildren(context, node, parentScope);
-  } else if (node.kind === 20) {
+  } else if (node.kind === 22) {
     node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
-  } else if (node.kind === 25) {
+  } else if (node.kind === 28) {
     node.resolvedType = context.stringType;
-  } else if (node.kind === 15) {
+  } else if (node.kind === 17) {
     node.resolvedType = context.boolType;
-  } else if (node.kind === 23) {
+  } else if (node.kind === 25) {
     node.resolvedType = context.nullType;
-  } else if (node.kind === 26) {
+  } else if (node.kind === 16) {
+    var type = node.alignOfType();
+    resolveAsType(context, type, parentScope);
+    node.resolvedType = context.intType;
+    if (type.resolvedType !== context.errorType) {
+      node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf());
+    }
+  } else if (node.kind === 27) {
+    var type = node.sizeOfType();
+    resolveAsType(context, type, parentScope);
+    node.resolvedType = context.intType;
+    if (type.resolvedType !== context.errorType) {
+      node.becomeIntegerConstant(type.resolvedType.allocationSizeOf());
+    }
+  } else if (node.kind === 29) {
     var symbol = parentScope.findNested(__imports.String_new("this"), 0);
     if (symbol === null) {
       context.log.error(node.range, __imports.String_new("Cannot use 'this' here"));
     } else {
       node.becomeSymbolReference(symbol);
     }
-  } else if (node.kind === 24) {
+  } else if (node.kind === 26) {
     node.resolvedType = context.errorType;
-  } else if (node.kind === 21) {
+  } else if (node.kind === 23) {
     var symbol = parentScope.findNested(node.stringValue, 0);
     if (symbol === null) {
       var message = __imports.String_appendNew(__imports.String_append(__imports.String_new("No symbol named '"), node.stringValue), "' here");
@@ -390,9 +429,9 @@ function resolve(context, node, parentScope) {
       context.log.error(node.range, message);
     } else if (symbol.state === 1) {
       context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cyclic reference to symbol '"), node.stringValue), "' here"));
-    } else if (isFunction(symbol.kind) && (node.parent.kind !== 16 || node !== node.parent.callValue())) {
+    } else if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
       context.log.error(node.range, __imports.String_new("Bare function references are not allowed"));
-    } else {
+    } else if (isSymbolAccessAllowed(context, symbol, node.range)) {
       initializeSymbol(context, symbol);
       node.symbol = symbol;
       node.resolvedType = symbol.resolvedType;
@@ -404,7 +443,7 @@ function resolve(context, node, parentScope) {
         }
       }
     }
-  } else if (node.kind === 17) {
+  } else if (node.kind === 19) {
     var value = node.castValue();
     var type = node.castType();
     resolveAsExpression(context, value, parentScope);
@@ -412,12 +451,12 @@ function resolve(context, node, parentScope) {
     var castedType = type.resolvedType;
     checkConversion(context, value, castedType, 1);
     node.resolvedType = castedType;
-    if (value.kind === 20 && castedType.isInteger()) {
+    if (value.kind === 22 && castedType.isInteger()) {
       var result = value.intValue;
       var shift = 32 - castedType.integerBitCount() | 0;
       node.becomeIntegerConstant(castedType.isUnsigned() ? (castedType.integerBitMask() | 0) & result : result << shift >> shift);
     }
-  } else if (node.kind === 18) {
+  } else if (node.kind === 20) {
     var target = node.dotTarget();
     resolve(context, target, parentScope);
     if (target.resolvedType !== context.errorType) {
@@ -425,14 +464,15 @@ function resolve(context, node, parentScope) {
         var child = target.resolvedType.symbol.node.firstChild;
         var name = node.stringValue;
         if (__imports.String_length(name) > 0) {
-          node.symbol = target.resolvedType.findMember(name);
-          if (node.symbol === null) {
+          var symbol = target.resolvedType.findMember(name);
+          if (symbol === null) {
             context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("No member named '"), name), "' on type '"), target.resolvedType.toString()), "'"));
-          } else {
-            initializeSymbol(context, node.symbol);
-            node.resolvedType = node.symbol.resolvedType;
-            if (node.symbol.kind === 7) {
-              node.becomeIntegerConstant(node.symbol.offset);
+          } else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
+            initializeSymbol(context, symbol);
+            node.symbol = symbol;
+            node.resolvedType = symbol.resolvedType;
+            if (symbol.kind === 7) {
+              node.becomeIntegerConstant(symbol.offset);
             }
           }
         }
@@ -440,7 +480,7 @@ function resolve(context, node, parentScope) {
         context.log.error(node.internalRange, __imports.String_appendNew(__imports.String_append(__imports.String_new("The type '"), target.resolvedType.toString()), "' has no members"));
       }
     }
-  } else if (node.kind === 16) {
+  } else if (node.kind === 18) {
     var value = node.callValue();
     resolveAsExpression(context, value, parentScope);
     if (value.resolvedType !== context.errorType) {
@@ -483,7 +523,7 @@ function resolve(context, node, parentScope) {
   } else if (node.kind === 7) {
   } else if (node.kind === 9) {
     resolveAsExpression(context, node.expressionValue(), parentScope);
-  } else if (node.kind === 14) {
+  } else if (node.kind === 15) {
     var value = node.whileValue();
     var body = node.whileBody();
     resolveAsExpression(context, value, parentScope);
@@ -499,7 +539,7 @@ function resolve(context, node, parentScope) {
     if (no !== null) {
       resolve(context, no, parentScope);
     }
-  } else if (node.kind === 19) {
+  } else if (node.kind === 21) {
     var value = node.hookValue();
     var yes = node.hookTrue();
     var no = node.hookFalse();
@@ -512,7 +552,7 @@ function resolve(context, node, parentScope) {
       context.log.error(spanRanges(yes.range, no.range), __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Type '"), yes.resolvedType.toString()), "' is not the same as type '"), no.resolvedType.toString()), "'"));
     }
     node.resolvedType = commonType;
-  } else if (node.kind === 37) {
+  } else if (node.kind === 40) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -520,41 +560,41 @@ function resolve(context, node, parentScope) {
     checkConversion(context, right, left.resolvedType, 0);
     checkStorage(context, left);
     node.resolvedType = left.resolvedType;
-  } else if (node.kind === 36 || node.kind === 54 || node.kind === 49 || node.kind === 41 || node.kind === 51 || node.kind === 38 || node.kind === 39 || node.kind === 40 || node.kind === 52 || node.kind === 53) {
+  } else if (node.kind === 39 || node.kind === 57 || node.kind === 52 || node.kind === 44 || node.kind === 54 || node.kind === 41 || node.kind === 42 || node.kind === 43 || node.kind === 55 || node.kind === 56) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
     var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
     if (commonType === context.uintType) {
-      node.flags = node.flags | 2;
+      node.flags = node.flags | 4;
     }
     checkConversion(context, left, commonType, 0);
     checkConversion(context, right, commonType, 0);
     node.resolvedType = commonType;
-    if (left.kind === 20 && right.kind === 20) {
+    if (left.kind === 22 && right.kind === 22) {
       var inputLeft = left.intValue;
       var inputRight = right.intValue;
       var output = 0;
-      if (node.kind === 36) {
+      if (node.kind === 39) {
         output = inputLeft + inputRight | 0;
-      } else if (node.kind === 38) {
-        output = inputLeft & inputRight;
-      } else if (node.kind === 39) {
-        output = inputLeft | inputRight;
-      } else if (node.kind === 40) {
-        output = inputLeft ^ inputRight;
       } else if (node.kind === 41) {
+        output = inputLeft & inputRight;
+      } else if (node.kind === 42) {
+        output = inputLeft | inputRight;
+      } else if (node.kind === 43) {
+        output = inputLeft ^ inputRight;
+      } else if (node.kind === 44) {
         output = inputLeft / inputRight | 0;
-      } else if (node.kind === 49) {
-        output = __imul(inputLeft, inputRight);
-      } else if (node.kind === 51) {
-        output = inputLeft % inputRight | 0;
       } else if (node.kind === 52) {
-        output = inputLeft << inputRight;
-      } else if (node.kind === 53) {
-        output = inputLeft >> inputRight;
+        output = __imul(inputLeft, inputRight);
       } else if (node.kind === 54) {
+        output = inputLeft % inputRight | 0;
+      } else if (node.kind === 55) {
+        output = inputLeft << inputRight;
+      } else if (node.kind === 56) {
+        output = inputLeft >> inputRight;
+      } else if (node.kind === 57) {
         output = inputLeft - inputRight | 0;
       } else {
         return;
@@ -563,7 +603,7 @@ function resolve(context, node, parentScope) {
     } else {
       simplifyBinary(node);
     }
-  } else if (node.kind === 45 || node.kind === 46 || node.kind === 43 || node.kind === 44) {
+  } else if (node.kind === 48 || node.kind === 49 || node.kind === 46 || node.kind === 47) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -572,12 +612,12 @@ function resolve(context, node, parentScope) {
     var rightType = right.resolvedType;
     var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
     if (expectedType === context.uintType) {
-      node.flags = node.flags | 2;
+      node.flags = node.flags | 4;
     }
     checkConversion(context, left, expectedType, 0);
     checkConversion(context, right, expectedType, 0);
     node.resolvedType = context.boolType;
-  } else if (node.kind === 48 || node.kind === 47) {
+  } else if (node.kind === 51 || node.kind === 50) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -585,7 +625,7 @@ function resolve(context, node, parentScope) {
     checkConversion(context, left, context.boolType, 0);
     checkConversion(context, right, context.boolType, 0);
     node.resolvedType = context.boolType;
-  } else if (node.kind === 42 || node.kind === 50) {
+  } else if (node.kind === 45 || node.kind === 53) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -596,30 +636,30 @@ function resolve(context, node, parentScope) {
     if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
       context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(__imports.String_append(__imports.String_new("Cannot compare type '"), leftType.toString()), "' with type '"), rightType.toString()), "'"));
     }
-  } else if (node.kind === 28 || node.kind === 29 || node.kind === 31) {
+  } else if (node.kind === 31 || node.kind === 32 || node.kind === 34) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
     var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
     checkConversion(context, value, expectedType, 0);
-    node.resolvedType = node.kind === 29 ? context.intType : expectedType;
-    if (value.kind === 20) {
+    node.resolvedType = node.kind === 32 ? context.intType : expectedType;
+    if (value.kind === 22) {
       var input = value.intValue;
       var output = input;
-      if (node.kind === 28) {
+      if (node.kind === 31) {
         output = ~input;
-      } else if (node.kind === 29) {
+      } else if (node.kind === 32) {
         output = -input;
       }
       node.becomeIntegerConstant(output);
     }
-  } else if (node.kind === 32 || node.kind === 33 || node.kind === 34 || node.kind === 35) {
+  } else if (node.kind === 35 || node.kind === 36 || node.kind === 37 || node.kind === 38) {
     context.log.error(node.range, __imports.String_new("This operator is currently unsupported"));
-  } else if (node.kind === 30) {
+  } else if (node.kind === 33) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
     checkConversion(context, value, context.boolType, 0);
     node.resolvedType = context.boolType;
-  } else if (node.kind === 22) {
+  } else if (node.kind === 24) {
     var type = node.newType();
     resolveAsType(context, type, parentScope);
     if (type.resolvedType !== context.errorType) {
@@ -652,8 +692,7 @@ Compiler.prototype.initialize = function() {
   this.log = new Log();
   this.global = new Node();
   this.global.kind = 0;
-  var malloc = this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var __mallocOffset = 0; // This will be filled in by the code generator with the inital heap pointer\n\n      function __malloc(sizeOf: int): int {\n        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
-  malloc.flags = malloc.flags | 1;
+  this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer\n\n      unsafe function malloc(sizeOf: int): int {\n        var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes\n        mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
 };
 Compiler.prototype.addInput = function(name, contents) {
   var source = new Source();
@@ -670,7 +709,6 @@ Compiler.prototype.addInput = function(name, contents) {
       }
     }
   }
-  return source;
 };
 Compiler.prototype.finish = function() {
   __imports.assert(this.context === null);
@@ -763,10 +801,10 @@ JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
   }
 };
 JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
-  var isRightAssociative = node.kind === 37;
+  var isRightAssociative = node.kind === 40;
   var parentKind = node.parent.kind;
   var isUnsigned = node.isUnsignedOperator();
-  var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 52 && parentKind !== 53 && parentKind !== 39 && parentKind !== 38 && parentKind !== 40);
+  var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 55 && parentKind !== 56 && parentKind !== 42 && parentKind !== 41 && parentKind !== 43);
   var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
   if (parentPrecedence > selfPrecedence) {
     this.emitText("(");
@@ -789,17 +827,17 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
 };
 JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   __imports.assert(node.resolvedType !== null);
-  if (node.kind === 21) {
+  if (node.kind === 23) {
     this.emitString(node.symbol.name);
-  } else if (node.kind === 23) {
-    this.emitText("null");
-  } else if (node.kind === 15) {
-    this.emitText(node.intValue !== 0 ? "true" : "false");
-  } else if (node.kind === 20) {
-    this.emitString(node.resolvedType.isUnsigned() ? __imports.String_toStringUnsigned(node.intValue >>> 0) : __imports.String_toStringSigned(node.intValue));
   } else if (node.kind === 25) {
-    this.emitString(__imports.String_quote(node.stringValue));
+    this.emitText("null");
   } else if (node.kind === 17) {
+    this.emitText(node.intValue !== 0 ? "true" : "false");
+  } else if (node.kind === 22) {
+    this.emitString(node.resolvedType.isUnsigned() ? __imports.String_toStringUnsigned(node.intValue >>> 0) : __imports.String_toStringSigned(node.intValue));
+  } else if (node.kind === 28) {
+    this.emitString(__imports.String_quote(node.stringValue));
+  } else if (node.kind === 19) {
     var context = this.context;
     var value = node.castValue();
     var from = value.resolvedType.underlyingType(context);
@@ -850,11 +888,11 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     } else {
       this.emitExpression(value, parentPrecedence);
     }
-  } else if (node.kind === 18) {
+  } else if (node.kind === 20) {
     this.emitExpression(node.dotTarget(), 14);
     this.emitText(".");
     this.emitString(node.symbol.name);
-  } else if (node.kind === 19) {
+  } else if (node.kind === 21) {
     if (parentPrecedence > 1) {
       this.emitText("(");
     }
@@ -866,7 +904,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     if (parentPrecedence > 1) {
       this.emitText(")");
     }
-  } else if (node.kind === 16) {
+  } else if (node.kind === 18) {
     var value = node.callValue();
     if (value.symbol.node.functionBody() === null) {
       this.emitText("__imports.");
@@ -882,63 +920,63 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
       }
     }
     this.emitText(")");
-  } else if (node.kind === 22) {
+  } else if (node.kind === 24) {
     this.emitText("new ");
     this.emitExpression(node.newType(), 13);
     this.emitText("()");
-  } else if (node.kind === 28) {
-    this.emitUnary(node, parentPrecedence, "~");
-  } else if (node.kind === 29) {
-    this.emitUnary(node, parentPrecedence, "-");
-  } else if (node.kind === 30) {
-    this.emitUnary(node, parentPrecedence, "!");
   } else if (node.kind === 31) {
-    this.emitUnary(node, parentPrecedence, "+");
-  } else if (node.kind === 35) {
-    this.emitUnary(node, parentPrecedence, "++");
-  } else if (node.kind === 34) {
-    this.emitUnary(node, parentPrecedence, "--");
-  } else if (node.kind === 33) {
-    this.emitUnary(node, parentPrecedence, "++");
+    this.emitUnary(node, parentPrecedence, "~");
   } else if (node.kind === 32) {
+    this.emitUnary(node, parentPrecedence, "-");
+  } else if (node.kind === 33) {
+    this.emitUnary(node, parentPrecedence, "!");
+  } else if (node.kind === 34) {
+    this.emitUnary(node, parentPrecedence, "+");
+  } else if (node.kind === 38) {
+    this.emitUnary(node, parentPrecedence, "++");
+  } else if (node.kind === 37) {
     this.emitUnary(node, parentPrecedence, "--");
   } else if (node.kind === 36) {
-    this.emitBinary(node, parentPrecedence, " + ", 10, 1);
-  } else if (node.kind === 37) {
-    this.emitBinary(node, parentPrecedence, " = ", 1, 0);
-  } else if (node.kind === 38) {
-    this.emitBinary(node, parentPrecedence, " & ", 6, 0);
+    this.emitUnary(node, parentPrecedence, "++");
+  } else if (node.kind === 35) {
+    this.emitUnary(node, parentPrecedence, "--");
   } else if (node.kind === 39) {
-    this.emitBinary(node, parentPrecedence, " | ", 4, 0);
+    this.emitBinary(node, parentPrecedence, " + ", 10, 1);
   } else if (node.kind === 40) {
-    this.emitBinary(node, parentPrecedence, " ^ ", 5, 0);
+    this.emitBinary(node, parentPrecedence, " = ", 1, 0);
   } else if (node.kind === 41) {
-    this.emitBinary(node, parentPrecedence, " / ", 11, 1);
+    this.emitBinary(node, parentPrecedence, " & ", 6, 0);
   } else if (node.kind === 42) {
-    this.emitBinary(node, parentPrecedence, " === ", 7, 0);
+    this.emitBinary(node, parentPrecedence, " | ", 4, 0);
   } else if (node.kind === 43) {
-    this.emitBinary(node, parentPrecedence, " > ", 8, 0);
+    this.emitBinary(node, parentPrecedence, " ^ ", 5, 0);
   } else if (node.kind === 44) {
-    this.emitBinary(node, parentPrecedence, " >= ", 8, 0);
+    this.emitBinary(node, parentPrecedence, " / ", 11, 1);
   } else if (node.kind === 45) {
-    this.emitBinary(node, parentPrecedence, " < ", 8, 0);
+    this.emitBinary(node, parentPrecedence, " === ", 7, 0);
   } else if (node.kind === 46) {
-    this.emitBinary(node, parentPrecedence, " <= ", 8, 0);
+    this.emitBinary(node, parentPrecedence, " > ", 8, 0);
   } else if (node.kind === 47) {
-    this.emitBinary(node, parentPrecedence, " && ", 3, 0);
+    this.emitBinary(node, parentPrecedence, " >= ", 8, 0);
   } else if (node.kind === 48) {
-    this.emitBinary(node, parentPrecedence, " || ", 2, 0);
-  } else if (node.kind === 50) {
-    this.emitBinary(node, parentPrecedence, " !== ", 7, 0);
-  } else if (node.kind === 51) {
-    this.emitBinary(node, parentPrecedence, " % ", 11, 1);
-  } else if (node.kind === 52) {
-    this.emitBinary(node, parentPrecedence, " << ", 9, 0);
-  } else if (node.kind === 53) {
-    this.emitBinary(node, parentPrecedence, node.isUnsignedOperator() ? " >>> " : " >> ", 9, 0);
-  } else if (node.kind === 54) {
-    this.emitBinary(node, parentPrecedence, " - ", 10, 1);
+    this.emitBinary(node, parentPrecedence, " < ", 8, 0);
   } else if (node.kind === 49) {
+    this.emitBinary(node, parentPrecedence, " <= ", 8, 0);
+  } else if (node.kind === 50) {
+    this.emitBinary(node, parentPrecedence, " && ", 3, 0);
+  } else if (node.kind === 51) {
+    this.emitBinary(node, parentPrecedence, " || ", 2, 0);
+  } else if (node.kind === 53) {
+    this.emitBinary(node, parentPrecedence, " !== ", 7, 0);
+  } else if (node.kind === 54) {
+    this.emitBinary(node, parentPrecedence, " % ", 11, 1);
+  } else if (node.kind === 55) {
+    this.emitBinary(node, parentPrecedence, " << ", 9, 0);
+  } else if (node.kind === 56) {
+    this.emitBinary(node, parentPrecedence, node.isUnsignedOperator() ? " >>> " : " >> ", 9, 0);
+  } else if (node.kind === 57) {
+    this.emitBinary(node, parentPrecedence, " - ", 10, 1);
+  } else if (node.kind === 52) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     var isUnsigned = node.isUnsignedOperator();
@@ -965,9 +1003,6 @@ JsResult.prototype.emitStatement = function(node) {
   if (node.kind === 10) {
     var body = node.functionBody();
     if (body === null) {
-      return;
-    }
-    if (jsShouldSkipNode(node)) {
       return;
     }
     var needsSemicolon = false;
@@ -1023,7 +1058,7 @@ JsResult.prototype.emitStatement = function(node) {
       }
       node = no.firstChild;
     }
-  } else if (node.kind === 14) {
+  } else if (node.kind === 15) {
     this.appendIndent();
     this.emitText("while (");
     this.emitExpression(node.whileValue(), 0);
@@ -1055,10 +1090,7 @@ JsResult.prototype.emitStatement = function(node) {
     this.appendIndent();
     this.emitBlock(node);
     this.emitText("\n");
-  } else if (node.kind === 13) {
-    if (jsShouldSkipNode(node)) {
-      return;
-    }
+  } else if (node.kind === 14) {
     this.appendIndent();
     this.emitText("var ");
     var child = node.firstChild;
@@ -1075,9 +1107,6 @@ JsResult.prototype.emitStatement = function(node) {
     }
     this.emitText(";\n");
   } else if (node.kind === 4) {
-    if (jsShouldSkipNode(node)) {
-      return;
-    }
     this.appendIndent();
     this.emitText("function ");
     this.emitString(node.symbol.name);
@@ -1110,9 +1139,6 @@ JsResult.prototype.emitStatement = function(node) {
     __imports.assert(false);
   }
 };
-function jsShouldSkipNode(node) {
-  return (node.range.source.flags & 1) !== 0;
-}
 function jsEmit(global, context) {
   var result = new JsResult();
   result.context = context;
@@ -1253,75 +1279,84 @@ function tokenToString(token) {
     return "'>>'";
   }
   if (token === 39) {
-    return "'as'";
+    return "'alignof'";
   }
   if (token === 40) {
-    return "'break'";
+    return "'as'";
   }
   if (token === 41) {
-    return "'class'";
+    return "'break'";
   }
   if (token === 42) {
-    return "'const'";
+    return "'class'";
   }
   if (token === 43) {
-    return "'continue'";
+    return "'const'";
   }
   if (token === 44) {
-    return "'else'";
+    return "'continue'";
   }
   if (token === 45) {
-    return "'enum'";
+    return "'else'";
   }
   if (token === 46) {
-    return "'export'";
+    return "'enum'";
   }
   if (token === 47) {
-    return "'extends'";
+    return "'export'";
   }
   if (token === 48) {
-    return "'extern'";
+    return "'extends'";
   }
   if (token === 49) {
-    return "'false'";
+    return "'extern'";
   }
   if (token === 50) {
-    return "'function'";
+    return "'false'";
   }
   if (token === 51) {
-    return "'if'";
+    return "'function'";
   }
   if (token === 52) {
-    return "'implements'";
+    return "'if'";
   }
   if (token === 53) {
-    return "'import'";
+    return "'implements'";
   }
   if (token === 54) {
-    return "'interface'";
+    return "'import'";
   }
   if (token === 55) {
-    return "'let'";
+    return "'interface'";
   }
   if (token === 56) {
-    return "'new'";
+    return "'let'";
   }
   if (token === 57) {
-    return "'null'";
+    return "'new'";
   }
   if (token === 58) {
-    return "'return'";
+    return "'null'";
   }
   if (token === 59) {
-    return "'this'";
+    return "'return'";
   }
   if (token === 60) {
-    return "'true'";
+    return "'sizeof'";
   }
   if (token === 61) {
-    return "'var'";
+    return "'this'";
   }
   if (token === 62) {
+    return "'true'";
+  }
+  if (token === 63) {
+    return "'unsafe'";
+  }
+  if (token === 64) {
+    return "'var'";
+  }
+  if (token === 65) {
     return "'while'";
   }
   __imports.assert(false);
@@ -1359,54 +1394,60 @@ function tokenize(source, log) {
         i = i + 1 | 0;
       }
       var text = __imports.String_slice(contents, start, i);
-      if (__imports.String_equalNew(text, "as")) {
+      if (__imports.String_equalNew(text, "alignof")) {
         kind = 39;
-      } else if (__imports.String_equalNew(text, "break")) {
+      } else if (__imports.String_equalNew(text, "as")) {
         kind = 40;
-      } else if (__imports.String_equalNew(text, "class")) {
+      } else if (__imports.String_equalNew(text, "break")) {
         kind = 41;
-      } else if (__imports.String_equalNew(text, "const")) {
+      } else if (__imports.String_equalNew(text, "class")) {
         kind = 42;
-      } else if (__imports.String_equalNew(text, "continue")) {
+      } else if (__imports.String_equalNew(text, "const")) {
         kind = 43;
-      } else if (__imports.String_equalNew(text, "else")) {
+      } else if (__imports.String_equalNew(text, "continue")) {
         kind = 44;
-      } else if (__imports.String_equalNew(text, "enum")) {
+      } else if (__imports.String_equalNew(text, "else")) {
         kind = 45;
-      } else if (__imports.String_equalNew(text, "export")) {
+      } else if (__imports.String_equalNew(text, "enum")) {
         kind = 46;
-      } else if (__imports.String_equalNew(text, "extends")) {
+      } else if (__imports.String_equalNew(text, "export")) {
         kind = 47;
-      } else if (__imports.String_equalNew(text, "extern")) {
+      } else if (__imports.String_equalNew(text, "extends")) {
         kind = 48;
-      } else if (__imports.String_equalNew(text, "false")) {
+      } else if (__imports.String_equalNew(text, "extern")) {
         kind = 49;
-      } else if (__imports.String_equalNew(text, "function")) {
+      } else if (__imports.String_equalNew(text, "false")) {
         kind = 50;
-      } else if (__imports.String_equalNew(text, "if")) {
+      } else if (__imports.String_equalNew(text, "function")) {
         kind = 51;
-      } else if (__imports.String_equalNew(text, "implements")) {
+      } else if (__imports.String_equalNew(text, "if")) {
         kind = 52;
-      } else if (__imports.String_equalNew(text, "import")) {
+      } else if (__imports.String_equalNew(text, "implements")) {
         kind = 53;
-      } else if (__imports.String_equalNew(text, "interface")) {
+      } else if (__imports.String_equalNew(text, "import")) {
         kind = 54;
-      } else if (__imports.String_equalNew(text, "let")) {
+      } else if (__imports.String_equalNew(text, "interface")) {
         kind = 55;
-      } else if (__imports.String_equalNew(text, "new")) {
+      } else if (__imports.String_equalNew(text, "let")) {
         kind = 56;
-      } else if (__imports.String_equalNew(text, "null")) {
+      } else if (__imports.String_equalNew(text, "new")) {
         kind = 57;
-      } else if (__imports.String_equalNew(text, "return")) {
+      } else if (__imports.String_equalNew(text, "null")) {
         kind = 58;
-      } else if (__imports.String_equalNew(text, "this")) {
+      } else if (__imports.String_equalNew(text, "return")) {
         kind = 59;
-      } else if (__imports.String_equalNew(text, "true")) {
+      } else if (__imports.String_equalNew(text, "sizeof")) {
         kind = 60;
-      } else if (__imports.String_equalNew(text, "var")) {
+      } else if (__imports.String_equalNew(text, "this")) {
         kind = 61;
-      } else if (__imports.String_equalNew(text, "while")) {
+      } else if (__imports.String_equalNew(text, "true")) {
         kind = 62;
+      } else if (__imports.String_equalNew(text, "unsafe")) {
+        kind = 63;
+      } else if (__imports.String_equalNew(text, "var")) {
+        kind = 64;
+      } else if (__imports.String_equalNew(text, "while")) {
+        kind = 65;
       }
     } else if (isNumber(c)) {
       kind = 3;
@@ -1615,7 +1656,6 @@ function tokenize(source, log) {
 function Source() {
   this.name = null;
   this.contents = null;
-  this.flags = 0;
 }
 function Range() {
   this.source = null;
@@ -1720,16 +1760,16 @@ Log.prototype.toString = function() {
   return result;
 };
 function isUnary(kind) {
-  return kind >= 28 && kind <= 35;
+  return kind >= 31 && kind <= 38;
 }
 function isUnaryPostfix(kind) {
-  return kind >= 32 && kind <= 33;
+  return kind >= 35 && kind <= 36;
 }
 function isBinary(kind) {
-  return kind >= 36 && kind <= 54;
+  return kind >= 39 && kind <= 57;
 }
 function isExpression(node) {
-  return node.kind >= 15 && node.kind <= 54;
+  return node.kind >= 16 && node.kind <= 57;
 }
 function Node() {
   this.kind = 0;
@@ -1748,16 +1788,19 @@ function Node() {
   this.scope = null;
 }
 Node.prototype.isNegativeInteger = function() {
-  return this.kind === 20 && this.intValue < 0;
+  return this.kind === 22 && this.intValue < 0;
 };
 Node.prototype.isNonNegativeInteger = function() {
-  return this.kind === 20 && this.intValue >= 0;
+  return this.kind === 22 && this.intValue >= 0;
 };
 Node.prototype.isExtern = function() {
   return (this.flags & 1) !== 0;
 };
-Node.prototype.isUnsignedOperator = function() {
+Node.prototype.isUnsafe = function() {
   return (this.flags & 2) !== 0;
+};
+Node.prototype.isUnsignedOperator = function() {
+  return (this.flags & 4) !== 0;
 };
 Node.prototype.childCount = function() {
   var count = 0;
@@ -1857,26 +1900,26 @@ Node.prototype.replaceWith = function(node) {
   this.nextSibling = null;
 };
 Node.prototype.becomeSymbolReference = function(symbol) {
-  this.kind = 21;
+  this.kind = 23;
   this.symbol = symbol;
   this.stringValue = symbol.name;
   this.resolvedType = symbol.resolvedType;
   this.removeChildren();
 };
 Node.prototype.becomeIntegerConstant = function(value) {
-  this.kind = 20;
+  this.kind = 22;
   this.symbol = null;
   this.intValue = value;
   this.removeChildren();
 };
 Node.prototype.becomeBooleanConstant = function(value) {
-  this.kind = 15;
+  this.kind = 17;
   this.symbol = null;
   this.intValue = value ? 1 : 0;
   this.removeChildren();
 };
 Node.prototype.isType = function() {
-  return this.kind === 27 || this.symbol !== null && isType(this.symbol.kind);
+  return this.kind === 30 || this.symbol !== null && isType(this.symbol.kind);
 };
 Node.prototype.withRange = function(range) {
   this.range = range;
@@ -1906,31 +1949,43 @@ Node.prototype.functionBody = function() {
   return body.kind === 2 ? body : null;
 };
 Node.prototype.newType = function() {
-  __imports.assert(this.kind === 22);
+  __imports.assert(this.kind === 24);
   __imports.assert(this.childCount() === 1);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
 Node.prototype.callValue = function() {
-  __imports.assert(this.kind === 16);
+  __imports.assert(this.kind === 18);
   __imports.assert(this.childCount() >= 1);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
 Node.prototype.castValue = function() {
-  __imports.assert(this.kind === 17);
+  __imports.assert(this.kind === 19);
   __imports.assert(this.childCount() === 2);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
 Node.prototype.castType = function() {
-  __imports.assert(this.kind === 17);
+  __imports.assert(this.kind === 19);
   __imports.assert(this.childCount() === 2);
   __imports.assert(isExpression(this.lastChild));
   return this.lastChild;
 };
+Node.prototype.alignOfType = function() {
+  __imports.assert(this.kind === 16);
+  __imports.assert(this.childCount() === 1);
+  __imports.assert(isExpression(this.firstChild));
+  return this.firstChild;
+};
+Node.prototype.sizeOfType = function() {
+  __imports.assert(this.kind === 27);
+  __imports.assert(this.childCount() === 1);
+  __imports.assert(isExpression(this.firstChild));
+  return this.firstChild;
+};
 Node.prototype.dotTarget = function() {
-  __imports.assert(this.kind === 18);
+  __imports.assert(this.kind === 20);
   __imports.assert(this.childCount() === 1);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
@@ -1979,31 +2034,31 @@ Node.prototype.unaryValue = function() {
   return this.firstChild;
 };
 Node.prototype.whileValue = function() {
-  __imports.assert(this.kind === 14);
+  __imports.assert(this.kind === 15);
   __imports.assert(this.childCount() === 2);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
 Node.prototype.whileBody = function() {
-  __imports.assert(this.kind === 14);
+  __imports.assert(this.kind === 15);
   __imports.assert(this.childCount() === 2);
   __imports.assert(this.lastChild.kind === 2);
   return this.lastChild;
 };
 Node.prototype.hookValue = function() {
-  __imports.assert(this.kind === 19);
+  __imports.assert(this.kind === 21);
   __imports.assert(this.childCount() === 3);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
 Node.prototype.hookTrue = function() {
-  __imports.assert(this.kind === 19);
+  __imports.assert(this.kind === 21);
   __imports.assert(this.childCount() === 3);
   __imports.assert(isExpression(this.firstChild.nextSibling));
   return this.firstChild.nextSibling;
 };
 Node.prototype.hookFalse = function() {
-  __imports.assert(this.kind === 19);
+  __imports.assert(this.kind === 21);
   __imports.assert(this.childCount() === 3);
   __imports.assert(isExpression(this.lastChild));
   return this.lastChild;
@@ -2029,7 +2084,7 @@ Node.prototype.ifFalse = function() {
 function createNew(type) {
   __imports.assert(isExpression(type));
   var node = new Node();
-  node.kind = 22;
+  node.kind = 24;
   node.appendChild(type);
   return node;
 }
@@ -2038,7 +2093,7 @@ function createHook(test, primary, secondary) {
   __imports.assert(isExpression(primary));
   __imports.assert(isExpression(secondary));
   var node = new Node();
-  node.kind = 19;
+  node.kind = 21;
   node.appendChild(test);
   node.appendChild(primary);
   node.appendChild(secondary);
@@ -2046,42 +2101,56 @@ function createHook(test, primary, secondary) {
 }
 function createNull() {
   var node = new Node();
-  node.kind = 23;
+  node.kind = 25;
   return node;
 }
 function createThis() {
   var node = new Node();
-  node.kind = 26;
+  node.kind = 29;
+  return node;
+}
+function createAlignOf(type) {
+  __imports.assert(isExpression(type));
+  var node = new Node();
+  node.kind = 16;
+  node.appendChild(type);
+  return node;
+}
+function createSizeOf(type) {
+  __imports.assert(isExpression(type));
+  var node = new Node();
+  node.kind = 27;
+  node.appendChild(type);
   return node;
 }
 function createBool(value) {
   var node = new Node();
-  node.kind = 15;
+  node.kind = 17;
   node.intValue = value ? 1 : 0;
   return node;
 }
 function createInt(value) {
   var node = new Node();
-  node.kind = 20;
+  node.kind = 22;
   node.intValue = value;
   return node;
 }
 function createString(value) {
   var node = new Node();
-  node.kind = 25;
+  node.kind = 28;
   node.stringValue = value;
   return node;
 }
 function createName(value) {
   var node = new Node();
-  node.kind = 21;
+  node.kind = 23;
   node.stringValue = value;
   return node;
 }
 function createType(type) {
   __imports.assert(type !== null);
   var node = new Node();
-  node.kind = 27;
+  node.kind = 30;
   node.resolvedType = type;
   return node;
 }
@@ -2131,7 +2200,7 @@ function createWhile(value, body) {
   __imports.assert(isExpression(value));
   __imports.assert(body.kind === 2);
   var node = new Node();
-  node.kind = 14;
+  node.kind = 15;
   node.appendChild(value);
   node.appendChild(body);
   return node;
@@ -2147,7 +2216,7 @@ function createReturn(value) {
 }
 function createVariables() {
   var node = new Node();
-  node.kind = 13;
+  node.kind = 14;
   return node;
 }
 function createConstants() {
@@ -2194,7 +2263,7 @@ function createBinary(kind, left, right) {
 function createCall(value) {
   __imports.assert(isExpression(value));
   var node = new Node();
-  node.kind = 16;
+  node.kind = 18;
   node.appendChild(value);
   return node;
 }
@@ -2202,7 +2271,7 @@ function createCast(value, type) {
   __imports.assert(isExpression(value));
   __imports.assert(isExpression(type));
   var node = new Node();
-  node.kind = 17;
+  node.kind = 19;
   node.appendChild(value);
   node.appendChild(type);
   return node;
@@ -2210,14 +2279,14 @@ function createCast(value, type) {
 function createDot(value, name) {
   __imports.assert(isExpression(value));
   var node = new Node();
-  node.kind = 18;
+  node.kind = 20;
   node.stringValue = name;
   node.appendChild(value);
   return node;
 }
 function createParseError() {
   var node = new Node();
-  node.kind = 24;
+  node.kind = 26;
   return node;
 }
 function ParserContext() {
@@ -2330,10 +2399,10 @@ ParserContext.prototype.parsePrefix = function(mode) {
     return createName(value).withRange(token.range);
   }
   if (mode === 0) {
-    if (this.eat(57)) {
+    if (this.eat(58)) {
       return createNull().withRange(token.range);
     }
-    if (this.eat(59)) {
+    if (this.eat(61)) {
       return createThis().withRange(token.range);
     }
     if (this.peek(1)) {
@@ -2364,13 +2433,13 @@ ParserContext.prototype.parsePrefix = function(mode) {
       this.advance();
       return value.withRange(token.range);
     }
-    if (this.eat(60)) {
+    if (this.eat(62)) {
       return createBool(true).withRange(token.range);
     }
-    if (this.eat(49)) {
+    if (this.eat(50)) {
       return createBool(false).withRange(token.range);
     }
-    if (this.eat(56)) {
+    if (this.eat(57)) {
       var type = this.parseType();
       if (type === null || !this.expect(19)) {
         return null;
@@ -2381,6 +2450,34 @@ ParserContext.prototype.parsePrefix = function(mode) {
       }
       return createNew(type).withRange(spanRanges(token.range, close.range));
     }
+    if (this.eat(39)) {
+      if (!this.expect(19)) {
+        return null;
+      }
+      var type = this.parseType();
+      if (type === null) {
+        return null;
+      }
+      var close = this.current;
+      if (!this.expect(35)) {
+        return null;
+      }
+      return createAlignOf(type).withRange(spanRanges(token.range, close.range));
+    }
+    if (this.eat(60)) {
+      if (!this.expect(19)) {
+        return null;
+      }
+      var type = this.parseType();
+      if (type === null) {
+        return null;
+      }
+      var close = this.current;
+      if (!this.expect(35)) {
+        return null;
+      }
+      return createSizeOf(type).withRange(spanRanges(token.range, close.range));
+    }
     if (this.eat(19)) {
       var value = this.parseExpression(0, 0);
       if (value === null || !this.expect(35)) {
@@ -2389,22 +2486,22 @@ ParserContext.prototype.parsePrefix = function(mode) {
       return value;
     }
     if (this.peek(27)) {
-      return this.parseUnaryPrefix(30);
+      return this.parseUnaryPrefix(33);
     }
     if (this.peek(24)) {
-      return this.parseUnaryPrefix(29);
+      return this.parseUnaryPrefix(32);
     }
     if (this.peek(25)) {
-      return this.parseUnaryPrefix(34);
+      return this.parseUnaryPrefix(37);
     }
     if (this.peek(29)) {
-      return this.parseUnaryPrefix(31);
+      return this.parseUnaryPrefix(34);
     }
     if (this.peek(30)) {
-      return this.parseUnaryPrefix(35);
+      return this.parseUnaryPrefix(38);
     }
     if (this.peek(11)) {
-      return this.parseUnaryPrefix(28);
+      return this.parseUnaryPrefix(31);
     }
   }
   this.unexpectedToken();
@@ -2423,69 +2520,69 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
   }
   if (mode === 0) {
     if (this.peek(5)) {
-      return this.parseBinary(37, node, precedence, 1);
+      return this.parseBinary(40, node, precedence, 1);
     }
     if (this.peek(6)) {
-      return this.parseBinary(38, node, precedence, 6);
+      return this.parseBinary(41, node, precedence, 6);
     }
     if (this.peek(7)) {
-      return this.parseBinary(39, node, precedence, 4);
+      return this.parseBinary(42, node, precedence, 4);
     }
     if (this.peek(8)) {
-      return this.parseBinary(40, node, precedence, 5);
+      return this.parseBinary(43, node, precedence, 5);
     }
     if (this.peek(12)) {
-      return this.parseBinary(41, node, precedence, 11);
+      return this.parseBinary(44, node, precedence, 11);
     }
     if (this.peek(14)) {
-      return this.parseBinary(42, node, precedence, 7);
+      return this.parseBinary(45, node, precedence, 7);
     }
     if (this.peek(15)) {
-      return this.parseBinary(43, node, precedence, 8);
-    }
-    if (this.peek(16)) {
-      return this.parseBinary(44, node, precedence, 8);
-    }
-    if (this.peek(20)) {
-      return this.parseBinary(45, node, precedence, 8);
-    }
-    if (this.peek(21)) {
       return this.parseBinary(46, node, precedence, 8);
     }
+    if (this.peek(16)) {
+      return this.parseBinary(47, node, precedence, 8);
+    }
+    if (this.peek(20)) {
+      return this.parseBinary(48, node, precedence, 8);
+    }
+    if (this.peek(21)) {
+      return this.parseBinary(49, node, precedence, 8);
+    }
     if (this.peek(22)) {
-      return this.parseBinary(47, node, precedence, 3);
+      return this.parseBinary(50, node, precedence, 3);
     }
     if (this.peek(23)) {
-      return this.parseBinary(48, node, precedence, 2);
+      return this.parseBinary(51, node, precedence, 2);
     }
     if (this.peek(24)) {
-      return this.parseBinary(54, node, precedence, 10);
+      return this.parseBinary(57, node, precedence, 10);
     }
     if (this.peek(26)) {
-      return this.parseBinary(49, node, precedence, 11);
+      return this.parseBinary(52, node, precedence, 11);
     }
     if (this.peek(28)) {
-      return this.parseBinary(50, node, precedence, 7);
+      return this.parseBinary(53, node, precedence, 7);
     }
     if (this.peek(29)) {
-      return this.parseBinary(36, node, precedence, 10);
+      return this.parseBinary(39, node, precedence, 10);
     }
     if (this.peek(32)) {
-      return this.parseBinary(51, node, precedence, 11);
+      return this.parseBinary(54, node, precedence, 11);
     }
     if (this.peek(37)) {
-      return this.parseBinary(52, node, precedence, 9);
+      return this.parseBinary(55, node, precedence, 9);
     }
     if (this.peek(38)) {
-      return this.parseBinary(53, node, precedence, 9);
+      return this.parseBinary(56, node, precedence, 9);
     }
     if (this.peek(30)) {
-      return this.parseUnaryPostfix(33, node, precedence);
+      return this.parseUnaryPostfix(36, node, precedence);
     }
     if (this.peek(25)) {
-      return this.parseUnaryPostfix(32, node, precedence);
+      return this.parseUnaryPostfix(35, node, precedence);
     }
-    if (this.peek(39) && precedence < 12) {
+    if (this.peek(40) && precedence < 12) {
       this.advance();
       var type = this.parseType();
       if (type === null) {
@@ -2553,7 +2650,7 @@ ParserContext.prototype.parseType = function() {
 };
 ParserContext.prototype.parseIf = function() {
   var token = this.current;
-  __imports.assert(token.kind === 51);
+  __imports.assert(token.kind === 52);
   this.advance();
   if (!this.expect(19)) {
     return null;
@@ -2574,7 +2671,7 @@ ParserContext.prototype.parseIf = function() {
     return null;
   }
   var falseBranch = null;
-  if (this.eat(44)) {
+  if (this.eat(45)) {
     falseBranch = this.parseBody();
     if (falseBranch === null) {
       return null;
@@ -2584,7 +2681,7 @@ ParserContext.prototype.parseIf = function() {
 };
 ParserContext.prototype.parseWhile = function() {
   var token = this.current;
-  __imports.assert(token.kind === 62);
+  __imports.assert(token.kind === 65);
   this.advance();
   if (!this.expect(19)) {
     return null;
@@ -2607,7 +2704,7 @@ ParserContext.prototype.parseWhile = function() {
   return createWhile(value, body).withRange(spanRanges(token.range, body.range));
 };
 ParserContext.prototype.parseBody = function() {
-  var node = this.parseStatement();
+  var node = this.parseStatement(0);
   if (node === null) {
     return null;
   }
@@ -2635,7 +2732,7 @@ ParserContext.prototype.parseBlock = function() {
 };
 ParserContext.prototype.parseReturn = function() {
   var token = this.current;
-  __imports.assert(token.kind === 58);
+  __imports.assert(token.kind === 59);
   this.advance();
   var value = null;
   if (!this.peek(36)) {
@@ -2655,7 +2752,7 @@ ParserContext.prototype.parseEmpty = function() {
 };
 ParserContext.prototype.parseEnum = function(flags) {
   var token = this.current;
-  __imports.assert(token.kind === 45);
+  __imports.assert(token.kind === 46);
   this.advance();
   var name = this.current;
   if (!this.expect(2) || !this.expect(17)) {
@@ -2695,7 +2792,7 @@ ParserContext.prototype.parseEnum = function(flags) {
 };
 ParserContext.prototype.parseClass = function(flags) {
   var token = this.current;
-  __imports.assert(token.kind === 41);
+  __imports.assert(token.kind === 42);
   this.advance();
   var name = this.current;
   if (!this.expect(2) || !this.expect(17)) {
@@ -2704,18 +2801,19 @@ ParserContext.prototype.parseClass = function(flags) {
   var node = createClass(name.range.toString());
   node.flags = flags;
   while (!this.peek(0) && !this.peek(33)) {
+    var childFlags = this.parseFlags();
     var start = this.current;
     if (!this.expect(2)) {
       return null;
     }
     if (this.peek(19)) {
       this.current = start;
-      if (this.parseFunction(0, node) === null) {
+      if (this.parseFunction(childFlags, node) === null) {
         return null;
       }
     } else {
       this.current = start;
-      if (this.parseVariables(0, node) === null) {
+      if (this.parseVariables(childFlags, node) === null) {
         return null;
       }
     }
@@ -2729,7 +2827,7 @@ ParserContext.prototype.parseClass = function(flags) {
 ParserContext.prototype.parseFunction = function(flags, parent) {
   var token = this.current;
   if (parent === null) {
-    __imports.assert(token.kind === 50);
+    __imports.assert(token.kind === 51);
     this.advance();
   }
   var name = this.current;
@@ -2803,10 +2901,10 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
 ParserContext.prototype.parseVariables = function(flags, parent) {
   var token = this.current;
   if (parent === null) {
-    __imports.assert(token.kind === 42 || token.kind === 55 || token.kind === 61);
+    __imports.assert(token.kind === 43 || token.kind === 56 || token.kind === 64);
     this.advance();
   }
-  var node = token.kind === 42 ? createConstants() : createVariables();
+  var node = token.kind === 43 ? createConstants() : createVariables();
   while (true) {
     var name = this.current;
     if (!this.expect(2)) {
@@ -2849,21 +2947,43 @@ ParserContext.prototype.parseLoopJump = function(kind) {
   node.kind = kind;
   return node.withRange(token.range);
 };
-ParserContext.prototype.parseStatement = function() {
+ParserContext.prototype.parseFlags = function() {
   var flags = 0;
-  if (this.eat(48)) {
-    flags = flags | 1;
+  while (true) {
+    if (this.eat(49)) {
+      flags = flags | 1;
+    } else if (this.eat(63)) {
+      flags = flags | 2;
+    } else {
+      return flags;
+    }
   }
-  if (this.peek(42) || this.peek(55) || this.peek(61)) {
+};
+ParserContext.prototype.parseUnsafe = function() {
+  var token = this.current;
+  this.advance();
+  var node = this.parseBlock();
+  if (node === null) {
+    return null;
+  }
+  node.flags = node.flags | 2;
+  return node.withRange(spanRanges(token.range, node.range));
+};
+ParserContext.prototype.parseStatement = function(mode) {
+  var flags = mode === 1 ? this.parseFlags() : 0;
+  if (this.peek(63) && flags === 0) {
+    return this.parseUnsafe();
+  }
+  if (this.peek(43) || this.peek(56) || this.peek(64)) {
     return this.parseVariables(flags, null);
   }
-  if (this.peek(50)) {
+  if (this.peek(51)) {
     return this.parseFunction(flags, null);
   }
-  if (this.peek(41)) {
+  if (this.peek(42)) {
     return this.parseClass(flags);
   }
-  if (this.peek(45)) {
+  if (this.peek(46)) {
     return this.parseEnum(flags);
   }
   if (flags !== 0) {
@@ -2873,19 +2993,19 @@ ParserContext.prototype.parseStatement = function() {
   if (this.peek(17)) {
     return this.parseBlock();
   }
-  if (this.peek(40)) {
+  if (this.peek(41)) {
     return this.parseLoopJump(3);
   }
-  if (this.peek(43)) {
+  if (this.peek(44)) {
     return this.parseLoopJump(6);
   }
-  if (this.peek(51)) {
+  if (this.peek(52)) {
     return this.parseIf();
   }
-  if (this.peek(62)) {
+  if (this.peek(65)) {
     return this.parseWhile();
   }
-  if (this.peek(58)) {
+  if (this.peek(59)) {
     return this.parseReturn();
   }
   if (this.peek(36)) {
@@ -2901,7 +3021,7 @@ ParserContext.prototype.parseStatement = function() {
 };
 ParserContext.prototype.parseStatements = function(parent) {
   while (!this.peek(0) && !this.peek(33)) {
-    var child = this.parseStatement();
+    var child = this.parseStatement(parent.kind === 0 ? 1 : 0);
     if (child === null) {
       return false;
     }
@@ -3045,6 +3165,9 @@ Symbol.prototype.isEnumValue = function() {
 Symbol.prototype.isExtern = function() {
   return this.node.isExtern();
 };
+Symbol.prototype.isUnsafe = function() {
+  return this.node !== null && this.node.isUnsafe();
+};
 Symbol.prototype.resolvedTypeUnderlyingIfEnumValue = function(context) {
   return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
 };
@@ -3060,18 +3183,22 @@ Symbol.prototype.determineClassLayout = function(context) {
     if (child.kind === 1) {
       var type = child.symbol.resolvedType;
       if (type !== context.errorType) {
-        var alignmentOf = type.alignmentOf();
+        var alignmentOf = type.variableAlignmentOf();
         offset = alignToNextMultipleOf(offset, alignmentOf);
         if (alignmentOf > maxAlignment) {
           maxAlignment = alignmentOf;
         }
         child.symbol.offset = offset;
-        offset = offset + type.sizeOf() | 0;
+        offset = offset + type.variableSizeOf() | 0;
       }
     }
     child = child.nextSibling;
   }
-  this.byteSize = offset > 0 ? offset : 1;
+  if (offset === 0) {
+    offset = 1;
+  }
+  offset = alignToNextMultipleOf(offset, maxAlignment);
+  this.byteSize = offset;
   this.maxAlignment = maxAlignment;
 };
 function Type() {
@@ -3101,11 +3228,17 @@ Type.prototype.integerBitMask = function() {
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
 };
-Type.prototype.sizeOf = function() {
+Type.prototype.allocationSizeOf = function() {
+  return this.symbol.byteSize;
+};
+Type.prototype.allocationAlignmentOf = function() {
+  return this.allocationSizeOf();
+};
+Type.prototype.variableSizeOf = function() {
   return this.isClass() ? 4 : this.symbol.byteSize;
 };
-Type.prototype.alignmentOf = function() {
-  return this.sizeOf();
+Type.prototype.variableAlignmentOf = function() {
+  return this.variableSizeOf();
 };
 Type.prototype.toString = function() {
   return this.symbol.name;
@@ -3391,7 +3524,7 @@ WasmModule.prototype.emitDataSegments = function(array) {
   wasmFinishSection(array, section);
 };
 WasmModule.prototype.prepareToEmit = function(node) {
-  if (node.kind === 25) {
+  if (node.kind === 28) {
     var text = node.stringValue;
     var length = __imports.String_length(text);
     var offset = this.context.allocateGlobalVariableOffset(length + 1 | 0, 1);
@@ -3406,7 +3539,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
     node.intValue = offset;
   } else if (node.kind === 1) {
     var symbol = node.symbol;
-    if (node.symbol.kind === 8 && __imports.String_equalNew(symbol.name, "__mallocOffset")) {
+    if (node.symbol.kind === 8 && __imports.String_equalNew(symbol.name, "mallocOffset")) {
       __imports.assert(this.heapPointerOffset === -1);
       this.heapPointerOffset = symbol.offset;
     }
@@ -3438,7 +3571,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
     }
     symbol.offset = this.functionCount;
     var fn = this.allocateFunction(symbol.name, signatureIndex, body);
-    if (symbol.kind === 5 && __imports.String_equalNew(symbol.name, "__malloc")) {
+    if (symbol.kind === 5 && __imports.String_equalNew(symbol.name, "malloc")) {
       __imports.assert(this.mallocFunctionIndex === -1);
       this.mallocFunctionIndex = symbol.offset;
     }
@@ -3460,7 +3593,7 @@ WasmModule.prototype.emitBinaryExpression = function(array, node, opcode) {
   this.emitNode(array, node.binaryRight());
 };
 WasmModule.prototype.emitLoadFromMemory = function(array, type, relativeBase, offset) {
-  var sizeOf = type.sizeOf();
+  var sizeOf = type.variableSizeOf();
   if (sizeOf === 1) {
     __imports.ByteArray_appendByte(array, type.isUnsigned() ? 33 : 32);
     wasmWriteVarUnsigned(array, 0);
@@ -3482,7 +3615,7 @@ WasmModule.prototype.emitLoadFromMemory = function(array, type, relativeBase, of
   }
 };
 WasmModule.prototype.emitStoreToMemory = function(array, type, relativeBase, offset, value) {
-  var sizeOf = type.sizeOf();
+  var sizeOf = type.variableSizeOf();
   if (sizeOf === 1) {
     __imports.ByteArray_appendByte(array, 46);
     wasmWriteVarUnsigned(array, 0);
@@ -3517,17 +3650,17 @@ WasmModule.prototype.emitNode = function(array, node) {
       child = child.nextSibling;
     }
     wasmPatchVarUnsigned(array, offset, count, -1);
-  } else if (node.kind === 14) {
+  } else if (node.kind === 15) {
     var value = node.whileValue();
     var body = node.whileBody();
-    if (value.kind === 15 && value.intValue === 0) {
+    if (value.kind === 17 && value.intValue === 0) {
       return 0;
     }
     __imports.ByteArray_appendByte(array, 2);
     var offset = __imports.ByteArray_length(array);
     wasmWriteVarUnsigned(array, -1);
     var count = 0;
-    if (value.kind !== 15) {
+    if (value.kind !== 17) {
       __imports.ByteArray_appendByte(array, 7);
       wasmWriteVarUnsigned(array, 1);
       __imports.ByteArray_appendByte(array, 0);
@@ -3548,7 +3681,7 @@ WasmModule.prototype.emitNode = function(array, node) {
   } else if (node.kind === 3 || node.kind === 6) {
     var label = 0;
     var parent = node.parent;
-    while (parent !== null && parent.kind !== 14) {
+    while (parent !== null && parent.kind !== 15) {
       if (parent.kind === 2) {
         label = label + 1 | 0;
       }
@@ -3568,7 +3701,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     if (value !== null) {
       this.emitNode(array, value);
     }
-  } else if (node.kind === 13) {
+  } else if (node.kind === 14) {
     var count = 0;
     var child = node.firstChild;
     while (child !== null) {
@@ -3585,7 +3718,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     if (branch !== null) {
       this.emitNode(array, branch);
     }
-  } else if (node.kind === 19) {
+  } else if (node.kind === 21) {
     __imports.ByteArray_appendByte(array, 4);
     this.emitNode(array, node.hookValue());
     this.emitNode(array, node.hookTrue());
@@ -3604,7 +3737,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     } else {
       __imports.assert(false);
     }
-  } else if (node.kind === 21) {
+  } else if (node.kind === 23) {
     var symbol = node.symbol;
     if (symbol.kind === 6 || symbol.kind === 10) {
       __imports.ByteArray_appendByte(array, 14);
@@ -3614,16 +3747,16 @@ WasmModule.prototype.emitNode = function(array, node) {
     } else {
       __imports.assert(false);
     }
-  } else if (node.kind === 23) {
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, 0);
-  } else if (node.kind === 20 || node.kind === 15) {
-    __imports.ByteArray_appendByte(array, 10);
-    wasmWriteVarSigned(array, node.intValue);
   } else if (node.kind === 25) {
     __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, 0);
+  } else if (node.kind === 22 || node.kind === 17) {
+    __imports.ByteArray_appendByte(array, 10);
+    wasmWriteVarSigned(array, node.intValue);
+  } else if (node.kind === 28) {
+    __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, node.intValue + 8 | 0);
-  } else if (node.kind === 16) {
+  } else if (node.kind === 18) {
     var value = node.callValue();
     var symbol = value.symbol;
     __imports.assert(isFunction(symbol.kind));
@@ -3637,7 +3770,7 @@ WasmModule.prototype.emitNode = function(array, node) {
       this.emitNode(array, child);
       child = child.nextSibling;
     }
-  } else if (node.kind === 22) {
+  } else if (node.kind === 24) {
     var type = node.newType();
     __imports.assert(type.symbol.kind === 0);
     __imports.ByteArray_appendByte(array, 18);
@@ -3645,22 +3778,22 @@ WasmModule.prototype.emitNode = function(array, node) {
     __imports.assert(type.symbol.byteSize > 0);
     __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, type.symbol.byteSize);
-  } else if (node.kind === 31) {
+  } else if (node.kind === 34) {
     this.emitNode(array, node.unaryValue());
-  } else if (node.kind === 29) {
+  } else if (node.kind === 32) {
     __imports.ByteArray_appendByte(array, 65);
     __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, 0);
     this.emitNode(array, node.unaryValue());
-  } else if (node.kind === 28) {
+  } else if (node.kind === 31) {
     __imports.ByteArray_appendByte(array, 73);
     __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, -1);
     this.emitNode(array, node.unaryValue());
-  } else if (node.kind === 30) {
+  } else if (node.kind === 33) {
     __imports.ByteArray_appendByte(array, 90);
     this.emitNode(array, node.unaryValue());
-  } else if (node.kind === 17) {
+  } else if (node.kind === 19) {
     var value = node.castValue();
     var context = this.context;
     var from = value.resolvedType.underlyingType(context);
@@ -3684,14 +3817,14 @@ WasmModule.prototype.emitNode = function(array, node) {
     } else {
       this.emitNode(array, value);
     }
-  } else if (node.kind === 18) {
+  } else if (node.kind === 20) {
     var symbol = node.symbol;
     if (symbol.kind === 9) {
       this.emitLoadFromMemory(array, symbol.resolvedType, node.dotTarget(), symbol.offset);
     } else {
       __imports.assert(false);
     }
-  } else if (node.kind === 37) {
+  } else if (node.kind === 40) {
     var left = node.binaryLeft();
     var symbol = left.symbol;
     if (symbol.kind === 9) {
@@ -3705,13 +3838,13 @@ WasmModule.prototype.emitNode = function(array, node) {
     } else {
       __imports.assert(false);
     }
-  } else if (node.kind === 47) {
+  } else if (node.kind === 50) {
     __imports.ByteArray_appendByte(array, 4);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
     __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, 0);
-  } else if (node.kind === 48) {
+  } else if (node.kind === 51) {
     __imports.ByteArray_appendByte(array, 4);
     this.emitNode(array, node.binaryLeft());
     __imports.ByteArray_appendByte(array, 10);
@@ -3719,37 +3852,37 @@ WasmModule.prototype.emitNode = function(array, node) {
     this.emitNode(array, node.binaryRight());
   } else {
     var isUnsigned = node.isUnsignedOperator();
-    if (node.kind === 36) {
+    if (node.kind === 39) {
       this.emitBinaryExpression(array, node, 64);
-    } else if (node.kind === 38) {
-      this.emitBinaryExpression(array, node, 71);
-    } else if (node.kind === 39) {
-      this.emitBinaryExpression(array, node, 72);
-    } else if (node.kind === 40) {
-      this.emitBinaryExpression(array, node, 73);
-    } else if (node.kind === 42) {
-      this.emitBinaryExpression(array, node, 77);
-    } else if (node.kind === 49) {
-      this.emitBinaryExpression(array, node, 66);
-    } else if (node.kind === 50) {
-      this.emitBinaryExpression(array, node, 78);
-    } else if (node.kind === 52) {
-      this.emitBinaryExpression(array, node, 74);
-    } else if (node.kind === 54) {
-      this.emitBinaryExpression(array, node, 65);
     } else if (node.kind === 41) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 68 : 67);
+      this.emitBinaryExpression(array, node, 71);
+    } else if (node.kind === 42) {
+      this.emitBinaryExpression(array, node, 72);
     } else if (node.kind === 43) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 85 : 83);
-    } else if (node.kind === 44) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 86 : 84);
+      this.emitBinaryExpression(array, node, 73);
     } else if (node.kind === 45) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 81 : 79);
-    } else if (node.kind === 46) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 82 : 80);
-    } else if (node.kind === 51) {
-      this.emitBinaryExpression(array, node, isUnsigned ? 70 : 69);
+      this.emitBinaryExpression(array, node, 77);
+    } else if (node.kind === 52) {
+      this.emitBinaryExpression(array, node, 66);
     } else if (node.kind === 53) {
+      this.emitBinaryExpression(array, node, 78);
+    } else if (node.kind === 55) {
+      this.emitBinaryExpression(array, node, 74);
+    } else if (node.kind === 57) {
+      this.emitBinaryExpression(array, node, 65);
+    } else if (node.kind === 44) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 68 : 67);
+    } else if (node.kind === 46) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 85 : 83);
+    } else if (node.kind === 47) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 86 : 84);
+    } else if (node.kind === 48) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 81 : 79);
+    } else if (node.kind === 49) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 82 : 80);
+    } else if (node.kind === 54) {
+      this.emitBinaryExpression(array, node, isUnsigned ? 70 : 69);
+    } else if (node.kind === 56) {
       this.emitBinaryExpression(array, node, isUnsigned ? 75 : 76);
     } else {
       __imports.assert(false);

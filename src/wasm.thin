@@ -534,7 +534,7 @@ class WasmModule {
       var symbol = node.symbol;
 
       // Make sure the heap offset is tracked
-      if (node.symbol.kind == SymbolKind.VARIABLE_GLOBAL && String_equalNew(symbol.name, "__mallocOffset")) {
+      if (node.symbol.kind == SymbolKind.VARIABLE_GLOBAL && String_equalNew(symbol.name, "mallocOffset")) {
         assert(this.heapPointerOffset == -1);
         this.heapPointerOffset = symbol.offset;
       }
@@ -574,7 +574,7 @@ class WasmModule {
       var fn = this.allocateFunction(symbol.name, signatureIndex, body);
 
       // Make sure "malloc" is tracked
-      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && String_equalNew(symbol.name, "__malloc")) {
+      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && String_equalNew(symbol.name, "malloc")) {
         assert(this.mallocFunctionIndex == -1);
         this.mallocFunctionIndex = symbol.offset;
       }
@@ -603,7 +603,7 @@ class WasmModule {
   }
 
   emitLoadFromMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int): void {
-    var sizeOf = type.sizeOf();
+    var sizeOf = type.variableSizeOf();
 
     if (sizeOf == 1) {
       ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
@@ -639,7 +639,7 @@ class WasmModule {
   }
 
   emitStoreToMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int, value: Node): void {
-    var sizeOf = type.sizeOf();
+    var sizeOf = type.variableSizeOf();
 
     if (sizeOf == 1) {
       ByteArray_appendByte(array, WASM_OPCODE_I32_STORE8);

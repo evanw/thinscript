@@ -44,6 +44,7 @@ enum TokenKind {
   SHIFT_RIGHT,
 
   // Keywords
+  ALIGNOF,
   AS,
   BREAK,
   CLASS,
@@ -64,8 +65,10 @@ enum TokenKind {
   NEW,
   NULL,
   RETURN,
+  SIZEOF,
   THIS,
   TRUE,
+  UNSAFE,
   VAR,
   WHILE,
 }
@@ -122,6 +125,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.SHIFT_RIGHT) return "'>>'";
 
   // Keywords
+  if (token == TokenKind.ALIGNOF) return "'alignof'";
   if (token == TokenKind.AS) return "'as'";
   if (token == TokenKind.BREAK) return "'break'";
   if (token == TokenKind.CLASS) return "'class'";
@@ -142,8 +146,10 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.NEW) return "'new'";
   if (token == TokenKind.NULL) return "'null'";
   if (token == TokenKind.RETURN) return "'return'";
+  if (token == TokenKind.SIZEOF) return "'sizeof'";
   if (token == TokenKind.THIS) return "'this'";
   if (token == TokenKind.TRUE) return "'true'";
+  if (token == TokenKind.UNSAFE) return "'unsafe'";
   if (token == TokenKind.VAR) return "'var'";
   if (token == TokenKind.WHILE) return "'while'";
 
@@ -197,7 +203,8 @@ function tokenize(source: Source, log: Log): Token {
 
       // Keywords
       var text = String_slice(contents, start, i);
-      if (String_equalNew(text, "as")) kind = TokenKind.AS;
+      if (String_equalNew(text, "alignof")) kind = TokenKind.ALIGNOF;
+      else if (String_equalNew(text, "as")) kind = TokenKind.AS;
       else if (String_equalNew(text, "break")) kind = TokenKind.BREAK;
       else if (String_equalNew(text, "class")) kind = TokenKind.CLASS;
       else if (String_equalNew(text, "const")) kind = TokenKind.CONST;
@@ -217,8 +224,10 @@ function tokenize(source: Source, log: Log): Token {
       else if (String_equalNew(text, "new")) kind = TokenKind.NEW;
       else if (String_equalNew(text, "null")) kind = TokenKind.NULL;
       else if (String_equalNew(text, "return")) kind = TokenKind.RETURN;
+      else if (String_equalNew(text, "sizeof")) kind = TokenKind.SIZEOF;
       else if (String_equalNew(text, "this")) kind = TokenKind.THIS;
       else if (String_equalNew(text, "true")) kind = TokenKind.TRUE;
+      else if (String_equalNew(text, "unsafe")) kind = TokenKind.UNSAFE;
       else if (String_equalNew(text, "var")) kind = TokenKind.VAR;
       else if (String_equalNew(text, "while")) kind = TokenKind.WHILE;
     }

@@ -15,10 +15,12 @@ enum NodeKind {
   FUNCTION,
   IF,
   RETURN,
+  UNSAFE,
   VARIABLES,
   WHILE,
 
   // Expressions
+  ALIGN_OF,
   BOOL,
   CALL,
   CAST,
@@ -29,6 +31,7 @@ enum NodeKind {
   NEW,
   NULL,
   PARSE_ERROR,
+  SIZE_OF,
   STRING,
   THIS,
   TYPE,
@@ -78,11 +81,12 @@ function isBinary(kind: NodeKind): bool {
 }
 
 function isExpression(node: Node): bool {
-  return node.kind >= NodeKind.BOOL && node.kind <= NodeKind.SUBTRACT;
+  return node.kind >= NodeKind.ALIGN_OF && node.kind <= NodeKind.SUBTRACT;
 }
 
 const NODE_FLAG_EXTERN = 1;
-const NODE_FLAG_UNSIGNED_OPERATOR = 2;
+const NODE_FLAG_UNSAFE = 2;
+const NODE_FLAG_UNSIGNED_OPERATOR = 4;
 
 class Node {
   kind: NodeKind;
@@ -110,6 +114,10 @@ class Node {
 
   isExtern(): bool {
     return (this.flags & NODE_FLAG_EXTERN) != 0;
+  }
+
+  isUnsafe(): bool {
+    return (this.flags & NODE_FLAG_UNSAFE) != 0;
   }
 
   isUnsignedOperator(): bool {
@@ -320,6 +328,20 @@ class Node {
     return this.lastChild;
   }
 
+  alignOfType(): Node {
+    assert(this.kind == NodeKind.ALIGN_OF);
+    assert(this.childCount() == 1);
+    assert(isExpression(this.firstChild));
+    return this.firstChild;
+  }
+
+  sizeOfType(): Node {
+    assert(this.kind == NodeKind.SIZE_OF);
+    assert(this.childCount() == 1);
+    assert(isExpression(this.firstChild));
+    return this.firstChild;
+  }
+
   dotTarget(): Node {
     assert(this.kind == NodeKind.DOT);
     assert(this.childCount() == 1);
@@ -463,6 +485,22 @@ function createNull(): Node {
 function createThis(): Node {
   var node = new Node();
   node.kind = NodeKind.THIS;
+  return node;
+}
+
+function createAlignOf(type: Node): Node {
+  assert(isExpression(type));
+  var node = new Node();
+  node.kind = NodeKind.ALIGN_OF;
+  node.appendChild(type);
+  return node;
+}
+
+function createSizeOf(type: Node): Node {
+  assert(isExpression(type));
+  var node = new Node();
+  node.kind = NodeKind.SIZE_OF;
+  node.appendChild(type);
   return node;
 }
 

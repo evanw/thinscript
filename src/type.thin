@@ -40,12 +40,20 @@ class Type {
     return this == context.stringType || this.isClass();
   }
 
-  sizeOf(): int {
+  allocationSizeOf(): int {
+    return this.symbol.byteSize;
+  }
+
+  allocationAlignmentOf(): int {
+    return this.allocationSizeOf(); // This is true right now
+  }
+
+  variableSizeOf(): int {
     return this.isClass() ? POINTER_SIZE : this.symbol.byteSize;
   }
 
-  alignmentOf(): int {
-    return this.sizeOf(); // This is true right now
+  variableAlignmentOf(): int {
+    return this.variableSizeOf(); // This is true right now
   }
 
   toString(): String {

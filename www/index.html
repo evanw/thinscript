@@ -387,10 +387,17 @@
   }
 
   function compile() {
-    if (backendWebAssembly.checked) {
-      var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value);
-    } else {
-      var compiler = compileAndRunJavaScript(loadedJavaScript, input.value);
+    try {
+      if (backendWebAssembly.checked) {
+        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value);
+      } else {
+        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value);
+      }
+    } catch (e) {
+      output.value = e && e.stack || e;
+      downloadName = 'error.txt';
+      blobToDownload = new Blob([output.value], {type: 'text/plain'});
+      return;
     }
 
     if (compiler.log) {

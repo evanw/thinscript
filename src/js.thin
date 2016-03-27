@@ -317,10 +317,6 @@ class JsResult {
         return;
       }
 
-      if (jsShouldSkipNode(node)) {
-        return;
-      }
-
       var needsSemicolon = false;
       this.appendIndent();
 
@@ -434,10 +430,6 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.VARIABLES) {
-      if (jsShouldSkipNode(node)) {
-        return;
-      }
-
       this.appendIndent();
       this.emitText("var ");
       var child = node.firstChild;
@@ -456,10 +448,6 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.CLASS) {
-      if (jsShouldSkipNode(node)) {
-        return;
-      }
-
       this.appendIndent();
       this.emitText("function ");
       this.emitString(node.symbol.name);
@@ -501,10 +489,6 @@ class JsResult {
       assert(false);
     }
   }
-}
-
-function jsShouldSkipNode(node: Node): bool {
-  return (node.range.source.flags & SOURCE_FLAG_WASM_ONLY) != 0;
 }
 
 function jsEmit(global: Node, context: CheckContext): String {

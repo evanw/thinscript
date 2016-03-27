@@ -1,5 +1,6 @@
 class CheckContext {
   log: Log;
+  isUnsafeAllowed: bool;
   currentReturnType: Type;
   nextGlobalVariableOffset: int;
 
@@ -322,12 +323,21 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
   }
 
   // Allow conversions from null
-  if (from == context.nullType && to.isReference(context)) {
+  else if (from == context.nullType && to.isReference(context)) {
     return;
   }
 
+  // Allow explicit conversions between references in unsafe mode
+  else if (context.isUnsafeAllowed && (from.isReference(context) || to.isReference(context))) {
+    if (kind == ConversionKind.EXPLICIT) {
+      return;
+    }
+
+    canCast = true;
+  }
+
   // Check integer conversions
-  if (from.isInteger() && to.isInteger()) {
+  else if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
 
     // Only allow lossless conversions implicitly
@@ -381,8 +391,10 @@ function simplifyBinary(node: Node): void {
   var left = node.binaryLeft();
   var right = node.binaryRight();
 
-  // Canonicalize addition and multiplication order
-  if ((node.kind == NodeKind.ADD || node.kind == NodeKind.MULTIPLY) && left.kind == NodeKind.INT && right.kind != NodeKind.INT) {
+  // Canonicalize commutative operators
+  if ((node.kind == NodeKind.ADD || node.kind == NodeKind.MULTIPLY ||
+      node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR) &&
+      left.kind == NodeKind.INT && right.kind != NodeKind.INT) {
     left.remove();
     node.appendChild(left);
     left = node.binaryLeft();
@@ -450,6 +462,18 @@ function binaryHasUnsignedArguments(node: Node): bool {
     left.isNonNegativeInteger() && rightType.isUnsigned();
 }
 
+function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Range): bool {
+  if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
+    context.log.error(range, String_appendNew(String_append(
+      String_new("Cannot use unsafe symbol '"),
+      symbol.name),
+      "' here"));
+    return false;
+  }
+
+  return true;
+}
+
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   assert(node.kind == NodeKind.GLOBAL || parentScope != null);
 
@@ -480,9 +504,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (body != null) {
       var oldReturnType = context.currentReturnType;
+      var oldUnsafeAllowed = context.isUnsafeAllowed;
       context.currentReturnType = node.functionReturnType().resolvedType;
+      context.isUnsafeAllowed = node.isUnsafe();
       resolveChildren(context, body, node.scope);
       context.currentReturnType = oldReturnType;
+      context.isUnsafeAllowed = oldUnsafeAllowed;
     }
   }
 
@@ -509,7 +536,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // Allocate global variables
     if (symbol.kind == SymbolKind.VARIABLE_GLOBAL && symbol.resolvedType != context.errorType) {
-      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.sizeOf(), symbol.resolvedType.alignmentOf());
+      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(), symbol.resolvedType.variableAlignmentOf());
     }
   }
 
@@ -529,7 +556,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.BLOCK) {
+    var oldUnsafeAllowed = context.isUnsafeAllowed;
+    if (node.isUnsafe()) context.isUnsafeAllowed = true;
     resolveChildren(context, node, node.scope);
+    context.isUnsafeAllowed = oldUnsafeAllowed;
   }
 
   else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.VARIABLES) {
@@ -550,6 +580,26 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   else if (node.kind == NodeKind.NULL) {
     node.resolvedType = context.nullType;
+  }
+
+  else if (node.kind == NodeKind.ALIGN_OF) {
+    var type = node.alignOfType();
+    resolveAsType(context, type, parentScope);
+    node.resolvedType = context.intType;
+
+    if (type.resolvedType != context.errorType) {
+      node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf());
+    }
+  }
+
+  else if (node.kind == NodeKind.SIZE_OF) {
+    var type = node.sizeOfType();
+    resolveAsType(context, type, parentScope);
+    node.resolvedType = context.intType;
+
+    if (type.resolvedType != context.errorType) {
+      node.becomeIntegerConstant(type.resolvedType.allocationSizeOf());
+    }
   }
 
   else if (node.kind == NodeKind.THIS) {
@@ -598,7 +648,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       context.log.error(node.range, String_new("Bare function references are not allowed"));
     }
 
-    else {
+    else if (isSymbolAccessAllowed(context, symbol, node.range)) {
       initializeSymbol(context, symbol);
       node.symbol = symbol;
       node.resolvedType = symbol.resolvedType;
@@ -645,9 +695,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
         // Empty names are left over from parse errors that have already been reported
         if (String_length(name) > 0) {
-          node.symbol = target.resolvedType.findMember(name);
+          var symbol = target.resolvedType.findMember(name);
 
-          if (node.symbol == null) {
+          if (symbol == null) {
             context.log.error(node.internalRange, String_appendNew(String_append(String_appendNew(String_append(
               String_new("No member named '"),
               name),
@@ -656,13 +706,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
               "'"));
           }
 
-          else {
-            initializeSymbol(context, node.symbol);
-            node.resolvedType = node.symbol.resolvedType;
+          else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
+            initializeSymbol(context, symbol);
+            node.symbol = symbol;
+            node.resolvedType = symbol.resolvedType;
 
             // Inline constants
-            if (node.symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
-              node.becomeIntegerConstant(node.symbol.offset);
+            if (symbol.kind == SymbolKind.VARIABLE_CONSTANT) {
+              node.becomeIntegerConstant(symbol.offset);
             }
           }
         }

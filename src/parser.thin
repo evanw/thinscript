@@ -21,6 +21,11 @@ enum ParseKind {
   TYPE,
 }
 
+enum StatementMode {
+  NORMAL,
+  GLOBAL,
+}
+
 class ParserContext {
   previous: Token;
   current: Token;
@@ -226,6 +231,36 @@ class ParserContext {
           return null;
         }
         return createNew(type).withRange(spanRanges(token.range, close.range));
+      }
+
+      if (this.eat(TokenKind.ALIGNOF)) {
+        if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
+          return null;
+        }
+        var type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+        var close = this.current;
+        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+          return null;
+        }
+        return createAlignOf(type).withRange(spanRanges(token.range, close.range));
+      }
+
+      if (this.eat(TokenKind.SIZEOF)) {
+        if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
+          return null;
+        }
+        var type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+        var close = this.current;
+        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+          return null;
+        }
+        return createSizeOf(type).withRange(spanRanges(token.range, close.range));
       }
 
       if (this.eat(TokenKind.LEFT_PARENTHESIS)) {
@@ -457,7 +492,7 @@ class ParserContext {
   }
 
   parseBody(): Node {
-    var node = this.parseStatement();
+    var node = this.parseStatement(StatementMode.NORMAL);
     if (node == null) {
       return null;
     }
@@ -584,6 +619,7 @@ class ParserContext {
     node.flags = flags;
 
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
+      var childFlags = this.parseFlags();
       var start = this.current;
 
       if (!this.expect(TokenKind.IDENTIFIER)) {
@@ -592,14 +628,14 @@ class ParserContext {
 
       if (this.peek(TokenKind.LEFT_PARENTHESIS)) {
         this.current = start;
-        if (this.parseFunction(0, node) == null) {
+        if (this.parseFunction(childFlags, node) == null) {
           return null;
         }
       }
 
       else {
         this.current = start;
-        if (this.parseVariables(0, node) == null) {
+        if (this.parseVariables(childFlags, node) == null) {
           return null;
         }
       }
@@ -793,13 +829,32 @@ class ParserContext {
     return node.withRange(token.range);
   }
 
-  parseStatement(): Node {
+  parseFlags(): int {
     var flags = 0;
+    while (true) {
+      if (this.eat(TokenKind.EXTERN)) flags = flags | NODE_FLAG_EXTERN;
+      else if (this.eat(TokenKind.UNSAFE)) flags = flags | NODE_FLAG_UNSAFE;
+      else return flags;
+    }
+  }
 
-    if (this.eat(TokenKind.EXTERN)) {
-      flags = flags | NODE_FLAG_EXTERN;
+  parseUnsafe(): Node {
+    var token = this.current;
+    this.advance();
+
+    var node = this.parseBlock();
+    if (node == null) {
+      return null;
     }
 
+    node.flags = node.flags | NODE_FLAG_UNSAFE;
+    return node.withRange(spanRanges(token.range, node.range));
+  }
+
+  parseStatement(mode: StatementMode): Node {
+    var flags = mode == StatementMode.GLOBAL ? this.parseFlags() : 0;
+
+    if (this.peek(TokenKind.UNSAFE) && flags == 0) return this.parseUnsafe();
     if (this.peek(TokenKind.CONST) || this.peek(TokenKind.LET) || this.peek(TokenKind.VAR)) return this.parseVariables(flags, null);
     if (this.peek(TokenKind.FUNCTION)) return this.parseFunction(flags, null);
     if (this.peek(TokenKind.CLASS)) return this.parseClass(flags);
@@ -833,7 +888,7 @@ class ParserContext {
 
   parseStatements(parent: Node): bool {
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
-      var child = this.parseStatement();
+      var child = this.parseStatement(parent.kind == NodeKind.GLOBAL ? StatementMode.GLOBAL : StatementMode.NORMAL);
       if (child == null) {
         return false;
       }

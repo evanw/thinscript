@@ -74,6 +74,10 @@ class Symbol {
     return this.node.isExtern();
   }
 
+  isUnsafe(): bool {
+    return this.node != null && this.node.isUnsafe();
+  }
+
   resolvedTypeUnderlyingIfEnumValue(context: CheckContext): Type {
     return this.isEnumValue() ? this.resolvedType.underlyingType(context) : this.resolvedType;
   }
@@ -96,7 +100,7 @@ class Symbol {
 
         // Ignore invalid members
         if (type != context.errorType) {
-          var alignmentOf = type.alignmentOf();
+          var alignmentOf = type.variableAlignmentOf();
 
           // Align the member to the next available slot
           offset = alignToNextMultipleOf(offset, alignmentOf);
@@ -104,7 +108,7 @@ class Symbol {
 
           // Allocate the member by extending the object
           child.symbol.offset = offset;
-          offset = offset + type.sizeOf();
+          offset = offset + type.variableSizeOf();
         }
       }
 
@@ -112,7 +116,14 @@ class Symbol {
     }
 
     // All objects must have a non-zero size
-    this.byteSize = offset > 0 ? offset : 1;
+    if (offset == 0) {
+      offset = 1;
+    }
+
+    // The object size must be a multiple of the maximum alignment for arrays to work correctly
+    offset = alignToNextMultipleOf(offset, maxAlignment);
+
+    this.byteSize = offset;
     this.maxAlignment = maxAlignment;
   }
 }

@@ -11,19 +11,18 @@ class Compiler {
     this.global = new Node();
     this.global.kind = NodeKind.GLOBAL;
 
-    var malloc = this.addInput(String_new("<malloc>"), String_new(`
-      var __mallocOffset = 0; // This will be filled in by the code generator with the inital heap pointer
+    this.addInput(String_new("<malloc>"), String_new(`
+      var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer
 
-      function __malloc(sizeOf: int): int {
-        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes
-        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
+      unsafe function malloc(sizeOf: int): int {
+        var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes
+        mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
         return offset;
       }
     `));
-    malloc.flags = malloc.flags | SOURCE_FLAG_WASM_ONLY;
   }
 
-  addInput(name: String, contents: String): Source {
+  addInput(name: String, contents: String): void {
     var source = new Source();
     source.name = name;
     source.contents = contents;
@@ -40,8 +39,6 @@ class Compiler {
         }
       }
     }
-
-    return source;
   }
 
   finish(): bool {
