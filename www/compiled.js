@@ -147,10 +147,12 @@ function initializeSymbol(context, symbol) {
   __imports.assert(symbol.resolvedType === null);
   symbol.state = 1;
   forbidFlag(context, symbol.node, 2, "Unsupported flag 'export'");
-  forbidFlag(context, symbol.node, 8, "Unsupported flag 'private'");
-  forbidFlag(context, symbol.node, 16, "Unsupported flag 'protected'");
-  forbidFlag(context, symbol.node, 32, "Unsupported flag 'public'");
-  forbidFlag(context, symbol.node, 64, "Unsupported flag 'static'");
+  forbidFlag(context, symbol.node, 8, "Unsupported flag 'get'");
+  forbidFlag(context, symbol.node, 16, "Unsupported flag 'private'");
+  forbidFlag(context, symbol.node, 32, "Unsupported flag 'protected'");
+  forbidFlag(context, symbol.node, 64, "Unsupported flag 'public'");
+  forbidFlag(context, symbol.node, 128, "Unsupported flag 'set'");
+  forbidFlag(context, symbol.node, 256, "Unsupported flag 'static'");
 
   if (symbol.kind === 0) {
     symbol.resolvedType = new Type();
@@ -804,7 +806,7 @@ function resolve(context, node, parentScope) {
     var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
     if (commonType === context.uintType) {
-      node.flags = node.flags | 256;
+      node.flags = node.flags | 1024;
     }
 
     checkConversion(context, left, commonType, 0);
@@ -878,7 +880,7 @@ function resolve(context, node, parentScope) {
     var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
     if (expectedType === context.uintType) {
-      node.flags = node.flags | 256;
+      node.flags = node.flags | 1024;
     }
 
     checkConversion(context, left, expectedType, 0);
@@ -2757,11 +2759,11 @@ Node.prototype.isExtern = function() {
 };
 
 Node.prototype.isUnsafe = function() {
-  return (this.flags & 128) !== 0;
+  return (this.flags & 512) !== 0;
 };
 
 Node.prototype.isUnsignedOperator = function() {
-  return (this.flags & 256) !== 0;
+  return (this.flags & 1024) !== 0;
 };
 
 Node.prototype.childCount = function() {
@@ -4121,14 +4123,43 @@ ParserContext.prototype.parseClass = function(firstFlag) {
 
   while (!this.peek(0) && !this.peek(33)) {
     var childFlags = this.parseFlags();
-    var start = this.current;
+    var childName = this.current;
 
     if (!this.expect(2)) {
       return null;
     }
 
+    if (this.peek(2)) {
+      var text = childName.range.toString();
+      var isGet = __imports.String_equalNew(text, "get");
+      var isSet = __imports.String_equalNew(text, "set");
+
+      if (isGet || isSet) {
+        var flag = new NodeFlag();
+        flag.flag = isGet ? 8 : 128;
+        flag.range = childName.range;
+
+        if (childFlags !== null) {
+          var link = childFlags;
+
+          while (link.next !== null) {
+            link = link.next;
+          }
+
+          link.next = flag;
+        }
+
+        else {
+          childFlags = flag;
+        }
+
+        childName = this.current;
+        this.advance();
+      }
+    }
+
     if (this.peek(19)) {
-      this.current = start;
+      this.current = childName;
 
       if (this.parseFunction(childFlags, node) === null) {
         return null;
@@ -4136,7 +4167,7 @@ ParserContext.prototype.parseClass = function(firstFlag) {
     }
 
     else {
-      this.current = start;
+      this.current = childName;
 
       if (this.parseVariables(childFlags, node) === null) {
         return null;
@@ -4356,23 +4387,23 @@ ParserContext.prototype.parseFlags = function() {
     }
 
     else if (this.eat(60)) {
-      flag = 8;
-    }
-
-    else if (this.eat(61)) {
       flag = 16;
     }
 
-    else if (this.eat(62)) {
+    else if (this.eat(61)) {
       flag = 32;
     }
 
-    else if (this.eat(65)) {
+    else if (this.eat(62)) {
       flag = 64;
     }
 
+    else if (this.eat(65)) {
+      flag = 256;
+    }
+
     else if (this.eat(68)) {
-      flag = 128;
+      flag = 512;
     }
 
     else {
@@ -4404,7 +4435,7 @@ ParserContext.prototype.parseUnsafe = function() {
     return null;
   }
 
-  node.flags = node.flags | 128;
+  node.flags = node.flags | 512;
 
   return node.withRange(spanRanges(token.range, node.range));
 };

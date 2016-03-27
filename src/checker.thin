@@ -168,9 +168,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
   // Most flags aren't supported yet
   forbidFlag(context, symbol.node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
+  forbidFlag(context, symbol.node, NODE_FLAG_GET, "Unsupported flag 'get'");
   forbidFlag(context, symbol.node, NODE_FLAG_PRIVATE, "Unsupported flag 'private'");
   forbidFlag(context, symbol.node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
   forbidFlag(context, symbol.node, NODE_FLAG_PUBLIC, "Unsupported flag 'public'");
+  forbidFlag(context, symbol.node, NODE_FLAG_SET, "Unsupported flag 'set'");
   forbidFlag(context, symbol.node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class

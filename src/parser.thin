@@ -624,21 +624,47 @@ class ParserContext {
 
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
       var childFlags = this.parseFlags();
-      var start = this.current;
+      var childName = this.current;
 
       if (!this.expect(TokenKind.IDENTIFIER)) {
         return null;
       }
 
+      // The "get" and "set" flags are contextual
+      if (this.peek(TokenKind.IDENTIFIER)) {
+        var text = childName.range.toString();
+        var isGet = String_equalNew(text, "get");
+        var isSet = String_equalNew(text, "set");
+
+        if (isGet || isSet) {
+          var flag = new NodeFlag();
+          flag.flag = isGet ? NODE_FLAG_GET : NODE_FLAG_SET;
+          flag.range = childName.range;
+
+          // Append the flag
+          if (childFlags != null) {
+            var link = childFlags;
+            while (link.next != null) link = link.next;
+            link.next = flag;
+          } else {
+            childFlags = flag;
+          }
+
+          // Get the real identifier
+          childName = this.current;
+          this.advance();
+        }
+      }
+
       if (this.peek(TokenKind.LEFT_PARENTHESIS)) {
-        this.current = start;
+        this.current = childName;
         if (this.parseFunction(childFlags, node) == null) {
           return null;
         }
       }
 
       else {
-        this.current = start;
+        this.current = childName;
         if (this.parseVariables(childFlags, node) == null) {
           return null;
         }
