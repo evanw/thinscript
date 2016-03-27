@@ -2,13 +2,25 @@
 <title>ThinScript Compiler Demo</title>
 <style>
   body {
-    font-family: sans-serif;
-    line-height: 150%;
+    font: 14px/150% sans-serif;
     margin: 50px 0 50px 50px;
   }
 
   h1, p {
     padding-right: 50px;
+  }
+
+  #backend-wasm[disabled] + span,
+  #backend-wasm[disabled] + span + span {
+    color: #BBB;
+  }
+
+  #backend-wasm + span + span {
+    display: none;
+  }
+
+  #backend-wasm[disabled] + span + span {
+    display: inline;
   }
 
   button {
@@ -18,7 +30,7 @@
   textarea {
     width: 100%;
     height: 400px;
-    font-family: monospace;
+    font: 12px/130% monospace;
   }
 
   section {
@@ -33,7 +45,7 @@
   <p>
     Compile using:
     <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
-    <label><input type="radio" name="backend" id="backend-wasm"> WebAssembly</label>
+    <label><input type="radio" name="backend" id="backend-wasm"><span> WebAssembly</span><span> (not supported by your browser)</span></label>
     <br>
     Compile to:
     <label><input type="radio" name="target" id="target-js"> JavaScript</label>
@@ -106,31 +118,24 @@
     '  return total;\n' +
     '}\n';
 
-  function avoidErrorSwallowing(promise) {
-    promise.catch(function(error) {
-      setTimeout(function() {
-        throw error;
-      });
-    });
-    return promise;
+  function fetch(url, responseType, callback) {
+    var xhr = new XMLHttpRequest;
+    xhr.open('GET', url);
+    xhr.onload = function() {
+      callback(xhr.response);
+    };
+    xhr.responseType = responseType;
+    xhr.send(null);
   }
 
   function loadJavaScript(callback) {
-    var name = 'compiled.js';
-    avoidErrorSwallowing(fetch(name).then(function(response) {
-      return response.text();
-    }).then(function(text) {
-      callback(text);
-    }));
+    fetch('compiled.js', 'text', callback);
   }
 
   function loadWebAssembly(callback) {
-    var name = 'compiled.wasm';
-    avoidErrorSwallowing(fetch(name).then(function(response) {
-      return response.arrayBuffer();
-    }).then(function(buffer) {
+    fetch('compiled.wasm', 'arraybuffer', function(buffer) {
       callback(new Uint8Array(buffer));
-    }));
+    });
   }
 
   function parseString(bytes, index) {
@@ -434,6 +439,7 @@
           backendWebAssembly.checked = true;
         } else {
           backendJavaScript.checked = true;
+          backendWebAssembly.disabled = true;
         }
 
         input.value = example;
