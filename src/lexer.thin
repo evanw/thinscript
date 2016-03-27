@@ -50,6 +50,7 @@ enum TokenKind {
   CLASS,
   CONST,
   CONTINUE,
+  DECLARE,
   ELSE,
   ENUM,
   EXPORT,
@@ -64,8 +65,12 @@ enum TokenKind {
   LET,
   NEW,
   NULL,
+  PRIVATE,
+  PROTECTED,
+  PUBLIC,
   RETURN,
   SIZEOF,
+  STATIC,
   THIS,
   TRUE,
   UNSAFE,
@@ -131,6 +136,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.CLASS) return "'class'";
   if (token == TokenKind.CONST) return "'const'";
   if (token == TokenKind.CONTINUE) return "'continue'";
+  if (token == TokenKind.DECLARE) return "'declare'";
   if (token == TokenKind.ELSE) return "'else'";
   if (token == TokenKind.ENUM) return "'enum'";
   if (token == TokenKind.EXPORT) return "'export'";
@@ -145,8 +151,12 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.LET) return "'let'";
   if (token == TokenKind.NEW) return "'new'";
   if (token == TokenKind.NULL) return "'null'";
+  if (token == TokenKind.PRIVATE) return "'private'";
+  if (token == TokenKind.PROTECTED) return "'protected'";
+  if (token == TokenKind.PUBLIC) return "'public'";
   if (token == TokenKind.RETURN) return "'return'";
   if (token == TokenKind.SIZEOF) return "'sizeof'";
+  if (token == TokenKind.STATIC) return "'static'";
   if (token == TokenKind.THIS) return "'this'";
   if (token == TokenKind.TRUE) return "'true'";
   if (token == TokenKind.UNSAFE) return "'unsafe'";
@@ -209,6 +219,7 @@ function tokenize(source: Source, log: Log): Token {
       else if (String_equalNew(text, "class")) kind = TokenKind.CLASS;
       else if (String_equalNew(text, "const")) kind = TokenKind.CONST;
       else if (String_equalNew(text, "continue")) kind = TokenKind.CONTINUE;
+      else if (String_equalNew(text, "declare")) kind = TokenKind.DECLARE;
       else if (String_equalNew(text, "else")) kind = TokenKind.ELSE;
       else if (String_equalNew(text, "enum")) kind = TokenKind.ENUM;
       else if (String_equalNew(text, "export")) kind = TokenKind.EXPORT;
@@ -223,8 +234,12 @@ function tokenize(source: Source, log: Log): Token {
       else if (String_equalNew(text, "let")) kind = TokenKind.LET;
       else if (String_equalNew(text, "new")) kind = TokenKind.NEW;
       else if (String_equalNew(text, "null")) kind = TokenKind.NULL;
+      else if (String_equalNew(text, "private")) kind = TokenKind.PRIVATE;
+      else if (String_equalNew(text, "protected")) kind = TokenKind.PROTECTED;
+      else if (String_equalNew(text, "public")) kind = TokenKind.PUBLIC;
       else if (String_equalNew(text, "return")) kind = TokenKind.RETURN;
       else if (String_equalNew(text, "sizeof")) kind = TokenKind.SIZEOF;
+      else if (String_equalNew(text, "static")) kind = TokenKind.STATIC;
       else if (String_equalNew(text, "this")) kind = TokenKind.THIS;
       else if (String_equalNew(text, "true")) kind = TokenKind.TRUE;
       else if (String_equalNew(text, "unsafe")) kind = TokenKind.UNSAFE;

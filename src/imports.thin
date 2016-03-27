@@ -4,6 +4,7 @@ function assert(truth: bool): void;
 class String {}
 
 function String_new(text: string): String;
+function String_newLength(text: string, length: int): String;
 function String_length(self: String): int;
 function String_get(self: String, index: int): int;
 function String_append(self: String, other: String): String;

@@ -144,6 +144,15 @@ function initialize(context, node, parentScope) {
     child = child.nextSibling;
   }
 }
+function forbidFlag(context, node, flag, text) {
+  if ((node.flags & flag) !== 0) {
+    var range = rangeForFlag(node.firstFlag, flag);
+    if (range !== null) {
+      node.flags = node.flags & ~flag;
+      context.log.error(range, __imports.String_new(text));
+    }
+  }
+}
 function initializeSymbol(context, symbol) {
   if (symbol.state === 2) {
     __imports.assert(symbol.resolvedType !== null);
@@ -152,6 +161,11 @@ function initializeSymbol(context, symbol) {
   __imports.assert(symbol.state === 0);
   __imports.assert(symbol.resolvedType === null);
   symbol.state = 1;
+  forbidFlag(context, symbol.node, 2, "Unsupported flag 'export'");
+  forbidFlag(context, symbol.node, 8, "Unsupported flag 'private'");
+  forbidFlag(context, symbol.node, 16, "Unsupported flag 'protected'");
+  forbidFlag(context, symbol.node, 32, "Unsupported flag 'public'");
+  forbidFlag(context, symbol.node, 64, "Unsupported flag 'static'");
   if (symbol.kind === 0) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
@@ -176,6 +190,9 @@ function initializeSymbol(context, symbol) {
     }
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
+    if (symbol.node.functionBody() === null) {
+      forbidFlag(context, symbol.node, 4, "Cannot use the flag 'extern' on an imported function, did you mean 'declare'?");
+    }
   } else if (isVariable(symbol.kind)) {
     var type = symbol.node.variableType();
     var value = symbol.node.variableValue();
@@ -605,7 +622,7 @@ function resolve(context, node, parentScope) {
     resolveAsExpression(context, right, parentScope);
     var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
     if (commonType === context.uintType) {
-      node.flags = node.flags | 4;
+      node.flags = node.flags | 256;
     }
     checkConversion(context, left, commonType, 0);
     checkConversion(context, right, commonType, 0);
@@ -650,7 +667,7 @@ function resolve(context, node, parentScope) {
     var rightType = right.resolvedType;
     var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
     if (expectedType === context.uintType) {
-      node.flags = node.flags | 4;
+      node.flags = node.flags | 256;
     }
     checkConversion(context, left, expectedType, 0);
     checkConversion(context, right, expectedType, 0);
@@ -706,6 +723,9 @@ function resolve(context, node, parentScope) {
       } else {
         node.resolvedType = type.resolvedType;
       }
+    }
+    if (type.nextSibling !== null) {
+      context.log.error(node.internalRange, __imports.String_new("Constructors with arguments are not supported yet"));
     }
   } else {
     __imports.assert(false);
@@ -1342,66 +1362,81 @@ function tokenToString(token) {
     return "'continue'";
   }
   if (token === 45) {
-    return "'else'";
+    return "'declare'";
   }
   if (token === 46) {
-    return "'enum'";
+    return "'else'";
   }
   if (token === 47) {
-    return "'export'";
+    return "'enum'";
   }
   if (token === 48) {
-    return "'extends'";
+    return "'export'";
   }
   if (token === 49) {
-    return "'extern'";
+    return "'extends'";
   }
   if (token === 50) {
-    return "'false'";
+    return "'extern'";
   }
   if (token === 51) {
-    return "'function'";
+    return "'false'";
   }
   if (token === 52) {
-    return "'if'";
+    return "'function'";
   }
   if (token === 53) {
-    return "'implements'";
+    return "'if'";
   }
   if (token === 54) {
-    return "'import'";
+    return "'implements'";
   }
   if (token === 55) {
-    return "'interface'";
+    return "'import'";
   }
   if (token === 56) {
-    return "'let'";
+    return "'interface'";
   }
   if (token === 57) {
-    return "'new'";
+    return "'let'";
   }
   if (token === 58) {
-    return "'null'";
+    return "'new'";
   }
   if (token === 59) {
-    return "'return'";
+    return "'null'";
   }
   if (token === 60) {
-    return "'sizeof'";
+    return "'private'";
   }
   if (token === 61) {
-    return "'this'";
+    return "'protected'";
   }
   if (token === 62) {
-    return "'true'";
+    return "'public'";
   }
   if (token === 63) {
-    return "'unsafe'";
+    return "'return'";
   }
   if (token === 64) {
-    return "'var'";
+    return "'sizeof'";
   }
   if (token === 65) {
+    return "'static'";
+  }
+  if (token === 66) {
+    return "'this'";
+  }
+  if (token === 67) {
+    return "'true'";
+  }
+  if (token === 68) {
+    return "'unsafe'";
+  }
+  if (token === 69) {
+    return "'var'";
+  }
+  if (token === 70) {
     return "'while'";
   }
   __imports.assert(false);
@@ -1451,48 +1486,58 @@ function tokenize(source, log) {
         kind = 43;
       } else if (__imports.String_equalNew(text, "continue")) {
         kind = 44;
-      } else if (__imports.String_equalNew(text, "else")) {
+      } else if (__imports.String_equalNew(text, "declare")) {
         kind = 45;
-      } else if (__imports.String_equalNew(text, "enum")) {
+      } else if (__imports.String_equalNew(text, "else")) {
         kind = 46;
-      } else if (__imports.String_equalNew(text, "export")) {
+      } else if (__imports.String_equalNew(text, "enum")) {
         kind = 47;
-      } else if (__imports.String_equalNew(text, "extends")) {
+      } else if (__imports.String_equalNew(text, "export")) {
         kind = 48;
-      } else if (__imports.String_equalNew(text, "extern")) {
+      } else if (__imports.String_equalNew(text, "extends")) {
         kind = 49;
-      } else if (__imports.String_equalNew(text, "false")) {
+      } else if (__imports.String_equalNew(text, "extern")) {
         kind = 50;
-      } else if (__imports.String_equalNew(text, "function")) {
+      } else if (__imports.String_equalNew(text, "false")) {
         kind = 51;
-      } else if (__imports.String_equalNew(text, "if")) {
+      } else if (__imports.String_equalNew(text, "function")) {
         kind = 52;
-      } else if (__imports.String_equalNew(text, "implements")) {
+      } else if (__imports.String_equalNew(text, "if")) {
         kind = 53;
-      } else if (__imports.String_equalNew(text, "import")) {
+      } else if (__imports.String_equalNew(text, "implements")) {
         kind = 54;
-      } else if (__imports.String_equalNew(text, "interface")) {
+      } else if (__imports.String_equalNew(text, "import")) {
         kind = 55;
-      } else if (__imports.String_equalNew(text, "let")) {
+      } else if (__imports.String_equalNew(text, "interface")) {
         kind = 56;
-      } else if (__imports.String_equalNew(text, "new")) {
+      } else if (__imports.String_equalNew(text, "let")) {
         kind = 57;
-      } else if (__imports.String_equalNew(text, "null")) {
+      } else if (__imports.String_equalNew(text, "new")) {
         kind = 58;
-      } else if (__imports.String_equalNew(text, "return")) {
+      } else if (__imports.String_equalNew(text, "null")) {
         kind = 59;
-      } else if (__imports.String_equalNew(text, "sizeof")) {
+      } else if (__imports.String_equalNew(text, "private")) {
         kind = 60;
-      } else if (__imports.String_equalNew(text, "this")) {
+      } else if (__imports.String_equalNew(text, "protected")) {
         kind = 61;
-      } else if (__imports.String_equalNew(text, "true")) {
+      } else if (__imports.String_equalNew(text, "public")) {
         kind = 62;
-      } else if (__imports.String_equalNew(text, "unsafe")) {
+      } else if (__imports.String_equalNew(text, "return")) {
         kind = 63;
-      } else if (__imports.String_equalNew(text, "var")) {
+      } else if (__imports.String_equalNew(text, "sizeof")) {
         kind = 64;
-      } else if (__imports.String_equalNew(text, "while")) {
+      } else if (__imports.String_equalNew(text, "static")) {
         kind = 65;
+      } else if (__imports.String_equalNew(text, "this")) {
+        kind = 66;
+      } else if (__imports.String_equalNew(text, "true")) {
+        kind = 67;
+      } else if (__imports.String_equalNew(text, "unsafe")) {
+        kind = 68;
+      } else if (__imports.String_equalNew(text, "var")) {
+        kind = 69;
+      } else if (__imports.String_equalNew(text, "while")) {
+        kind = 70;
       }
     } else if (isNumber(c)) {
       kind = 3;
@@ -1822,9 +1867,32 @@ function isBinary(kind) {
 function isExpression(node) {
   return node.kind >= 16 && node.kind <= 57;
 }
+function NodeFlag() {
+  this.flag = 0;
+  this.range = null;
+  this.next = null;
+}
+function allFlags(link) {
+  var all = 0;
+  while (link !== null) {
+    all = all | link.flag;
+    link = link.next;
+  }
+  return all;
+}
+function rangeForFlag(link, flag) {
+  while (link !== null) {
+    if (link.flag === flag) {
+      return link.range;
+    }
+    link = link.next;
+  }
+  return null;
+}
 function Node() {
   this.kind = 0;
   this.flags = 0;
+  this.firstFlag = null;
   this.range = null;
   this.internalRange = null;
   this.parent = null;
@@ -1844,14 +1912,17 @@ Node.prototype.isNegativeInteger = function() {
 Node.prototype.isNonNegativeInteger = function() {
   return this.kind === 22 && this.intValue >= 0;
 };
-Node.prototype.isExtern = function() {
+Node.prototype.isDeclare = function() {
   return (this.flags & 1) !== 0;
 };
+Node.prototype.isExtern = function() {
+  return (this.flags & 4) !== 0;
+};
 Node.prototype.isUnsafe = function() {
-  return (this.flags & 2) !== 0;
+  return (this.flags & 128) !== 0;
 };
 Node.prototype.isUnsignedOperator = function() {
-  return (this.flags & 4) !== 0;
+  return (this.flags & 256) !== 0;
 };
 Node.prototype.childCount = function() {
   var count = 0;
@@ -2001,7 +2072,7 @@ Node.prototype.functionBody = function() {
 };
 Node.prototype.newType = function() {
   __imports.assert(this.kind === 24);
-  __imports.assert(this.childCount() === 1);
+  __imports.assert(this.childCount() >= 1);
   __imports.assert(isExpression(this.firstChild));
   return this.firstChild;
 };
@@ -2423,7 +2494,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
       start = end + 1 | 0;
       c = __imports.String_get(text, end);
       if (c === 48) {
-        result = __imports.String_appendNew(result, "");
+        result = __imports.String_append(result, __imports.String_newLength("\u0000", 1));
       } else if (c === 116) {
         result = __imports.String_appendNew(result, "\t");
       } else if (c === 110) {
@@ -2450,10 +2521,10 @@ ParserContext.prototype.parsePrefix = function(mode) {
     return createName(value).withRange(token.range);
   }
   if (mode === 0) {
-    if (this.eat(58)) {
+    if (this.eat(59)) {
       return createNull().withRange(token.range);
     }
-    if (this.eat(61)) {
+    if (this.eat(66)) {
       return createThis().withRange(token.range);
     }
     if (this.peek(1)) {
@@ -2484,22 +2555,18 @@ ParserContext.prototype.parsePrefix = function(mode) {
       this.advance();
       return value.withRange(token.range);
     }
-    if (this.eat(62)) {
+    if (this.eat(67)) {
       return createBool(true).withRange(token.range);
     }
-    if (this.eat(50)) {
+    if (this.eat(51)) {
       return createBool(false).withRange(token.range);
     }
-    if (this.eat(57)) {
+    if (this.eat(58)) {
       var type = this.parseType();
-      if (type === null || !this.expect(19)) {
+      if (type === null) {
         return null;
       }
-      var close = this.current;
-      if (!this.expect(35)) {
-        return null;
-      }
-      return createNew(type).withRange(spanRanges(token.range, close.range));
+      return this.parseArgumentList(token.range, createNew(type));
     }
     if (this.eat(39)) {
       if (!this.expect(19)) {
@@ -2515,7 +2582,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       }
       return createAlignOf(type).withRange(spanRanges(token.range, close.range));
     }
-    if (this.eat(60)) {
+    if (this.eat(64)) {
       if (!this.expect(19)) {
         return null;
       }
@@ -2642,25 +2709,7 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
       return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token);
     }
     if (this.peek(19) && precedence < 13) {
-      this.advance();
-      var call = createCall(node);
-      if (!this.peek(35)) {
-        while (true) {
-          var value = this.parseExpression(0, 0);
-          if (value === null) {
-            return null;
-          }
-          call.appendChild(value);
-          if (!this.eat(10)) {
-            break;
-          }
-        }
-      }
-      var close = this.current;
-      if (!this.expect(35)) {
-        return null;
-      }
-      return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token, close.range));
+      return this.parseArgumentList(token, createCall(node));
     }
     if (this.peek(31) && precedence < 1) {
       this.advance();
@@ -2676,6 +2725,29 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
     }
   }
   return node;
+};
+ParserContext.prototype.parseArgumentList = function(start, node) {
+  var open = this.current.range;
+  if (!this.expect(19)) {
+    return null;
+  }
+  if (!this.peek(35)) {
+    while (true) {
+      var value = this.parseExpression(0, 0);
+      if (value === null) {
+        return null;
+      }
+      node.appendChild(value);
+      if (!this.eat(10)) {
+        break;
+      }
+    }
+  }
+  var close = this.current.range;
+  if (!this.expect(35)) {
+    return null;
+  }
+  return node.withRange(spanRanges(start, close)).withInternalRange(spanRanges(open, close));
 };
 ParserContext.prototype.parseExpression = function(precedence, mode) {
   var node = this.parsePrefix(mode);
@@ -2701,7 +2773,7 @@ ParserContext.prototype.parseType = function() {
 };
 ParserContext.prototype.parseIf = function() {
   var token = this.current;
-  __imports.assert(token.kind === 52);
+  __imports.assert(token.kind === 53);
   this.advance();
   if (!this.expect(19)) {
     return null;
@@ -2722,7 +2794,7 @@ ParserContext.prototype.parseIf = function() {
     return null;
   }
   var falseBranch = null;
-  if (this.eat(45)) {
+  if (this.eat(46)) {
     falseBranch = this.parseBody();
     if (falseBranch === null) {
       return null;
@@ -2732,7 +2804,7 @@ ParserContext.prototype.parseIf = function() {
 };
 ParserContext.prototype.parseWhile = function() {
   var token = this.current;
-  __imports.assert(token.kind === 65);
+  __imports.assert(token.kind === 70);
   this.advance();
   if (!this.expect(19)) {
     return null;
@@ -2783,7 +2855,7 @@ ParserContext.prototype.parseBlock = function() {
 };
 ParserContext.prototype.parseReturn = function() {
   var token = this.current;
-  __imports.assert(token.kind === 59);
+  __imports.assert(token.kind === 63);
   this.advance();
   var value = null;
   if (!this.peek(36)) {
@@ -2801,9 +2873,9 @@ ParserContext.prototype.parseEmpty = function() {
   this.advance();
   return createEmpty().withRange(token.range);
 };
-ParserContext.prototype.parseEnum = function(flags) {
+ParserContext.prototype.parseEnum = function(firstFlag) {
   var token = this.current;
-  __imports.assert(token.kind === 46);
+  __imports.assert(token.kind === 47);
   this.advance();
   var name = this.current;
   if (!this.expect(2) || !this.expect(17)) {
@@ -2811,7 +2883,8 @@ ParserContext.prototype.parseEnum = function(flags) {
   }
   var text = name.range.toString();
   var node = createEnum(text);
-  node.flags = flags;
+  node.firstFlag = firstFlag;
+  node.flags = allFlags(firstFlag);
   while (!this.peek(0) && !this.peek(33)) {
     var member = this.current.range;
     var value = null;
@@ -2841,7 +2914,7 @@ ParserContext.prototype.parseEnum = function(flags) {
   }
   return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
 };
-ParserContext.prototype.parseClass = function(flags) {
+ParserContext.prototype.parseClass = function(firstFlag) {
   var token = this.current;
   __imports.assert(token.kind === 42);
   this.advance();
@@ -2850,7 +2923,8 @@ ParserContext.prototype.parseClass = function(flags) {
     return null;
   }
   var node = createClass(name.range.toString());
-  node.flags = flags;
+  node.firstFlag = firstFlag;
+  node.flags = allFlags(firstFlag);
   while (!this.peek(0) && !this.peek(33)) {
     var childFlags = this.parseFlags();
     var start = this.current;
@@ -2875,10 +2949,10 @@ ParserContext.prototype.parseClass = function(flags) {
   }
   return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
 };
-ParserContext.prototype.parseFunction = function(flags, parent) {
+ParserContext.prototype.parseFunction = function(firstFlag, parent) {
   var token = this.current;
   if (parent === null) {
-    __imports.assert(token.kind === 51);
+    __imports.assert(token.kind === 52);
     this.advance();
   }
   var name = this.current;
@@ -2886,9 +2960,11 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
     return null;
   }
   var node = createFunction(name.range.toString());
-  node.flags = flags;
+  node.firstFlag = firstFlag;
+  node.flags = allFlags(firstFlag);
   if (!this.peek(35)) {
     while (true) {
+      var firstArgumentFlag = this.parseFlags();
       var argument = this.current;
       if (!this.expect(2)) {
         return null;
@@ -2908,6 +2984,8 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
         type = createParseError();
       }
       var variable = createVariable(argument.range.toString(), type, null);
+      variable.firstFlag = firstArgumentFlag;
+      variable.flags = allFlags(firstArgumentFlag);
       node.appendChild(variable.withRange(range).withInternalRange(argument.range));
       if (!this.eat(10)) {
         break;
@@ -2949,10 +3027,10 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
   node.appendChild(block);
   return node.withRange(spanRanges(token.range, block.range)).withInternalRange(name.range);
 };
-ParserContext.prototype.parseVariables = function(flags, parent) {
+ParserContext.prototype.parseVariables = function(firstFlag, parent) {
   var token = this.current;
   if (parent === null) {
-    __imports.assert(token.kind === 43 || token.kind === 56 || token.kind === 64);
+    __imports.assert(token.kind === 43 || token.kind === 57 || token.kind === 69);
     this.advance();
   }
   var node = token.kind === 43 ? createConstants() : createVariables();
@@ -2980,7 +3058,8 @@ ParserContext.prototype.parseVariables = function(flags, parent) {
     }
     var range = value !== null ? spanRanges(name.range, value.range) : type !== null ? spanRanges(name.range, type.range) : name.range;
     var variable = createVariable(name.range.toString(), type, value);
-    variable.flags = flags;
+    variable.firstFlag = firstFlag;
+    variable.flags = allFlags(firstFlag);
     (parent !== null ? parent : node).appendChild(variable.withRange(range).withInternalRange(name.range));
     if (!this.eat(10)) {
       break;
@@ -2999,15 +3078,39 @@ ParserContext.prototype.parseLoopJump = function(kind) {
   return node.withRange(token.range);
 };
 ParserContext.prototype.parseFlags = function() {
-  var flags = 0;
+  var firstFlag = null;
+  var lastFlag = null;
   while (true) {
-    if (this.eat(49)) {
-      flags = flags | 1;
-    } else if (this.eat(63)) {
-      flags = flags | 2;
+    var token = this.current;
+    var flag = 0;
+    if (this.eat(45)) {
+      flag = 1;
+    } else if (this.eat(48)) {
+      flag = 2;
+    } else if (this.eat(50)) {
+      flag = 4;
+    } else if (this.eat(60)) {
+      flag = 8;
+    } else if (this.eat(61)) {
+      flag = 16;
+    } else if (this.eat(62)) {
+      flag = 32;
+    } else if (this.eat(65)) {
+      flag = 64;
+    } else if (this.eat(68)) {
+      flag = 128;
     } else {
-      return flags;
+      return firstFlag;
     }
+    var link = new NodeFlag();
+    link.flag = flag;
+    link.range = token.range;
+    if (firstFlag === null) {
+      firstFlag = link;
+    } else {
+      lastFlag.next = link;
+    }
+    lastFlag = link;
   }
 };
 ParserContext.prototype.parseUnsafe = function() {
@@ -3017,27 +3120,27 @@ ParserContext.prototype.parseUnsafe = function() {
   if (node === null) {
     return null;
   }
-  node.flags = node.flags | 2;
+  node.flags = node.flags | 128;
   return node.withRange(spanRanges(token.range, node.range));
 };
 ParserContext.prototype.parseStatement = function(mode) {
-  var flags = mode === 1 ? this.parseFlags() : 0;
-  if (this.peek(63) && flags === 0) {
+  var firstFlag = mode === 1 ? this.parseFlags() : null;
+  if (this.peek(68) && firstFlag === null) {
     return this.parseUnsafe();
   }
-  if (this.peek(43) || this.peek(56) || this.peek(64)) {
-    return this.parseVariables(flags, null);
+  if (this.peek(43) || this.peek(57) || this.peek(69)) {
+    return this.parseVariables(firstFlag, null);
   }
-  if (this.peek(51)) {
-    return this.parseFunction(flags, null);
+  if (this.peek(52)) {
+    return this.parseFunction(firstFlag, null);
   }
   if (this.peek(42)) {
-    return this.parseClass(flags);
+    return this.parseClass(firstFlag);
   }
-  if (this.peek(46)) {
-    return this.parseEnum(flags);
+  if (this.peek(47)) {
+    return this.parseEnum(firstFlag);
   }
-  if (flags !== 0) {
+  if (firstFlag !== null) {
     this.unexpectedToken();
     return null;
   }
@@ -3050,13 +3153,13 @@ ParserContext.prototype.parseStatement = function(mode) {
   if (this.peek(44)) {
     return this.parseLoopJump(6);
   }
-  if (this.peek(52)) {
+  if (this.peek(53)) {
     return this.parseIf();
   }
-  if (this.peek(65)) {
+  if (this.peek(70)) {
     return this.parseWhile();
   }
-  if (this.peek(59)) {
+  if (this.peek(63)) {
     return this.parseReturn();
   }
   if (this.peek(36)) {

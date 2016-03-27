@@ -145,6 +145,17 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 }
 
+function forbidFlag(context: CheckContext, node: Node, flag: int, text: string): void {
+  if ((node.flags & flag) != 0) {
+    var range = rangeForFlag(node.firstFlag, flag);
+
+    if (range != null) {
+      node.flags = node.flags & ~flag;
+      context.log.error(range, String_new(text));
+    }
+  }
+}
+
 function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   if (symbol.state == SymbolState.INITIALIZED) {
     assert(symbol.resolvedType != null);
@@ -154,6 +165,13 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   assert(symbol.state == SymbolState.UNINITIALIZED);
   assert(symbol.resolvedType == null);
   symbol.state = SymbolState.INITIALIZING;
+
+  // Most flags aren't supported yet
+  forbidFlag(context, symbol.node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
+  forbidFlag(context, symbol.node, NODE_FLAG_PRIVATE, "Unsupported flag 'private'");
+  forbidFlag(context, symbol.node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
+  forbidFlag(context, symbol.node, NODE_FLAG_PUBLIC, "Unsupported flag 'public'");
+  forbidFlag(context, symbol.node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class
   if (symbol.kind == SymbolKind.TYPE_CLASS) {
@@ -188,6 +206,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
+
+    // Validate flags
+    if (symbol.node.functionBody() == null) {
+      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use the flag 'extern' on an imported function, did you mean 'declare'?");
+    }
   }
 
   // Variable
@@ -1004,6 +1027,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       else {
         node.resolvedType = type.resolvedType;
       }
+    }
+
+    // TODO: Constructors
+    if (type.nextSibling != null) {
+      context.log.error(node.internalRange, String_new("Constructors with arguments are not supported yet"));
     }
   }
 

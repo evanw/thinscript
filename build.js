@@ -12,6 +12,10 @@ function loadStdlibForJavaScript() {
       return value;
     },
 
+    String_newLength: function(value, length) {
+      return value;
+    },
+
     String_length: function(self) {
       return self.length;
     },

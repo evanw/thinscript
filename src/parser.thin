@@ -143,7 +143,7 @@ class ParserContext {
         start = end + 1;
         c = String_get(text, end);
 
-        if (c == '0') result = String_appendNew(result, "\0");
+        if (c == '0') result = String_append(result, String_newLength("\0", 1));
         else if (c == 't') result = String_appendNew(result, "\t");
         else if (c == 'n') result = String_appendNew(result, "\n");
         else if (c == 'r') result = String_appendNew(result, "\r");
@@ -223,14 +223,10 @@ class ParserContext {
 
       if (this.eat(TokenKind.NEW)) {
         var type = this.parseType();
-        if (type == null || !this.expect(TokenKind.LEFT_PARENTHESIS)) {
+        if (type == null) {
           return null;
         }
-        var close = this.current;
-        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-          return null;
-        }
-        return createNew(type).withRange(spanRanges(token.range, close.range));
+        return this.parseArgumentList(token.range, createNew(type));
       }
 
       if (this.eat(TokenKind.ALIGNOF)) {
@@ -342,29 +338,7 @@ class ParserContext {
 
       // Call
       if (this.peek(TokenKind.LEFT_PARENTHESIS) && precedence < Precedence.UNARY_POSTFIX) {
-        this.advance();
-        var call = createCall(node);
-
-        if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
-          while (true) {
-            var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
-            if (value == null) {
-              return null;
-            }
-            call.appendChild(value);
-
-            if (!this.eat(TokenKind.COMMA)) {
-              break;
-            }
-          }
-        }
-
-        var close = this.current;
-        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
-          return null;
-        }
-
-        return call.withRange(spanRanges(node.range, close.range)).withInternalRange(spanRanges(token, close.range));
+        return this.parseArgumentList(token, createCall(node));
       }
 
       // Hook
@@ -386,6 +360,34 @@ class ParserContext {
     }
 
     return node;
+  }
+
+  parseArgumentList(start: Range, node: Node): Node {
+    var open = this.current.range;
+    if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
+      return null;
+    }
+
+    if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+      while (true) {
+        var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+        if (value == null) {
+          return null;
+        }
+        node.appendChild(value);
+
+        if (!this.eat(TokenKind.COMMA)) {
+          break;
+        }
+      }
+    }
+
+    var close = this.current.range;
+    if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+      return null;
+    }
+
+    return node.withRange(spanRanges(start, close)).withInternalRange(spanRanges(open, close));
   }
 
   parseExpression(precedence: Precedence, mode: ParseKind): Node {
@@ -549,7 +551,7 @@ class ParserContext {
     return createEmpty().withRange(token.range);
   }
 
-  parseEnum(flags: int): Node {
+  parseEnum(firstFlag: NodeFlag): Node {
     var token = this.current;
     assert(token.kind == TokenKind.ENUM);
     this.advance();
@@ -561,7 +563,8 @@ class ParserContext {
 
     var text = name.range.toString();
     var node = createEnum(text);
-    node.flags = flags;
+    node.firstFlag = firstFlag;
+    node.flags = allFlags(firstFlag);
 
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
       var member = this.current.range;
@@ -605,7 +608,7 @@ class ParserContext {
     return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
   }
 
-  parseClass(flags: int): Node {
+  parseClass(firstFlag: NodeFlag): Node {
     var token = this.current;
     assert(token.kind == TokenKind.CLASS);
     this.advance();
@@ -616,7 +619,8 @@ class ParserContext {
     }
 
     var node = createClass(name.range.toString());
-    node.flags = flags;
+    node.firstFlag = firstFlag;
+    node.flags = allFlags(firstFlag);
 
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
       var childFlags = this.parseFlags();
@@ -649,7 +653,7 @@ class ParserContext {
     return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
   }
 
-  parseFunction(flags: int, parent: Node): Node {
+  parseFunction(firstFlag: NodeFlag, parent: Node): Node {
     var token = this.current;
 
     // Functions inside class declarations don't use "function"
@@ -664,10 +668,13 @@ class ParserContext {
     }
 
     var node = createFunction(name.range.toString());
-    node.flags = flags;
+    node.firstFlag = firstFlag;
+    node.flags = allFlags(firstFlag);
 
     if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
       while (true) {
+        var firstArgumentFlag = this.parseFlags();
+
         var argument = this.current;
         if (!this.expect(TokenKind.IDENTIFIER)) {
           return null;
@@ -699,6 +706,8 @@ class ParserContext {
         }
 
         var variable = createVariable(argument.range.toString(), type, null);
+        variable.firstFlag = firstArgumentFlag;
+        variable.flags = allFlags(firstArgumentFlag);
         node.appendChild(variable.withRange(range).withInternalRange(argument.range));
 
         if (!this.eat(TokenKind.COMMA)) {
@@ -763,7 +772,7 @@ class ParserContext {
     return node.withRange(spanRanges(token.range, block.range)).withInternalRange(name.range);
   }
 
-  parseVariables(flags: int, parent: Node): Node {
+  parseVariables(firstFlag: NodeFlag, parent: Node): Node {
     var token = this.current;
 
     // Variables inside class declarations don't use "var"
@@ -807,7 +816,8 @@ class ParserContext {
         name.range;
 
       var variable = createVariable(name.range.toString(), type, value);
-      variable.flags = flags;
+      variable.firstFlag = firstFlag;
+      variable.flags = allFlags(firstFlag);
       (parent != null ? parent : node).appendChild(variable.withRange(range).withInternalRange(name.range));
 
       if (!this.eat(TokenKind.COMMA)) {
@@ -829,12 +839,31 @@ class ParserContext {
     return node.withRange(token.range);
   }
 
-  parseFlags(): int {
-    var flags = 0;
+  parseFlags(): NodeFlag {
+    var firstFlag: NodeFlag = null;
+    var lastFlag: NodeFlag = null;
+
     while (true) {
-      if (this.eat(TokenKind.EXTERN)) flags = flags | NODE_FLAG_EXTERN;
-      else if (this.eat(TokenKind.UNSAFE)) flags = flags | NODE_FLAG_UNSAFE;
-      else return flags;
+      var token = this.current;
+      var flag: int;
+
+      if (this.eat(TokenKind.DECLARE)) flag = NODE_FLAG_DECLARE;
+      else if (this.eat(TokenKind.EXPORT)) flag = NODE_FLAG_EXPORT;
+      else if (this.eat(TokenKind.EXTERN)) flag = NODE_FLAG_EXTERN;
+      else if (this.eat(TokenKind.PRIVATE)) flag = NODE_FLAG_PRIVATE;
+      else if (this.eat(TokenKind.PROTECTED)) flag = NODE_FLAG_PROTECTED;
+      else if (this.eat(TokenKind.PUBLIC)) flag = NODE_FLAG_PUBLIC;
+      else if (this.eat(TokenKind.STATIC)) flag = NODE_FLAG_STATIC;
+      else if (this.eat(TokenKind.UNSAFE)) flag = NODE_FLAG_UNSAFE;
+      else return firstFlag;
+
+      var link = new NodeFlag();
+      link.flag = flag;
+      link.range = token.range;
+
+      if (firstFlag == null) firstFlag = link;
+      else lastFlag.next = link;
+      lastFlag = link;
     }
   }
 
@@ -852,16 +881,16 @@ class ParserContext {
   }
 
   parseStatement(mode: StatementMode): Node {
-    var flags = mode == StatementMode.GLOBAL ? this.parseFlags() : 0;
+    var firstFlag = mode == StatementMode.GLOBAL ? this.parseFlags() : null;
 
-    if (this.peek(TokenKind.UNSAFE) && flags == 0) return this.parseUnsafe();
-    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.LET) || this.peek(TokenKind.VAR)) return this.parseVariables(flags, null);
-    if (this.peek(TokenKind.FUNCTION)) return this.parseFunction(flags, null);
-    if (this.peek(TokenKind.CLASS)) return this.parseClass(flags);
-    if (this.peek(TokenKind.ENUM)) return this.parseEnum(flags);
+    if (this.peek(TokenKind.UNSAFE) && firstFlag == null) return this.parseUnsafe();
+    if (this.peek(TokenKind.CONST) || this.peek(TokenKind.LET) || this.peek(TokenKind.VAR)) return this.parseVariables(firstFlag, null);
+    if (this.peek(TokenKind.FUNCTION)) return this.parseFunction(firstFlag, null);
+    if (this.peek(TokenKind.CLASS)) return this.parseClass(firstFlag);
+    if (this.peek(TokenKind.ENUM)) return this.parseEnum(firstFlag);
 
     // Definition modifiers need to be attached to a definition
-    if (flags != 0) {
+    if (firstFlag != null) {
       this.unexpectedToken();
       return null;
     }

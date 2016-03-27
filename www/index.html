@@ -138,13 +138,14 @@
     });
   }
 
-  function parseString(bytes, index) {
+  function parseString(bytes, index, length) {
+    var hasLength = length > 0;
     var text = '';
-    var c;
 
-    while ((c = bytes[index]) !== 0) {
-      text += String.fromCharCode(c);
+    while (hasLength ? length > 0 : bytes[index] !== 0) {
+      text += String.fromCharCode(bytes[index]);
       index++;
+      length--;
     }
 
     return text;
@@ -163,7 +164,12 @@
       },
 
       String_new: function(ptr) {
-        strings.push(parseString(stdlib.bytes, ptr));
+        strings.push(parseString(stdlib.bytes, ptr, 0));
+        return strings.length;
+      },
+
+      String_newLength: function(ptr, length) {
+        strings.push(parseString(stdlib.bytes, ptr, length));
         return strings.length;
       },
 
@@ -225,6 +231,10 @@
       },
 
       String_new: function(value) {
+        return value;
+      },
+
+      String_newLength: function(value, length) {
         return value;
       },
 

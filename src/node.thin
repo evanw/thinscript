@@ -84,13 +84,45 @@ function isExpression(node: Node): bool {
   return node.kind >= NodeKind.ALIGN_OF && node.kind <= NodeKind.SUBTRACT;
 }
 
-const NODE_FLAG_EXTERN = 1;
-const NODE_FLAG_UNSAFE = 2;
-const NODE_FLAG_UNSIGNED_OPERATOR = 4;
+const NODE_FLAG_DECLARE = 1 << 0;
+const NODE_FLAG_EXPORT = 1 << 1;
+const NODE_FLAG_EXTERN = 1 << 2;
+const NODE_FLAG_PRIVATE = 1 << 3;
+const NODE_FLAG_PROTECTED = 1 << 4;
+const NODE_FLAG_PUBLIC = 1 << 5;
+const NODE_FLAG_STATIC = 1 << 6;
+const NODE_FLAG_UNSAFE = 1 << 7;
+const NODE_FLAG_UNSIGNED_OPERATOR = 1 << 8;
+
+class NodeFlag {
+  flag: int;
+  range: Range;
+  next: NodeFlag;
+}
+
+function allFlags(link: NodeFlag): int {
+  var all = 0;
+  while (link != null) {
+    all = all | link.flag;
+    link = link.next;
+  }
+  return all;
+}
+
+function rangeForFlag(link: NodeFlag, flag: int): Range {
+  while (link != null) {
+    if (link.flag == flag) {
+      return link.range;
+    }
+    link = link.next;
+  }
+  return null;
+}
 
 class Node {
   kind: NodeKind;
   flags: int;
+  firstFlag: NodeFlag;
   range: Range;
   internalRange: Range;
   parent: Node;
@@ -110,6 +142,10 @@ class Node {
 
   isNonNegativeInteger(): bool {
     return this.kind == NodeKind.INT && this.intValue >= 0;
+  }
+
+  isDeclare(): bool {
+    return (this.flags & NODE_FLAG_DECLARE) != 0;
   }
 
   isExtern(): bool {
@@ -302,7 +338,7 @@ class Node {
 
   newType(): Node {
     assert(this.kind == NodeKind.NEW);
-    assert(this.childCount() == 1);
+    assert(this.childCount() >= 1);
     assert(isExpression(this.firstChild));
     return this.firstChild;
   }
