@@ -642,10 +642,19 @@ class ParserContext {
 
         if (this.expect(TokenKind.COLON)) {
           type = this.parseType();
-          if (type == null) {
+
+          if (type != null) {
+            range = spanRanges(range, type.range);
+          }
+
+          // Recover from a missing type
+          else if (this.peek(TokenKind.COMMA) || this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+            type = createParseError();
+          }
+
+          else {
             return null;
           }
-          range = spanRanges(argument.range, type.range);
         }
 
         // Recover from a missing colon
@@ -670,8 +679,16 @@ class ParserContext {
 
     if (this.expect(TokenKind.COLON)) {
       returnType = this.parseType();
+
       if (returnType == null) {
-        return null;
+        // Recover from a missing return type
+        if (this.peek(TokenKind.SEMICOLON) || this.peek(TokenKind.LEFT_BRACE)) {
+          returnType = createParseError();
+        }
+
+        else {
+          return null;
+        }
       }
     }
 

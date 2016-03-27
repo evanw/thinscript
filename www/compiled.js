@@ -2729,10 +2729,13 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
       var range = argument.range;
       if (this.expect(9)) {
         type = this.parseType();
-        if (type === null) {
+        if (type !== null) {
+          range = spanRanges(range, type.range);
+        } else if (this.peek(10) || this.peek(35)) {
+          type = createParseError();
+        } else {
           return null;
         }
-        range = spanRanges(argument.range, type.range);
       } else if (this.peek(10) || this.peek(35)) {
         type = createParseError();
       }
@@ -2750,7 +2753,11 @@ ParserContext.prototype.parseFunction = function(flags, parent) {
   if (this.expect(9)) {
     returnType = this.parseType();
     if (returnType === null) {
-      return null;
+      if (this.peek(36) || this.peek(17)) {
+        returnType = createParseError();
+      } else {
+        return null;
+      }
     }
   } else if (this.peek(36) || this.peek(17)) {
     returnType = createParseError();
