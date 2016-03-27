@@ -646,7 +646,7 @@ Compiler.prototype.initialize = function() {
   this.log = new Log();
   this.global = new Node();
   this.global.kind = 0;
-  var malloc = this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var __mallocOffset = 0;\n\n      function __malloc(sizeOf: int): int {\n        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
+  var malloc = this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var __mallocOffset = 0; // This will be filled in by the code generator with the inital heap pointer\n\n      function __malloc(sizeOf: int): int {\n        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
   malloc.flags = malloc.flags | 1;
 };
 Compiler.prototype.addInput = function(name, contents) {
@@ -3112,7 +3112,7 @@ Type.prototype.findMember = function(name) {
   }
   return null;
 };
-function WasmType() {
+function WasmWrappedType() {
   this.id = 0;
   this.next = null;
 }
@@ -3234,14 +3234,14 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
   return i;
 };
 WasmModule.prototype.emitModule = function(array) {
-  __imports.ByteArray_appendByte(array, 1836278016);
-  __imports.ByteArray_appendByte(array, 7172961);
-  __imports.ByteArray_appendByte(array, 28019);
-  __imports.ByteArray_appendByte(array, 109);
-  __imports.ByteArray_appendByte(array, 10);
-  __imports.ByteArray_appendByte(array, 0);
-  __imports.ByteArray_appendByte(array, 0);
-  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 1836278016 & 255);
+  __imports.ByteArray_appendByte(array, 7172961 & 255);
+  __imports.ByteArray_appendByte(array, 28019 & 255);
+  __imports.ByteArray_appendByte(array, 109 & 255);
+  __imports.ByteArray_appendByte(array, 10 & 255);
+  __imports.ByteArray_appendByte(array, 0 & 255);
+  __imports.ByteArray_appendByte(array, 0 & 255);
+  __imports.ByteArray_appendByte(array, 0 & 255);
   this.emitSignatures(array);
   this.emitImportTable(array);
   this.emitFunctionSignatures(array);
@@ -3366,10 +3366,10 @@ WasmModule.prototype.emitDataSegments = function(array) {
   var initalizerLength = __imports.ByteArray_length(memoryInitializer);
   var initialHeapPointer = alignToNextMultipleOf(initalizerLength + 8 | 0, 8);
   var heapPointerOffset = this.heapPointerOffset;
-  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset, initialHeapPointer);
-  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 1 | 0, initialHeapPointer >> 8);
-  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 2 | 0, initialHeapPointer >> 16);
-  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 3 | 0, initialHeapPointer >> 24);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset, initialHeapPointer & 255);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 1 | 0, initialHeapPointer >> 8 & 255);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 2 | 0, initialHeapPointer >> 16 & 255);
+  __imports.ByteArray_setByte(memoryInitializer, heapPointerOffset + 3 | 0, initialHeapPointer >> 24 & 255);
   var section = wasmStartSection(array, __imports.String_new("data_segments"));
   wasmWriteVarUnsigned(array, 1);
   wasmWriteVarUnsigned(array, 8);
@@ -3390,7 +3390,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
     var memoryInitializer = this.memoryInitializer;
     var i = 0;
     while (i < length) {
-      __imports.ByteArray_setByte(memoryInitializer, offset + i | 0, __imports.String_get(text, i));
+      __imports.ByteArray_setByte(memoryInitializer, offset + i | 0, __imports.String_get(text, i) & 255);
       i = i + 1 | 0;
     }
     __imports.ByteArray_setByte(memoryInitializer, offset + length | 0, 0);
@@ -3408,7 +3408,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
     var argumentTypesLast = null;
     var argument = node.firstChild;
     while (argument !== returnType) {
-      var type = wasmWrapType(this.getType(argument.variableType().resolvedType));
+      var type = wasmWrapType(this.getWasmType(argument.variableType().resolvedType));
       if (argumentTypesFirst === null) {
         argumentTypesFirst = type;
       } else {
@@ -3418,7 +3418,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
       shared.nextLocalOffset = shared.nextLocalOffset + 1 | 0;
       argument = argument.nextSibling;
     }
-    var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(this.getType(returnType.resolvedType)));
+    var signatureIndex = this.allocateSignature(argumentTypesFirst, wasmWrapType(this.getWasmType(returnType.resolvedType)));
     var body = node.functionBody();
     var symbol = node.symbol;
     if (body === null) {
@@ -3748,7 +3748,7 @@ WasmModule.prototype.emitNode = function(array, node) {
   }
   return 1;
 };
-WasmModule.prototype.getType = function(type) {
+WasmModule.prototype.getWasmType = function(type) {
   var context = this.context;
   if (type === context.boolType || type.isInteger() || type.isReference(context)) {
     return 1;
@@ -3760,29 +3760,32 @@ WasmModule.prototype.getType = function(type) {
   return 0;
 };
 function wasmPatchVarUnsigned(array, offset, value, maxValue) {
+  var current = value >>> 0;
+  var max = maxValue >>> 0;
   while (true) {
-    var byte = value & 127;
-    value = value >> 7 & 33554431;
-    maxValue = maxValue >> 7 & 33554431;
-    if (maxValue !== 0) {
+    var byte = current & 127;
+    current = current >>> 7;
+    max = max >>> 7;
+    if (max !== 0) {
       byte = byte | 128;
     }
-    __imports.ByteArray_setByte(array, offset, byte);
+    __imports.ByteArray_setByte(array, offset, byte & 255);
     offset = offset + 1 | 0;
-    if (maxValue === 0) {
+    if (max === 0) {
       break;
     }
   }
 }
 function wasmWriteVarUnsigned(array, value) {
+  var current = value >>> 0;
   while (true) {
-    var byte = value & 127;
-    value = value >> 7 & 33554431;
-    if (value !== 0) {
+    var byte = current & 127;
+    current = current >>> 7;
+    if (current !== 0) {
       byte = byte | 128;
     }
-    __imports.ByteArray_appendByte(array, byte);
-    if (value === 0) {
+    __imports.ByteArray_appendByte(array, byte & 255);
+    if (current === 0) {
       break;
     }
   }
@@ -3795,7 +3798,7 @@ function wasmWriteVarSigned(array, value) {
     if (!done) {
       byte = byte | 128;
     }
-    __imports.ByteArray_appendByte(array, byte);
+    __imports.ByteArray_appendByte(array, byte & 255);
     if (done) {
       break;
     }
@@ -3806,7 +3809,7 @@ function wasmWriteLengthPrefixedString(array, value) {
   wasmWriteVarUnsigned(array, length);
   var i = 0;
   while (i < length) {
-    __imports.ByteArray_appendByte(array, __imports.String_get(value, i));
+    __imports.ByteArray_appendByte(array, __imports.String_get(value, i) & 255);
     i = i + 1 | 0;
   }
 }
@@ -3821,7 +3824,7 @@ function wasmFinishSection(array, offset) {
 }
 function wasmWrapType(id) {
   __imports.assert(id === 0 || id === 1);
-  var type = new WasmType();
+  var type = new WasmWrappedType();
   type.id = id;
   return type;
 }
