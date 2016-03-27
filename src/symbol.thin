@@ -70,12 +70,13 @@ class Symbol {
     return this.node.parent.kind == NodeKind.ENUM;
   }
 
-  isExtern(): bool {
-    return this.node.isExtern();
-  }
-
   isUnsafe(): bool {
     return this.node != null && this.node.isUnsafe();
+  }
+
+  parent(): Symbol {
+    var parent = this.node.parent;
+    return parent.kind == NodeKind.CLASS ? parent.symbol : null;
   }
 
   resolvedTypeUnderlyingIfEnumValue(context: CheckContext): Type {

@@ -564,8 +564,9 @@ class WasmModule {
 
       // Functions without bodies are imports
       if (body == null) {
+        var moduleName = symbol.kind == SymbolKind.FUNCTION_INSTANCE ? symbol.parent().name : String_new("globals");
         symbol.offset = this.importCount;
-        this.allocateImport(signatureIndex, String_new("imports"), symbol.name);
+        this.allocateImport(signatureIndex, moduleName, symbol.name);
         node = node.nextSibling;
         return;
       }
@@ -580,7 +581,7 @@ class WasmModule {
       }
 
       // Only export "extern" functions
-      if (symbol.isExtern()) {
+      if (node.isExtern()) {
         fn.isExported = true;
       }
 

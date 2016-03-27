@@ -1,8 +1,8 @@
-unsafe function ByteArray_new(): int;
-unsafe function ByteArray_length(self: int): int;
-unsafe function ByteArray_getByte(self: int, index: int): ubyte;
-unsafe function ByteArray_setByte(self: int, index: int, byte: ubyte): void;
-unsafe function ByteArray_appendByte(self: int, byte: ubyte): void;
+declare unsafe function ByteArray_new(): int;
+declare unsafe function ByteArray_length(self: int): int;
+declare unsafe function ByteArray_getByte(self: int, index: int): ubyte;
+declare unsafe function ByteArray_setByte(self: int, index: int, byte: ubyte): void;
+declare unsafe function ByteArray_appendByte(self: int, byte: ubyte): void;
 
 class ByteArray {
   unsafe _handle: int;

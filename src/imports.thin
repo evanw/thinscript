@@ -1,20 +1,20 @@
-function assert(truth: bool): void;
+declare function assert(truth: bool): void;
 
 // An external string handle for now
 class String {}
 
-function String_new(text: string): String;
-function String_newLength(text: string, length: int): String;
-function String_length(self: String): int;
-function String_get(self: String, index: int): int;
-function String_append(self: String, other: String): String;
-function String_appendNew(self: String, other: string): String;
-function String_equal(self: String, other: String): bool;
-function String_equalNew(self: String, other: string): bool;
-function String_slice(self: String, start: int, end: int): String;
-function String_toStringSigned(value: int): String;
-function String_toStringUnsigned(value: uint): String;
-function String_quote(self: String): String;
+declare function String_new(text: string): String;
+declare function String_newLength(text: string, length: int): String;
+declare function String_length(self: String): int;
+declare function String_get(self: String, index: int): int;
+declare function String_append(self: String, other: String): String;
+declare function String_appendNew(self: String, other: string): String;
+declare function String_equal(self: String, other: String): bool;
+declare function String_equalNew(self: String, other: string): bool;
+declare function String_slice(self: String, start: int, end: int): String;
+declare function String_toStringSigned(value: int): String;
+declare function String_toStringUnsigned(value: uint): String;
+declare function String_quote(self: String): String;
 
 function isPositivePowerOf2(value: int): bool {
   return value > 0 && (value & (value - 1)) == 0;

@@ -332,30 +332,31 @@ class JsResult {
         return;
       }
 
+      var symbol = node.symbol;
       var needsSemicolon = false;
       this.emitNewlineBefore(node);
       this.emitIndent();
 
-      if (node.parent.kind == NodeKind.CLASS) {
-        this.emitString(node.parent.symbol.name);
+      if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+        this.emitString(symbol.parent().name);
         this.emitText(".prototype.");
-        this.emitString(node.symbol.name);
+        this.emitString(symbol.name);
         this.emitText(" = function");
         needsSemicolon = true;
       }
 
-      else if (node.symbol.isExtern()) {
+      else if (node.isExtern()) {
         this.emitText("var ");
-        this.emitString(node.symbol.name);
+        this.emitString(symbol.name);
         this.emitText(" = exports.");
-        this.emitString(node.symbol.name);
+        this.emitString(symbol.name);
         this.emitText(" = function");
         needsSemicolon = true;
       }
 
       else {
         this.emitText("function ");
-        this.emitString(node.symbol.name);
+        this.emitString(symbol.name);
       }
 
       this.emitText("(");
@@ -487,6 +488,10 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.CLASS) {
+      if (node.isDeclare()) {
+        return;
+      }
+
       this.emitNewlineBefore(node);
       this.emitIndent();
       this.emitText("function ");

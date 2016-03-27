@@ -307,7 +307,7 @@
 
   function compileAndRunWebAssembly(code, input, target) {
     var stdlib = loadStdlibForWebAssembly();
-    var module = Wasm.instantiateModule(code, {imports: stdlib});
+    var module = Wasm.instantiateModule(code, {globals: stdlib});
     var exports = module.exports;
     var memory = exports.memory;
 

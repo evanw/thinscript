@@ -105,7 +105,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
 
     // All instance functions have a special "this" type
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-      var parent = node.parent.symbol;
+      var parent = symbol.parent();
       assert(parent.kind == SymbolKind.TYPE_CLASS);
       initializeSymbol(context, parent);
       node.insertChildBefore(node.firstChild, createVariable(String_new("this"), createType(parent.resolvedType), null));
@@ -156,6 +156,13 @@ function forbidFlag(context: CheckContext, node: Node, flag: int, text: string):
   }
 }
 
+function requireFlag(context: CheckContext, node: Node, flag: int, text: string): void {
+  if ((node.flags & flag) == 0) {
+    node.flags = node.flags | flag;
+    context.log.error(node.range, String_new(text));
+  }
+}
+
 function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   if (symbol.state == SymbolState.INITIALIZED) {
     assert(symbol.resolvedType != null);
@@ -192,6 +199,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
   // Function
   else if (isFunction(symbol.kind)) {
+    var body = symbol.node.functionBody();
     var returnType = symbol.node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
 
@@ -209,9 +217,29 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
 
-    // Validate flags
-    if (symbol.node.functionBody() == null) {
-      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use the flag 'extern' on an imported function, did you mean 'declare'?");
+    if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an instance function");
+      forbidFlag(context, symbol.node, NODE_FLAG_DECLARE, "Cannot use 'declare' on an instance function");
+
+      // Functions inside declared classes are automatically declared
+      if (symbol.parent().node.isDeclare()) {
+        symbol.node.flags = symbol.node.flags | NODE_FLAG_DECLARE;
+
+        // Prevent functions on declared classes for simplicity
+        if (body != null) {
+          context.log.error(body.range, String_new("Cannot implement a function on a declared class"));
+        }
+      }
+    }
+
+    // Imported functions require a modifier for consistency with TypeScript
+    else if (body == null) {
+      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an unimplemented function");
+      requireFlag(context, symbol.node, NODE_FLAG_DECLARE, "Declared functions must be prefixed with 'declare'");
+    }
+
+    else {
+      forbidFlag(context, symbol.node, NODE_FLAG_DECLARE, "Cannot use 'declare' on a function with an implementation");
     }
   }
 

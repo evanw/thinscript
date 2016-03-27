@@ -91,7 +91,7 @@ function initialize(context, node, parentScope) {
     parentScope = symbol.scope;
 
     if (symbol.kind === 4) {
-      var parent = node.parent.symbol;
+      var parent = symbol.parent();
       __imports.assert(parent.kind === 0);
       initializeSymbol(context, parent);
       node.insertChildBefore(node.firstChild, createVariable(__imports.String_new("this"), createType(parent.resolvedType), null));
@@ -136,6 +136,13 @@ function forbidFlag(context, node, flag, text) {
   }
 }
 
+function requireFlag(context, node, flag, text) {
+  if ((node.flags & flag) === 0) {
+    node.flags = node.flags | flag;
+    context.log.error(node.range, __imports.String_new(text));
+  }
+}
+
 function initializeSymbol(context, symbol) {
   if (symbol.state === 2) {
     __imports.assert(symbol.resolvedType !== null);
@@ -168,6 +175,7 @@ function initializeSymbol(context, symbol) {
   }
 
   else if (isFunction(symbol.kind)) {
+    var body = symbol.node.functionBody();
     var returnType = symbol.node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
     var offset = 0;
@@ -185,8 +193,26 @@ function initializeSymbol(context, symbol) {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
 
-    if (symbol.node.functionBody() === null) {
-      forbidFlag(context, symbol.node, 4, "Cannot use the flag 'extern' on an imported function, did you mean 'declare'?");
+    if (symbol.kind === 4) {
+      forbidFlag(context, symbol.node, 4, "Cannot use 'extern' on an instance function");
+      forbidFlag(context, symbol.node, 1, "Cannot use 'declare' on an instance function");
+
+      if (symbol.parent().node.isDeclare()) {
+        symbol.node.flags = symbol.node.flags | 1;
+
+        if (body !== null) {
+          context.log.error(body.range, __imports.String_new("Cannot implement a function on a declared class"));
+        }
+      }
+    }
+
+    else if (body === null) {
+      forbidFlag(context, symbol.node, 4, "Cannot use 'extern' on an unimplemented function");
+      requireFlag(context, symbol.node, 1, "Declared functions must be prefixed with 'declare'");
+    }
+
+    else {
+      forbidFlag(context, symbol.node, 1, "Cannot use 'declare' on a function with an implementation");
     }
   }
 
@@ -1515,30 +1541,31 @@ JsResult.prototype.emitStatement = function(node) {
       return;
     }
 
+    var symbol = node.symbol;
     var needsSemicolon = false;
     this.emitNewlineBefore(node);
     this.emitIndent();
 
-    if (node.parent.kind === 4) {
-      this.emitString(node.parent.symbol.name);
+    if (symbol.kind === 4) {
+      this.emitString(symbol.parent().name);
       this.emitText(".prototype.");
-      this.emitString(node.symbol.name);
+      this.emitString(symbol.name);
       this.emitText(" = function");
       needsSemicolon = true;
     }
 
-    else if (node.symbol.isExtern()) {
+    else if (node.isExtern()) {
       this.emitText("var ");
-      this.emitString(node.symbol.name);
+      this.emitString(symbol.name);
       this.emitText(" = exports.");
-      this.emitString(node.symbol.name);
+      this.emitString(symbol.name);
       this.emitText(" = function");
       needsSemicolon = true;
     }
 
     else {
       this.emitText("function ");
-      this.emitString(node.symbol.name);
+      this.emitString(symbol.name);
     }
 
     this.emitText("(");
@@ -1688,6 +1715,10 @@ JsResult.prototype.emitStatement = function(node) {
   }
 
   else if (node.kind === 4) {
+    if (node.isDeclare()) {
+      return;
+    }
+
     this.emitNewlineBefore(node);
     this.emitIndent();
     this.emitText("function ");
@@ -4703,12 +4734,14 @@ Symbol.prototype.isEnumValue = function() {
   return this.node.parent.kind === 8;
 };
 
-Symbol.prototype.isExtern = function() {
-  return this.node.isExtern();
-};
-
 Symbol.prototype.isUnsafe = function() {
   return this.node !== null && this.node.isUnsafe();
+};
+
+Symbol.prototype.parent = function() {
+  var parent = this.node.parent;
+
+  return parent.kind === 4 ? parent.symbol : null;
 };
 
 Symbol.prototype.resolvedTypeUnderlyingIfEnumValue = function(context) {
@@ -5222,8 +5255,9 @@ WasmModule.prototype.prepareToEmit = function(node) {
     var symbol = node.symbol;
 
     if (body === null) {
+      var moduleName = symbol.kind === 4 ? symbol.parent().name : __imports.String_new("globals");
       symbol.offset = this.importCount;
-      this.allocateImport(signatureIndex, __imports.String_new("imports"), symbol.name);
+      this.allocateImport(signatureIndex, moduleName, symbol.name);
       node = node.nextSibling;
 
       return;
@@ -5237,7 +5271,7 @@ WasmModule.prototype.prepareToEmit = function(node) {
       this.mallocFunctionIndex = symbol.offset;
     }
 
-    if (symbol.isExtern()) {
+    if (node.isExtern()) {
       fn.isExported = true;
     }
 
