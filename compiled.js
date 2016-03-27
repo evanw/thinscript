@@ -1,3 +1,71 @@
+function ByteArray() {
+  this._data = null;
+  this._length = 0;
+}
+
+ByteArray.prototype.length = function() {
+  return this._length;
+};
+
+ByteArray.prototype.clear = function() {
+  this._length = 0;
+};
+
+ByteArray.prototype.get = function(index) {
+  globals.assert(index >>> 0 < this._length >>> 0);
+
+  return this._data[index];
+};
+
+ByteArray.prototype.set = function(index, value) {
+  globals.assert(index >>> 0 < this._length >>> 0);
+  this._data[index] = value;
+};
+
+ByteArray.prototype.append = function(value) {
+  var index = this._length;
+  this.resize(index + 1 | 0);
+  this._data[index] = value;
+};
+
+ByteArray.prototype.bytes = function() {
+  return this._data.subarray(0, this._length);
+};
+
+ByteArray.prototype.resize = function(length) {
+  if (length > (this._data !== null ? this._data.length : 0)) {
+    var capacity = length << 1;
+    var data = globals.Uint8Array_new(capacity);
+
+    if (this._data !== null) {
+      data.set(this._data);
+    }
+
+    this._data = data;
+  }
+
+  this._length = length;
+};
+
+function ByteArray_set16(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+}
+
+function ByteArray_set32(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+  array.set(index + 2 | 0, value >> 16 & 255);
+  array.set(index + 3 | 0, value >> 24 & 255);
+}
+
+function ByteArray_append32(array, value) {
+  array.append(value & 255);
+  array.append(value >> 8 & 255);
+  array.append(value >> 16 & 255);
+  array.append(value >> 24 & 255);
+}
+
 function CheckContext() {
   this.log = null;
   this.isUnsafeAllowed = false;
@@ -153,13 +221,14 @@ function initializeSymbol(context, symbol) {
   globals.assert(symbol.state === 0);
   globals.assert(symbol.resolvedType === null);
   symbol.state = 1;
-  forbidFlag(context, symbol.node, 2, "Unsupported flag 'export'");
-  forbidFlag(context, symbol.node, 8, "Unsupported flag 'get'");
-  forbidFlag(context, symbol.node, 16, "Unsupported flag 'private'");
-  forbidFlag(context, symbol.node, 32, "Unsupported flag 'protected'");
-  forbidFlag(context, symbol.node, 64, "Unsupported flag 'public'");
-  forbidFlag(context, symbol.node, 128, "Unsupported flag 'set'");
-  forbidFlag(context, symbol.node, 256, "Unsupported flag 'static'");
+  var node = symbol.node;
+  forbidFlag(context, node, 2, "Unsupported flag 'export'");
+  forbidFlag(context, node, 8, "Unsupported flag 'get'");
+  forbidFlag(context, node, 16, "Unsupported flag 'private'");
+  forbidFlag(context, node, 32, "Unsupported flag 'protected'");
+  forbidFlag(context, node, 64, "Unsupported flag 'public'");
+  forbidFlag(context, node, 128, "Unsupported flag 'set'");
+  forbidFlag(context, node, 256, "Unsupported flag 'static'");
 
   if (symbol.kind === 0) {
     symbol.resolvedType = new Type();
@@ -175,11 +244,11 @@ function initializeSymbol(context, symbol) {
   }
 
   else if (isFunction(symbol.kind)) {
-    var body = symbol.node.functionBody();
-    var returnType = symbol.node.functionReturnType();
+    var body = node.functionBody();
+    var returnType = node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
     var offset = 0;
-    var child = symbol.node.firstChild;
+    var child = node.firstChild;
 
     while (child !== returnType) {
       globals.assert(child.kind === 1);
@@ -194,31 +263,35 @@ function initializeSymbol(context, symbol) {
     symbol.resolvedType.symbol = symbol;
 
     if (symbol.kind === 4) {
-      forbidFlag(context, symbol.node, 4, "Cannot use 'extern' on an instance function");
-      forbidFlag(context, symbol.node, 1, "Cannot use 'declare' on an instance function");
+      forbidFlag(context, node, 4, "Cannot use 'extern' on an instance function");
+      forbidFlag(context, node, 1, "Cannot use 'declare' on an instance function");
 
       if (symbol.parent().node.isDeclare()) {
-        symbol.node.flags = symbol.node.flags | 1;
+        node.flags = node.flags | 1;
 
         if (body !== null) {
           context.log.error(body.range, globals.String_new("Cannot implement a function on a declared class"));
         }
       }
+
+      else if (body === null) {
+        context.log.error(node.lastChild.range, globals.String_new("Must implement this function"));
+      }
     }
 
     else if (body === null) {
-      forbidFlag(context, symbol.node, 4, "Cannot use 'extern' on an unimplemented function");
-      requireFlag(context, symbol.node, 1, "Declared functions must be prefixed with 'declare'");
+      forbidFlag(context, node, 4, "Cannot use 'extern' on an unimplemented function");
+      requireFlag(context, node, 1, "Declared functions must be prefixed with 'declare'");
     }
 
     else {
-      forbidFlag(context, symbol.node, 1, "Cannot use 'declare' on a function with an implementation");
+      forbidFlag(context, node, 1, "Cannot use 'declare' on a function with an implementation");
     }
   }
 
   else if (isVariable(symbol.kind)) {
-    var type = symbol.node.variableType();
-    var value = symbol.node.variableValue();
+    var type = node.variableType();
+    var value = node.variableValue();
 
     if (type !== null) {
       resolveAsType(context, type, symbol.scope);
@@ -231,12 +304,12 @@ function initializeSymbol(context, symbol) {
     }
 
     else {
-      context.log.error(symbol.node.internalRange, globals.String_new("Cannot create untyped variables"));
+      context.log.error(node.internalRange, globals.String_new("Cannot create untyped variables"));
       symbol.resolvedType = context.errorType;
     }
 
     if (symbol.resolvedType === context.voidType || symbol.resolvedType === context.nullType) {
-      context.log.error(symbol.node.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("Cannot create a variable with type '"), symbol.resolvedType.toString()), "'"));
+      context.log.error(node.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("Cannot create a variable with type '"), symbol.resolvedType.toString()), "'"));
       symbol.resolvedType = context.errorType;
     }
 
@@ -245,7 +318,7 @@ function initializeSymbol(context, symbol) {
         resolveAsExpression(context, value, symbol.scope);
         checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
 
-        if (value.kind === 22 || value.kind === 17) {
+        if (value.kind === 23 || value.kind === 17) {
           symbol.offset = value.intValue;
         }
 
@@ -256,8 +329,8 @@ function initializeSymbol(context, symbol) {
       }
 
       else if (symbol.isEnumValue()) {
-        if (symbol.node.previousSibling !== null) {
-          var previousSymbol = symbol.node.previousSibling.symbol;
+        if (node.previousSibling !== null) {
+          var previousSymbol = node.previousSibling.symbol;
           initializeSymbol(context, previousSymbol);
           symbol.offset = previousSymbol.offset + 1 | 0;
         }
@@ -268,7 +341,7 @@ function initializeSymbol(context, symbol) {
       }
 
       else {
-        context.log.error(symbol.node.internalRange, globals.String_new("Constants must be initialized"));
+        context.log.error(node.internalRange, globals.String_new("Constants must be initialized"));
       }
     }
 
@@ -279,7 +352,7 @@ function initializeSymbol(context, symbol) {
         var shadowed = scope.findLocal(symbol.name);
 
         if (shadowed !== null) {
-          context.log.error(symbol.node.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
+          context.log.error(node.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
 
           break;
         }
@@ -306,6 +379,15 @@ function resolveChildren(context, node, parentScope) {
 
   while (child !== null) {
     resolve(context, child, parentScope);
+    child = child.nextSibling;
+  }
+}
+
+function resolveChildrenAsExpressions(context, node, parentScope) {
+  var child = node.firstChild;
+
+  while (child !== null) {
+    resolveAsExpression(context, child, parentScope);
     child = child.nextSibling;
   }
 }
@@ -356,7 +438,7 @@ function checkConversion(context, node, to, kind) {
   else if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
 
-    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 22 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
+    if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 23 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
       return;
     }
 
@@ -371,7 +453,7 @@ function checkConversion(context, node, to, kind) {
 function checkStorage(context, target) {
   globals.assert(isExpression(target));
 
-  if (target.resolvedType !== context.errorType && (target.kind !== 23 && target.kind !== 20 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
+  if (target.resolvedType !== context.errorType && target.kind !== 22 && (target.kind !== 24 && target.kind !== 20 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
     context.log.error(target.range, globals.String_new("Cannot store to this location"));
     target.resolvedType = context.errorType;
   }
@@ -395,14 +477,14 @@ function simplifyBinary(node) {
   var left = node.binaryLeft();
   var right = node.binaryRight();
 
-  if ((node.kind === 39 || node.kind === 52 || node.kind === 41 || node.kind === 42 || node.kind === 43) && left.kind === 22 && right.kind !== 22) {
+  if ((node.kind === 40 || node.kind === 53 || node.kind === 42 || node.kind === 43 || node.kind === 44) && left.kind === 23 && right.kind !== 23) {
     left.remove();
     node.appendChild(left);
     left = node.binaryLeft();
     right = node.binaryRight();
   }
 
-  if ((node.kind === 52 || (node.kind === 44 || node.kind === 54) && node.resolvedType.isUnsigned()) && right.kind === 22 && isPositivePowerOf2(right.intValue)) {
+  if ((node.kind === 53 || (node.kind === 45 || node.kind === 55) && node.resolvedType.isUnsigned()) && right.kind === 23 && isPositivePowerOf2(right.intValue)) {
     var shift = -1;
     var value = right.intValue;
 
@@ -411,18 +493,18 @@ function simplifyBinary(node) {
       shift = shift + 1 | 0;
     }
 
-    if (node.kind === 52) {
-      node.kind = 55;
-      right.intValue = shift;
-    }
-
-    else if (node.kind === 44) {
+    if (node.kind === 53) {
       node.kind = 56;
       right.intValue = shift;
     }
 
-    else if (node.kind === 54) {
-      node.kind = 41;
+    else if (node.kind === 45) {
+      node.kind = 57;
+      right.intValue = shift;
+    }
+
+    else if (node.kind === 55) {
+      node.kind = 42;
       right.intValue = right.intValue - 1 | 0;
     }
 
@@ -431,15 +513,15 @@ function simplifyBinary(node) {
     }
   }
 
-  else if (node.kind === 39 && right.kind === 32) {
+  else if (node.kind === 40 && right.kind === 33) {
     var value = right.unaryValue();
-    node.kind = 57;
+    node.kind = 58;
     value.remove();
     right.replaceWith(value);
   }
 
-  else if (node.kind === 39 && right.isNegativeInteger()) {
-    node.kind = 57;
+  else if (node.kind === 40 && right.isNegativeInteger()) {
+    node.kind = 58;
     right.intValue = -right.intValue;
   }
 }
@@ -455,7 +537,7 @@ function binaryHasUnsignedArguments(node) {
 
 function isSymbolAccessAllowed(context, symbol, range) {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-    context.log.error(range, globals.String_appendNew(globals.String_append(globals.String_new("Cannot use unsafe symbol '"), symbol.name), "' here"));
+    context.log.error(range, globals.String_appendNew(globals.String_append(globals.String_new("Cannot use symbol '"), symbol.name), "' outside an unsafe block"));
 
     return false;
   }
@@ -511,7 +593,7 @@ function resolve(context, node, parentScope) {
       resolveAsExpression(context, value, parentScope);
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
 
-      if (symbol.kind === 8 && value.kind !== 22 && value.kind !== 17 && value.kind !== 25) {
+      if (symbol.kind === 8 && value.kind !== 23 && value.kind !== 17 && value.kind !== 26) {
         context.log.error(value.range, globals.String_new("Global initializers must be compile-time constants"));
       }
     }
@@ -561,11 +643,11 @@ function resolve(context, node, parentScope) {
     resolveChildren(context, node, parentScope);
   }
 
-  else if (node.kind === 22) {
+  else if (node.kind === 23) {
     node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
   }
 
-  else if (node.kind === 28) {
+  else if (node.kind === 29) {
     node.resolvedType = context.stringType;
   }
 
@@ -573,8 +655,31 @@ function resolve(context, node, parentScope) {
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind === 25) {
+  else if (node.kind === 26) {
     node.resolvedType = context.nullType;
+  }
+
+  else if (node.kind === 22) {
+    resolveChildrenAsExpressions(context, node, parentScope);
+    var target = node.indexTarget();
+    var type = target.resolvedType;
+
+    if (type !== context.errorType) {
+      var symbol = type.isClass() ? type.findMember(globals.String_new("[]")) : null;
+
+      if (symbol === null) {
+        context.log.error(node.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+      }
+
+      else {
+        globals.assert(symbol.kind === 4);
+        node.kind = 18;
+        target.remove();
+        node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
+        node.resolvedType = null;
+        resolveAsExpression(context, node, parentScope);
+      }
+    }
   }
 
   else if (node.kind === 16) {
@@ -587,7 +692,7 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 27) {
+  else if (node.kind === 28) {
     var type = node.sizeOfType();
     resolveAsType(context, type, parentScope);
     node.resolvedType = context.intType;
@@ -597,7 +702,7 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 29) {
+  else if (node.kind === 30) {
     var symbol = parentScope.findNested(globals.String_new("this"), 0);
 
     if (symbol === null) {
@@ -609,11 +714,11 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 26) {
+  else if (node.kind === 27) {
     node.resolvedType = context.errorType;
   }
 
-  else if (node.kind === 23) {
+  else if (node.kind === 24) {
     var name = node.stringValue;
     var symbol = parentScope.findNested(name, 0);
 
@@ -670,7 +775,7 @@ function resolve(context, node, parentScope) {
     checkConversion(context, value, castedType, 1);
     node.resolvedType = castedType;
 
-    if (value.kind === 22 && castedType.isInteger()) {
+    if (value.kind === 23 && castedType.isInteger()) {
       var result = value.intValue;
       var shift = 32 - castedType.integerBitCount() | 0;
       node.becomeIntegerConstant(castedType.isUnsigned() ? (castedType.integerBitMask() | 0) & result : result << shift >> shift);
@@ -760,12 +865,18 @@ function resolve(context, node, parentScope) {
       resolveAsExpression(context, value, parentScope);
 
       if (context.currentReturnType !== null) {
-        checkConversion(context, value, context.currentReturnType, 0);
+        if (context.currentReturnType !== context.voidType) {
+          checkConversion(context, value, context.currentReturnType, 0);
+        }
+
+        else {
+          context.log.error(value.range, globals.String_new("Unexpected return value in function returning 'void'"));
+        }
       }
     }
 
     else if (context.currentReturnType !== null && context.currentReturnType !== context.voidType) {
-      context.log.error(node.range, globals.String_new("Expected return value"));
+      context.log.error(node.range, globals.String_appendNew(globals.String_append(globals.String_new("Expected return value in function returning '"), context.currentReturnType.toString()), "'"));
     }
   }
 
@@ -814,9 +925,44 @@ function resolve(context, node, parentScope) {
     node.resolvedType = commonType;
   }
 
-  else if (node.kind === 40) {
+  else if (node.kind === 41) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
+
+    if (left.kind === 22) {
+      resolveChildrenAsExpressions(context, left, parentScope);
+      var target = left.indexTarget();
+      var type = target.resolvedType;
+
+      if (type !== context.errorType) {
+        var symbol = type.isClass() ? type.findMember(globals.String_new("[]=")) : null;
+
+        if (symbol === null) {
+          context.log.error(left.internalRange, globals.String_appendNew(globals.String_append(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+        }
+
+        else {
+          globals.assert(symbol.kind === 4);
+          node.kind = 18;
+          target.remove();
+          left.remove();
+
+          while (left.lastChild !== null) {
+            var value = left.lastChild;
+            value.remove();
+            node.insertChildBefore(node.firstChild, value);
+          }
+
+          node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
+          node.internalRange = spanRanges(left.internalRange, right.range);
+          node.resolvedType = null;
+          resolveAsExpression(context, node, parentScope);
+
+          return;
+        }
+      }
+    }
+
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
     checkConversion(context, right, left.resolvedType, 0);
@@ -824,7 +970,7 @@ function resolve(context, node, parentScope) {
     node.resolvedType = left.resolvedType;
   }
 
-  else if (node.kind === 39 || node.kind === 57 || node.kind === 52 || node.kind === 44 || node.kind === 54 || node.kind === 41 || node.kind === 42 || node.kind === 43 || node.kind === 55 || node.kind === 56) {
+  else if (node.kind === 40 || node.kind === 58 || node.kind === 53 || node.kind === 45 || node.kind === 55 || node.kind === 42 || node.kind === 43 || node.kind === 44 || node.kind === 56 || node.kind === 57) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -839,48 +985,48 @@ function resolve(context, node, parentScope) {
     checkConversion(context, right, commonType, 0);
     node.resolvedType = commonType;
 
-    if (left.kind === 22 && right.kind === 22) {
+    if (left.kind === 23 && right.kind === 23) {
       var inputLeft = left.intValue;
       var inputRight = right.intValue;
       var output = 0;
 
-      if (node.kind === 39) {
+      if (node.kind === 40) {
         output = inputLeft + inputRight | 0;
       }
 
-      else if (node.kind === 41) {
+      else if (node.kind === 42) {
         output = inputLeft & inputRight;
       }
 
-      else if (node.kind === 42) {
+      else if (node.kind === 43) {
         output = inputLeft | inputRight;
       }
 
-      else if (node.kind === 43) {
+      else if (node.kind === 44) {
         output = inputLeft ^ inputRight;
       }
 
-      else if (node.kind === 44) {
+      else if (node.kind === 45) {
         output = inputLeft / inputRight | 0;
       }
 
-      else if (node.kind === 52) {
+      else if (node.kind === 53) {
         output = __imul(inputLeft, inputRight);
       }
 
-      else if (node.kind === 54) {
+      else if (node.kind === 55) {
         output = inputLeft % inputRight | 0;
       }
 
-      else if (node.kind === 55) {
+      else if (node.kind === 56) {
         output = inputLeft << inputRight;
       }
 
-      else if (node.kind === 56) {
+      else if (node.kind === 57) {
         output = inputLeft >> inputRight;
       }
 
-      else if (node.kind === 57) {
+      else if (node.kind === 58) {
         output = inputLeft - inputRight | 0;
       }
 
@@ -896,7 +1042,7 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 48 || node.kind === 49 || node.kind === 46 || node.kind === 47) {
+  else if (node.kind === 49 || node.kind === 50 || node.kind === 47 || node.kind === 48) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -914,7 +1060,7 @@ function resolve(context, node, parentScope) {
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind === 51 || node.kind === 50) {
+  else if (node.kind === 52 || node.kind === 51) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -924,7 +1070,7 @@ function resolve(context, node, parentScope) {
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind === 45 || node.kind === 53) {
+  else if (node.kind === 46 || node.kind === 54) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     resolveAsExpression(context, left, parentScope);
@@ -938,22 +1084,22 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 31 || node.kind === 32 || node.kind === 34) {
+  else if (node.kind === 32 || node.kind === 33 || node.kind === 35) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
     var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
     checkConversion(context, value, expectedType, 0);
-    node.resolvedType = node.kind === 32 ? context.intType : expectedType;
+    node.resolvedType = node.kind === 33 ? context.intType : expectedType;
 
-    if (value.kind === 22) {
+    if (value.kind === 23) {
       var input = value.intValue;
       var output = input;
 
-      if (node.kind === 31) {
+      if (node.kind === 32) {
         output = ~input;
       }
 
-      else if (node.kind === 32) {
+      else if (node.kind === 33) {
         output = -input;
       }
 
@@ -961,18 +1107,18 @@ function resolve(context, node, parentScope) {
     }
   }
 
-  else if (node.kind === 35 || node.kind === 36 || node.kind === 37 || node.kind === 38) {
+  else if (node.kind === 36 || node.kind === 37 || node.kind === 38 || node.kind === 39) {
     context.log.error(node.range, globals.String_new("This operator is currently unsupported"));
   }
 
-  else if (node.kind === 33) {
+  else if (node.kind === 34) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
     checkConversion(context, value, context.boolType, 0);
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind === 24) {
+  else if (node.kind === 25) {
     var type = node.newType();
     resolveAsType(context, type, parentScope);
 
@@ -1008,6 +1154,8 @@ function check(global, log) {
 function Compiler() {
   this.log = null;
   this.global = null;
+  this.firstSource = null;
+  this.lastSource = null;
   this.target = 0;
   this.context = null;
   this.wasm = null;
@@ -1022,7 +1170,7 @@ Compiler.prototype.initialize = function(target) {
   this.target = target;
 
   if (target === 2) {
-    this.addInput(globals.String_new("<native>"), globals.String_new(libraryWASM()));
+    this.addInput(globals.String_new("<native>"), globals.String_new(libraryForWebAssembly()));
   }
 };
 
@@ -1030,28 +1178,58 @@ Compiler.prototype.addInput = function(name, contents) {
   var source = new Source();
   source.name = name;
   source.contents = contents;
-  var firstToken = tokenize(source, this.log);
 
-  if (firstToken !== null) {
-    var file = parse(firstToken, this.log);
-
-    if (file !== null) {
-      while (file.firstChild !== null) {
-        var child = file.firstChild;
-        child.remove();
-        this.global.appendChild(child);
-      }
-    }
+  if (this.firstSource === null) {
+    this.firstSource = source;
   }
+
+  else {
+    this.lastSource.next = source;
+  }
+
+  this.lastSource = source;
 };
 
 Compiler.prototype.finish = function() {
+  globals.Profiler_begin();
+  var source = this.firstSource;
+
+  while (source !== null) {
+    source.firstToken = tokenize(source, this.log);
+    source = source.next;
+  }
+
+  globals.Profiler_end(globals.String_new("lexing"));
+  globals.Profiler_begin();
+  source = this.firstSource;
+
+  while (source !== null) {
+    if (source.firstToken !== null) {
+      var file = parse(source.firstToken, this.log);
+
+      if (file !== null) {
+        while (file.firstChild !== null) {
+          var child = file.firstChild;
+          child.remove();
+          this.global.appendChild(child);
+        }
+      }
+    }
+
+    source = source.next;
+  }
+
+  globals.Profiler_end(globals.String_new("parsing"));
+  globals.Profiler_begin();
   globals.assert(this.context === null);
   this.context = check(this.global, this.log);
+  globals.Profiler_end(globals.String_new("checking"));
 
   if (this.log.first !== null) {
     return false;
   }
+
+  globals.Profiler_begin();
 
   if (this.target === 1) {
     this.js = jsEmit(this.global, this.context);
@@ -1061,6 +1239,8 @@ Compiler.prototype.finish = function() {
     this.wasm = new ByteArray();
     wasmEmit(this.global, this.context, this.wasm);
   }
+
+  globals.Profiler_end(globals.String_new("emitting"));
 
   return true;
 };
@@ -1081,7 +1261,7 @@ var Compiler_finish = exports.Compiler_finish = function(compiler) {
 };
 
 var Compiler_wasm = exports.Compiler_wasm = function(compiler) {
-  return compiler.wasm === null ? 0 : compiler.wasm.handle();
+  return compiler.wasm;
 };
 
 var Compiler_js = exports.Compiler_js = function(compiler) {
@@ -1090,43 +1270,6 @@ var Compiler_js = exports.Compiler_js = function(compiler) {
 
 var Compiler_log = exports.Compiler_log = function(compiler) {
   return compiler.log.toString();
-};
-
-function ByteArray() {
-  this._handle = 0;
-}
-
-ByteArray.prototype.length = function() {
-  if (this._handle !== 0) {
-    return globals.ByteArray_length(this._handle);
-  }
-
-  return 0;
-};
-
-ByteArray.prototype.get = function(index) {
-  globals.assert(this._handle !== 0);
-  globals.assert(index >= 0 && index < this.length());
-
-  return globals.ByteArray_getByte(this._handle, index);
-};
-
-ByteArray.prototype.set = function(index, value) {
-  globals.assert(this._handle !== 0);
-  globals.assert(index >= 0 && index < this.length());
-  globals.ByteArray_setByte(this._handle, index, value);
-};
-
-ByteArray.prototype.append = function(value) {
-  if (this._handle === 0) {
-    this._handle = globals.ByteArray_new();
-  }
-
-  globals.ByteArray_appendByte(this._handle, value);
-};
-
-ByteArray.prototype.handle = function() {
-  return this._handle;
 };
 
 function String() {
@@ -1221,10 +1364,10 @@ JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
 };
 
 JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
-  var isRightAssociative = node.kind === 40;
+  var isRightAssociative = node.kind === 41;
   var parentKind = node.parent.kind;
   var isUnsigned = node.isUnsignedOperator();
-  var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 55 && parentKind !== 56 && parentKind !== 42 && parentKind !== 41 && parentKind !== 43);
+  var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 56 && parentKind !== 57 && parentKind !== 43 && parentKind !== 42 && parentKind !== 44);
   var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
 
   if (parentPrecedence > selfPrecedence) {
@@ -1252,14 +1395,31 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
   }
 };
 
+JsResult.prototype.emitCommaSeparatedExpressions = function(start, stop) {
+  while (start !== stop) {
+    this.emitExpression(start, 0);
+    start = start.nextSibling;
+
+    if (start !== stop) {
+      this.emitText(", ");
+    }
+  }
+};
+
 JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   globals.assert(node.resolvedType !== null);
 
-  if (node.kind === 23) {
-    this.emitString(node.symbol.name);
+  if (node.kind === 24) {
+    var symbol = node.symbol;
+
+    if (symbol.kind === 5 && symbol.node.isDeclare()) {
+      this.emitText("globals.");
+    }
+
+    this.emitString(symbol.name);
   }
 
-  else if (node.kind === 25) {
+  else if (node.kind === 26) {
     this.emitText("null");
   }
 
@@ -1267,11 +1427,11 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     this.emitText(node.intValue !== 0 ? "true" : "false");
   }
 
-  else if (node.kind === 22) {
+  else if (node.kind === 23) {
     this.emitString(node.resolvedType.isUnsigned() ? globals.String_toStringUnsigned(node.intValue >>> 0) : globals.String_toStringSigned(node.intValue));
   }
 
-  else if (node.kind === 28) {
+  else if (node.kind === 29) {
     this.emitString(globals.String_quote(node.stringValue));
   }
 
@@ -1349,8 +1509,7 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
   else if (node.kind === 20) {
     this.emitExpression(node.dotTarget(), 14);
-    this.emitText(".");
-    this.emitString(node.symbol.name);
+    this.emitSymbolAccess(node.symbol);
   }
 
   else if (node.kind === 21) {
@@ -1371,138 +1530,150 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
   else if (node.kind === 18) {
     var value = node.callValue();
+    var isDeclaredInstance = value.kind === 20 && value.symbol.node.isDeclare();
 
-    if (value.symbol.node.functionBody() === null) {
-      this.emitText("globals.");
+    if (isDeclaredInstance && globals.String_equalNew(value.symbol.name, "[]")) {
+      this.emitExpression(value.dotTarget(), 13);
+      this.emitText("[");
+      this.emitCommaSeparatedExpressions(value.nextSibling, null);
+      this.emitText("]");
     }
 
-    this.emitExpression(value, 13);
-    this.emitText("(");
-    var child = value.nextSibling;
+    else if (isDeclaredInstance && globals.String_equalNew(value.symbol.name, "[]=")) {
+      if (parentPrecedence > 1) {
+        this.emitText("(");
+      }
 
-    while (child !== null) {
-      this.emitExpression(child, 0);
-      child = child.nextSibling;
+      this.emitExpression(value.dotTarget(), 13);
+      this.emitText("[");
+      this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
+      this.emitText("] = ");
+      this.emitExpression(node.lastChild, 1);
 
-      if (child !== null) {
-        this.emitText(", ");
+      if (parentPrecedence > 1) {
+        this.emitText(")");
       }
     }
 
-    this.emitText(")");
+    else {
+      this.emitExpression(value, 13);
+      this.emitText("(");
+      this.emitCommaSeparatedExpressions(value.nextSibling, null);
+      this.emitText(")");
+    }
   }
 
-  else if (node.kind === 24) {
+  else if (node.kind === 25) {
     this.emitText("new ");
     this.emitExpression(node.newType(), 13);
     this.emitText("()");
   }
 
-  else if (node.kind === 31) {
+  else if (node.kind === 32) {
     this.emitUnary(node, parentPrecedence, "~");
   }
 
-  else if (node.kind === 32) {
+  else if (node.kind === 33) {
     this.emitUnary(node, parentPrecedence, "-");
   }
 
-  else if (node.kind === 33) {
+  else if (node.kind === 34) {
     this.emitUnary(node, parentPrecedence, "!");
   }
 
-  else if (node.kind === 34) {
+  else if (node.kind === 35) {
     this.emitUnary(node, parentPrecedence, "+");
   }
 
-  else if (node.kind === 38) {
+  else if (node.kind === 39) {
     this.emitUnary(node, parentPrecedence, "++");
+  }
+
+  else if (node.kind === 38) {
+    this.emitUnary(node, parentPrecedence, "--");
   }
 
   else if (node.kind === 37) {
-    this.emitUnary(node, parentPrecedence, "--");
-  }
-
-  else if (node.kind === 36) {
     this.emitUnary(node, parentPrecedence, "++");
   }
 
-  else if (node.kind === 35) {
+  else if (node.kind === 36) {
     this.emitUnary(node, parentPrecedence, "--");
   }
 
-  else if (node.kind === 39) {
+  else if (node.kind === 40) {
     this.emitBinary(node, parentPrecedence, " + ", 10, 1);
   }
 
-  else if (node.kind === 40) {
+  else if (node.kind === 41) {
     this.emitBinary(node, parentPrecedence, " = ", 1, 0);
   }
 
-  else if (node.kind === 41) {
+  else if (node.kind === 42) {
     this.emitBinary(node, parentPrecedence, " & ", 6, 0);
   }
 
-  else if (node.kind === 42) {
+  else if (node.kind === 43) {
     this.emitBinary(node, parentPrecedence, " | ", 4, 0);
   }
 
-  else if (node.kind === 43) {
+  else if (node.kind === 44) {
     this.emitBinary(node, parentPrecedence, " ^ ", 5, 0);
   }
 
-  else if (node.kind === 44) {
+  else if (node.kind === 45) {
     this.emitBinary(node, parentPrecedence, " / ", 11, 1);
   }
 
-  else if (node.kind === 45) {
+  else if (node.kind === 46) {
     this.emitBinary(node, parentPrecedence, " === ", 7, 0);
   }
 
-  else if (node.kind === 46) {
+  else if (node.kind === 47) {
     this.emitBinary(node, parentPrecedence, " > ", 8, 0);
   }
 
-  else if (node.kind === 47) {
+  else if (node.kind === 48) {
     this.emitBinary(node, parentPrecedence, " >= ", 8, 0);
   }
 
-  else if (node.kind === 48) {
+  else if (node.kind === 49) {
     this.emitBinary(node, parentPrecedence, " < ", 8, 0);
   }
 
-  else if (node.kind === 49) {
+  else if (node.kind === 50) {
     this.emitBinary(node, parentPrecedence, " <= ", 8, 0);
   }
 
-  else if (node.kind === 50) {
+  else if (node.kind === 51) {
     this.emitBinary(node, parentPrecedence, " && ", 3, 0);
   }
 
-  else if (node.kind === 51) {
+  else if (node.kind === 52) {
     this.emitBinary(node, parentPrecedence, " || ", 2, 0);
   }
 
-  else if (node.kind === 53) {
+  else if (node.kind === 54) {
     this.emitBinary(node, parentPrecedence, " !== ", 7, 0);
   }
 
-  else if (node.kind === 54) {
+  else if (node.kind === 55) {
     this.emitBinary(node, parentPrecedence, " % ", 11, 1);
   }
 
-  else if (node.kind === 55) {
+  else if (node.kind === 56) {
     this.emitBinary(node, parentPrecedence, " << ", 9, 0);
   }
 
-  else if (node.kind === 56) {
+  else if (node.kind === 57) {
     this.emitBinary(node, parentPrecedence, node.isUnsignedOperator() ? " >>> " : " >> ", 9, 0);
   }
 
-  else if (node.kind === 57) {
+  else if (node.kind === 58) {
     this.emitBinary(node, parentPrecedence, " - ", 10, 1);
   }
 
-  else if (node.kind === 52) {
+  else if (node.kind === 53) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
     var isUnsigned = node.isUnsignedOperator();
@@ -1532,6 +1703,21 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
   }
 };
 
+JsResult.prototype.emitSymbolAccess = function(symbol) {
+  var c = globals.String_get(symbol.name, 0);
+
+  if (isAlpha(c)) {
+    this.emitText(".");
+    this.emitString(symbol.name);
+  }
+
+  else {
+    this.emitText("[");
+    this.emitString(globals.String_quote(symbol.name));
+    this.emitText("]");
+  }
+};
+
 JsResult.prototype.emitStatement = function(node) {
   if (node.kind === 10) {
     var body = node.functionBody();
@@ -1547,8 +1733,8 @@ JsResult.prototype.emitStatement = function(node) {
 
     if (symbol.kind === 4) {
       this.emitString(symbol.parent().name);
-      this.emitText(".prototype.");
-      this.emitString(symbol.name);
+      this.emitText(".prototype");
+      this.emitSymbolAccess(symbol);
       this.emitText(" = function");
       needsSemicolon = true;
     }
@@ -1779,6 +1965,10 @@ function jsEmit(global, context) {
   }
 
   return result.code;
+}
+
+function isKeyword(kind) {
+  return kind >= 39 && kind <= 71;
 }
 
 function Token() {
@@ -2029,46 +2219,50 @@ function tokenToString(token) {
   }
 
   if (token === 60) {
-    return "'private'";
+    return "'operator'";
   }
 
   if (token === 61) {
-    return "'protected'";
+    return "'private'";
   }
 
   if (token === 62) {
-    return "'public'";
+    return "'protected'";
   }
 
   if (token === 63) {
-    return "'return'";
+    return "'public'";
   }
 
   if (token === 64) {
-    return "'sizeof'";
+    return "'return'";
   }
 
   if (token === 65) {
-    return "'static'";
+    return "'sizeof'";
   }
 
   if (token === 66) {
-    return "'this'";
+    return "'static'";
   }
 
   if (token === 67) {
-    return "'true'";
+    return "'this'";
   }
 
   if (token === 68) {
-    return "'unsafe'";
+    return "'true'";
   }
 
   if (token === 69) {
-    return "'var'";
+    return "'unsafe'";
   }
 
   if (token === 70) {
+    return "'var'";
+  }
+
+  if (token === 71) {
     return "'while'";
   }
 
@@ -2118,134 +2312,150 @@ function tokenize(source, log) {
         i = i + 1 | 0;
       }
 
-      var text = globals.String_slice(contents, start, i);
+      var length = i - start | 0;
 
-      if (globals.String_equalNew(text, "alignof")) {
-        kind = 39;
-      }
+      if (length >= 2 && length <= 10) {
+        var text = globals.String_slice(contents, start, i);
 
-      else if (globals.String_equalNew(text, "as")) {
-        kind = 40;
-      }
+        if (length === 2) {
+          if (globals.String_equalNew(text, "as")) {
+            kind = 40;
+          }
 
-      else if (globals.String_equalNew(text, "break")) {
-        kind = 41;
-      }
+          else if (globals.String_equalNew(text, "if")) {
+            kind = 53;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "class")) {
-        kind = 42;
-      }
+        else if (length === 3) {
+          if (globals.String_equalNew(text, "let")) {
+            kind = 57;
+          }
 
-      else if (globals.String_equalNew(text, "const")) {
-        kind = 43;
-      }
+          else if (globals.String_equalNew(text, "new")) {
+            kind = 58;
+          }
 
-      else if (globals.String_equalNew(text, "continue")) {
-        kind = 44;
-      }
+          else if (globals.String_equalNew(text, "var")) {
+            kind = 70;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "declare")) {
-        kind = 45;
-      }
+        else if (length === 4) {
+          if (globals.String_equalNew(text, "else")) {
+            kind = 46;
+          }
 
-      else if (globals.String_equalNew(text, "else")) {
-        kind = 46;
-      }
+          else if (globals.String_equalNew(text, "enum")) {
+            kind = 47;
+          }
 
-      else if (globals.String_equalNew(text, "enum")) {
-        kind = 47;
-      }
+          else if (globals.String_equalNew(text, "null")) {
+            kind = 59;
+          }
 
-      else if (globals.String_equalNew(text, "export")) {
-        kind = 48;
-      }
+          else if (globals.String_equalNew(text, "this")) {
+            kind = 67;
+          }
 
-      else if (globals.String_equalNew(text, "extends")) {
-        kind = 49;
-      }
+          else if (globals.String_equalNew(text, "true")) {
+            kind = 68;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "extern")) {
-        kind = 50;
-      }
+        else if (length === 5) {
+          if (globals.String_equalNew(text, "break")) {
+            kind = 41;
+          }
 
-      else if (globals.String_equalNew(text, "false")) {
-        kind = 51;
-      }
+          else if (globals.String_equalNew(text, "class")) {
+            kind = 42;
+          }
 
-      else if (globals.String_equalNew(text, "function")) {
-        kind = 52;
-      }
+          else if (globals.String_equalNew(text, "const")) {
+            kind = 43;
+          }
 
-      else if (globals.String_equalNew(text, "if")) {
-        kind = 53;
-      }
+          else if (globals.String_equalNew(text, "false")) {
+            kind = 51;
+          }
 
-      else if (globals.String_equalNew(text, "implements")) {
-        kind = 54;
-      }
+          else if (globals.String_equalNew(text, "while")) {
+            kind = 71;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "import")) {
-        kind = 55;
-      }
+        else if (length === 6) {
+          if (globals.String_equalNew(text, "export")) {
+            kind = 48;
+          }
 
-      else if (globals.String_equalNew(text, "interface")) {
-        kind = 56;
-      }
+          else if (globals.String_equalNew(text, "extern")) {
+            kind = 50;
+          }
 
-      else if (globals.String_equalNew(text, "let")) {
-        kind = 57;
-      }
+          else if (globals.String_equalNew(text, "import")) {
+            kind = 55;
+          }
 
-      else if (globals.String_equalNew(text, "new")) {
-        kind = 58;
-      }
+          else if (globals.String_equalNew(text, "public")) {
+            kind = 63;
+          }
 
-      else if (globals.String_equalNew(text, "null")) {
-        kind = 59;
-      }
+          else if (globals.String_equalNew(text, "return")) {
+            kind = 64;
+          }
 
-      else if (globals.String_equalNew(text, "private")) {
-        kind = 60;
-      }
+          else if (globals.String_equalNew(text, "sizeof")) {
+            kind = 65;
+          }
 
-      else if (globals.String_equalNew(text, "protected")) {
-        kind = 61;
-      }
+          else if (globals.String_equalNew(text, "static")) {
+            kind = 66;
+          }
 
-      else if (globals.String_equalNew(text, "public")) {
-        kind = 62;
-      }
+          else if (globals.String_equalNew(text, "unsafe")) {
+            kind = 69;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "return")) {
-        kind = 63;
-      }
+        else if (length === 7) {
+          if (globals.String_equalNew(text, "alignof")) {
+            kind = 39;
+          }
 
-      else if (globals.String_equalNew(text, "sizeof")) {
-        kind = 64;
-      }
+          else if (globals.String_equalNew(text, "declare")) {
+            kind = 45;
+          }
 
-      else if (globals.String_equalNew(text, "static")) {
-        kind = 65;
-      }
+          else if (globals.String_equalNew(text, "extends")) {
+            kind = 49;
+          }
 
-      else if (globals.String_equalNew(text, "this")) {
-        kind = 66;
-      }
+          else if (globals.String_equalNew(text, "private")) {
+            kind = 61;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "true")) {
-        kind = 67;
-      }
+        else if (globals.String_equalNew(text, "continue")) {
+          kind = 44;
+        }
 
-      else if (globals.String_equalNew(text, "unsafe")) {
-        kind = 68;
-      }
+        else if (globals.String_equalNew(text, "function")) {
+          kind = 52;
+        }
 
-      else if (globals.String_equalNew(text, "var")) {
-        kind = 69;
-      }
+        else if (globals.String_equalNew(text, "implements")) {
+          kind = 54;
+        }
 
-      else if (globals.String_equalNew(text, "while")) {
-        kind = 70;
+        else if (globals.String_equalNew(text, "interface")) {
+          kind = 56;
+        }
+
+        else if (globals.String_equalNew(text, "protected")) {
+          kind = 62;
+        }
       }
     }
 
@@ -2568,13 +2778,15 @@ function tokenize(source, log) {
   return first;
 }
 
-function libraryWASM() {
-  return "\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n";
+function libraryForWebAssembly() {
+  return "\n// Cast to these to read from and write to arbitrary locations in memory\nunsafe class UBytePtr { value: ubyte; }\nunsafe class UShortPtr { value: ushort; }\nunsafe class UIntPtr { value: uint; }\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n  sizeOf = (sizeOf + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  var limit = offset + sizeOf;\n  currentHeapPointer = limit;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (ptr < limit) {\n    (ptr as UIntPtr).value = 0;\n    ptr = ptr + 4;\n  }\n\n  return offset;\n}\n";
 }
 
 function Source() {
   this.name = null;
   this.contents = null;
+  this.next = null;
+  this.firstToken = null;
 }
 
 function Range() {
@@ -2600,7 +2812,9 @@ Range.prototype.enclosingLine = function() {
     start = start - 1 | 0;
   }
 
-  while ((end + 1 | 0) < globals.String_length(contents) && globals.String_get(contents, end) !== 10) {
+  var length = globals.String_length(contents);
+
+  while ((end + 1 | 0) < length && globals.String_get(contents, end) !== 10) {
     end = end + 1 | 0;
   }
 
@@ -2710,25 +2924,45 @@ Log.prototype.toString = function() {
 };
 
 function isUnary(kind) {
-  return kind >= 31 && kind <= 38;
+  return kind >= 32 && kind <= 39;
 }
 
 function isUnaryPostfix(kind) {
-  return kind >= 35 && kind <= 36;
+  return kind >= 36 && kind <= 37;
 }
 
 function isBinary(kind) {
-  return kind >= 39 && kind <= 57;
+  return kind >= 40 && kind <= 58;
 }
 
 function isExpression(node) {
-  return node.kind >= 16 && node.kind <= 57;
+  return node.kind >= 16 && node.kind <= 58;
 }
 
 function NodeFlag() {
   this.flag = 0;
   this.range = null;
   this.next = null;
+}
+
+function appendFlag(first, flag, range) {
+  var link = new NodeFlag();
+  link.flag = flag;
+  link.range = range;
+
+  if (first === null) {
+    return link;
+  }
+
+  var secondToLast = first;
+
+  while (secondToLast.next !== null) {
+    secondToLast = secondToLast.next;
+  }
+
+  secondToLast.next = link;
+
+  return first;
 }
 
 function allFlags(link) {
@@ -2773,11 +3007,11 @@ function Node() {
 }
 
 Node.prototype.isNegativeInteger = function() {
-  return this.kind === 22 && this.intValue < 0;
+  return this.kind === 23 && this.intValue < 0;
 };
 
 Node.prototype.isNonNegativeInteger = function() {
-  return this.kind === 22 && this.intValue >= 0;
+  return this.kind === 23 && this.intValue >= 0;
 };
 
 Node.prototype.isDeclare = function() {
@@ -2813,14 +3047,18 @@ Node.prototype.appendChild = function(child) {
 
   if (this.firstChild === null) {
     this.firstChild = child;
-    this.lastChild = child;
   }
 
   else {
     child.previousSibling = this.lastChild;
     this.lastChild.nextSibling = child;
-    this.lastChild = child;
   }
+
+  this.lastChild = child;
+};
+
+Node.prototype.prependChild = function(child) {
+  this.insertChildBefore(this.firstChild, child);
 };
 
 Node.prototype.insertChildBefore = function(after, before) {
@@ -2927,7 +3165,7 @@ Node.prototype.replaceWith = function(node) {
 };
 
 Node.prototype.becomeSymbolReference = function(symbol) {
-  this.kind = 23;
+  this.kind = 24;
   this.symbol = symbol;
   this.stringValue = symbol.name;
   this.resolvedType = symbol.resolvedType;
@@ -2935,7 +3173,7 @@ Node.prototype.becomeSymbolReference = function(symbol) {
 };
 
 Node.prototype.becomeIntegerConstant = function(value) {
-  this.kind = 22;
+  this.kind = 23;
   this.symbol = null;
   this.intValue = value;
   this.removeChildren();
@@ -2949,7 +3187,7 @@ Node.prototype.becomeBooleanConstant = function(value) {
 };
 
 Node.prototype.isType = function() {
-  return this.kind === 30 || this.symbol !== null && isType(this.symbol.kind);
+  return this.kind === 31 || this.symbol !== null && isType(this.symbol.kind);
 };
 
 Node.prototype.withRange = function(range) {
@@ -2990,7 +3228,7 @@ Node.prototype.functionBody = function() {
 };
 
 Node.prototype.newType = function() {
-  globals.assert(this.kind === 24);
+  globals.assert(this.kind === 25);
   globals.assert(this.childCount() >= 1);
   globals.assert(isExpression(this.firstChild));
 
@@ -3030,7 +3268,7 @@ Node.prototype.alignOfType = function() {
 };
 
 Node.prototype.sizeOfType = function() {
-  globals.assert(this.kind === 27);
+  globals.assert(this.kind === 28);
   globals.assert(this.childCount() === 1);
   globals.assert(isExpression(this.firstChild));
 
@@ -3142,6 +3380,14 @@ Node.prototype.hookFalse = function() {
   return this.lastChild;
 };
 
+Node.prototype.indexTarget = function() {
+  globals.assert(this.kind === 22);
+  globals.assert(this.childCount() >= 1);
+  globals.assert(isExpression(this.firstChild));
+
+  return this.firstChild;
+};
+
 Node.prototype.ifValue = function() {
   globals.assert(this.kind === 11);
   globals.assert(this.childCount() === 2 || this.childCount() === 3);
@@ -3169,7 +3415,7 @@ Node.prototype.ifFalse = function() {
 function createNew(type) {
   globals.assert(isExpression(type));
   var node = new Node();
-  node.kind = 24;
+  node.kind = 25;
   node.appendChild(type);
 
   return node;
@@ -3188,16 +3434,25 @@ function createHook(test, primary, secondary) {
   return node;
 }
 
+function createIndex(target) {
+  globals.assert(isExpression(target));
+  var node = new Node();
+  node.kind = 22;
+  node.appendChild(target);
+
+  return node;
+}
+
 function createNull() {
   var node = new Node();
-  node.kind = 25;
+  node.kind = 26;
 
   return node;
 }
 
 function createThis() {
   var node = new Node();
-  node.kind = 29;
+  node.kind = 30;
 
   return node;
 }
@@ -3214,7 +3469,7 @@ function createAlignOf(type) {
 function createSizeOf(type) {
   globals.assert(isExpression(type));
   var node = new Node();
-  node.kind = 27;
+  node.kind = 28;
   node.appendChild(type);
 
   return node;
@@ -3230,7 +3485,7 @@ function createBool(value) {
 
 function createInt(value) {
   var node = new Node();
-  node.kind = 22;
+  node.kind = 23;
   node.intValue = value;
 
   return node;
@@ -3238,7 +3493,7 @@ function createInt(value) {
 
 function createString(value) {
   var node = new Node();
-  node.kind = 28;
+  node.kind = 29;
   node.stringValue = value;
 
   return node;
@@ -3246,7 +3501,7 @@ function createString(value) {
 
 function createName(value) {
   var node = new Node();
-  node.kind = 23;
+  node.kind = 24;
   node.stringValue = value;
 
   return node;
@@ -3255,7 +3510,7 @@ function createName(value) {
 function createType(type) {
   globals.assert(type !== null);
   var node = new Node();
-  node.kind = 30;
+  node.kind = 31;
   node.resolvedType = type;
 
   return node;
@@ -3428,9 +3683,21 @@ function createDot(value, name) {
   return node;
 }
 
+function createMemberReference(value, symbol) {
+  globals.assert(isExpression(value));
+  var node = new Node();
+  node.kind = 20;
+  node.stringValue = symbol.name;
+  node.symbol = symbol;
+  node.resolvedType = symbol.resolvedType;
+  node.appendChild(value);
+
+  return node;
+}
+
 function createParseError() {
   var node = new Node();
-  node.kind = 26;
+  node.kind = 27;
 
   return node;
 }
@@ -3471,7 +3738,7 @@ ParserContext.prototype.expect = function(kind) {
     var previousLine = this.previous.range.enclosingLine();
     var currentLine = this.current.range.enclosingLine();
 
-    if (!previousLine.equals(currentLine)) {
+    if (kind !== 2 && !previousLine.equals(currentLine)) {
       this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)));
     }
 
@@ -3545,7 +3812,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
       c = globals.String_get(text, end);
 
       if (c === 48) {
-        result = globals.String_append(result, globals.String_newLength("\u0000", 1));
+        result = globals.String_appendNew(result, "\u0000");
       }
 
       else if (c === 116) {
@@ -3593,7 +3860,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       return createNull().withRange(token.range);
     }
 
-    if (this.eat(66)) {
+    if (this.eat(67)) {
       return createThis().withRange(token.range);
     }
 
@@ -3639,7 +3906,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       return value.withRange(token.range);
     }
 
-    if (this.eat(67)) {
+    if (this.eat(68)) {
       return createBool(true).withRange(token.range);
     }
 
@@ -3677,7 +3944,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       return createAlignOf(type).withRange(spanRanges(token.range, close.range));
     }
 
-    if (this.eat(64)) {
+    if (this.eat(65)) {
       if (!this.expect(19)) {
         return null;
       }
@@ -3708,27 +3975,27 @@ ParserContext.prototype.parsePrefix = function(mode) {
     }
 
     if (this.peek(27)) {
-      return this.parseUnaryPrefix(33);
-    }
-
-    if (this.peek(24)) {
-      return this.parseUnaryPrefix(32);
-    }
-
-    if (this.peek(25)) {
-      return this.parseUnaryPrefix(37);
-    }
-
-    if (this.peek(29)) {
       return this.parseUnaryPrefix(34);
     }
 
-    if (this.peek(30)) {
+    if (this.peek(24)) {
+      return this.parseUnaryPrefix(33);
+    }
+
+    if (this.peek(25)) {
       return this.parseUnaryPrefix(38);
     }
 
+    if (this.peek(29)) {
+      return this.parseUnaryPrefix(35);
+    }
+
+    if (this.peek(30)) {
+      return this.parseUnaryPrefix(39);
+    }
+
     if (this.peek(11)) {
-      return this.parseUnaryPrefix(31);
+      return this.parseUnaryPrefix(32);
     }
   }
 
@@ -3745,7 +4012,11 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
     var name = this.current;
     var range = name.range;
 
-    if (!this.expect(2)) {
+    if (isKeyword(name.kind)) {
+      this.advance();
+    }
+
+    else if (!this.expect(2)) {
       range = createRange(range.source, token.end, token.end);
     }
 
@@ -3754,87 +4025,87 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
 
   if (mode === 0) {
     if (this.peek(5)) {
-      return this.parseBinary(40, node, precedence, 1);
+      return this.parseBinary(41, node, precedence, 1);
     }
 
     if (this.peek(6)) {
-      return this.parseBinary(41, node, precedence, 6);
+      return this.parseBinary(42, node, precedence, 6);
     }
 
     if (this.peek(7)) {
-      return this.parseBinary(42, node, precedence, 4);
+      return this.parseBinary(43, node, precedence, 4);
     }
 
     if (this.peek(8)) {
-      return this.parseBinary(43, node, precedence, 5);
+      return this.parseBinary(44, node, precedence, 5);
     }
 
     if (this.peek(12)) {
-      return this.parseBinary(44, node, precedence, 11);
+      return this.parseBinary(45, node, precedence, 11);
     }
 
     if (this.peek(14)) {
-      return this.parseBinary(45, node, precedence, 7);
+      return this.parseBinary(46, node, precedence, 7);
     }
 
     if (this.peek(15)) {
-      return this.parseBinary(46, node, precedence, 8);
-    }
-
-    if (this.peek(16)) {
       return this.parseBinary(47, node, precedence, 8);
     }
 
-    if (this.peek(20)) {
+    if (this.peek(16)) {
       return this.parseBinary(48, node, precedence, 8);
     }
 
-    if (this.peek(21)) {
+    if (this.peek(20)) {
       return this.parseBinary(49, node, precedence, 8);
     }
 
+    if (this.peek(21)) {
+      return this.parseBinary(50, node, precedence, 8);
+    }
+
     if (this.peek(22)) {
-      return this.parseBinary(50, node, precedence, 3);
+      return this.parseBinary(51, node, precedence, 3);
     }
 
     if (this.peek(23)) {
-      return this.parseBinary(51, node, precedence, 2);
+      return this.parseBinary(52, node, precedence, 2);
     }
 
     if (this.peek(24)) {
-      return this.parseBinary(57, node, precedence, 10);
+      return this.parseBinary(58, node, precedence, 10);
     }
 
     if (this.peek(26)) {
-      return this.parseBinary(52, node, precedence, 11);
+      return this.parseBinary(53, node, precedence, 11);
     }
 
     if (this.peek(28)) {
-      return this.parseBinary(53, node, precedence, 7);
+      return this.parseBinary(54, node, precedence, 7);
     }
 
     if (this.peek(29)) {
-      return this.parseBinary(39, node, precedence, 10);
+      return this.parseBinary(40, node, precedence, 10);
     }
 
     if (this.peek(32)) {
-      return this.parseBinary(54, node, precedence, 11);
+      return this.parseBinary(55, node, precedence, 11);
     }
 
     if (this.peek(37)) {
-      return this.parseBinary(55, node, precedence, 9);
-    }
-
-    if (this.peek(38)) {
       return this.parseBinary(56, node, precedence, 9);
     }
 
+    if (this.peek(38)) {
+      return this.parseBinary(57, node, precedence, 9);
+    }
+
     if (this.peek(30)) {
-      return this.parseUnaryPostfix(36, node, precedence);
+      return this.parseUnaryPostfix(37, node, precedence);
     }
 
     if (this.peek(25)) {
-      return this.parseUnaryPostfix(35, node, precedence);
+      return this.parseUnaryPostfix(36, node, precedence);
     }
 
     if (this.peek(40) && precedence < 12) {
@@ -3848,8 +4119,10 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
       return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token);
     }
 
-    if (this.peek(19) && precedence < 13) {
-      return this.parseArgumentList(token, createCall(node));
+    var isIndex = this.peek(18);
+
+    if ((isIndex || this.peek(19)) && precedence < 13) {
+      return this.parseArgumentList(node.range, isIndex ? createIndex(node) : createCall(node));
     }
 
     if (this.peek(31) && precedence < 1) {
@@ -3875,12 +4148,15 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
 
 ParserContext.prototype.parseArgumentList = function(start, node) {
   var open = this.current.range;
+  var isIndex = node.kind === 22;
+  var left = isIndex ? 18 : 19;
+  var right = isIndex ? 34 : 35;
 
-  if (!this.expect(19)) {
+  if (!this.expect(left)) {
     return null;
   }
 
-  if (!this.peek(35)) {
+  if (!this.peek(right)) {
     while (true) {
       var value = this.parseExpression(0, 0);
 
@@ -3898,7 +4174,7 @@ ParserContext.prototype.parseArgumentList = function(start, node) {
 
   var close = this.current.range;
 
-  if (!this.expect(35)) {
+  if (!this.expect(right)) {
     return null;
   }
 
@@ -3982,7 +4258,7 @@ ParserContext.prototype.parseIf = function() {
 
 ParserContext.prototype.parseWhile = function() {
   var token = this.current;
-  globals.assert(token.kind === 70);
+  globals.assert(token.kind === 71);
   this.advance();
 
   if (!this.expect(19)) {
@@ -4055,7 +4331,7 @@ ParserContext.prototype.parseBlock = function() {
 
 ParserContext.prototype.parseReturn = function() {
   var token = this.current;
-  globals.assert(token.kind === 63);
+  globals.assert(token.kind === 64);
   this.advance();
   var value = null;
 
@@ -4154,35 +4430,48 @@ ParserContext.prototype.parseClass = function(firstFlag) {
   while (!this.peek(0) && !this.peek(33)) {
     var childFlags = this.parseFlags();
     var childName = this.current;
+    var oldKind = childName.kind;
+
+    if (isKeyword(childName.kind)) {
+      childName.kind = 2;
+      this.advance();
+    }
 
     if (!this.expect(2)) {
       return null;
     }
 
-    if (this.peek(2)) {
-      var text = childName.range.toString();
+    var text = childName.range.toString();
+
+    if (globals.String_equalNew(text, "operator") && this.peek(18)) {
+      childName.kind = 60;
+      this.current = childName;
+
+      if (this.parseFunction(childFlags, node) === null) {
+        return null;
+      }
+
+      continue;
+    }
+
+    else if (this.peek(2)) {
       var isGet = globals.String_equalNew(text, "get");
       var isSet = globals.String_equalNew(text, "set");
 
       if (isGet || isSet) {
-        var flag = new NodeFlag();
-        flag.flag = isGet ? 8 : 128;
-        flag.range = childName.range;
+        childFlags = appendFlag(childFlags, isGet ? 8 : 128, childName.range);
+        childName = this.current;
+        this.advance();
+      }
 
-        if (childFlags !== null) {
-          var link = childFlags;
+      else if (oldKind === 52) {
+        this.log.error(childName.range, globals.String_new("Instance functions don't need the 'function' keyword"));
+        childName = this.current;
+        this.advance();
+      }
 
-          while (link.next !== null) {
-            link = link.next;
-          }
-
-          link.next = flag;
-        }
-
-        else {
-          childFlags = flag;
-        }
-
+      else if (oldKind === 43 || oldKind === 57 || oldKind === 70) {
+        this.log.error(childName.range, globals.String_appendNew(globals.String_append(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
         childName = this.current;
         this.advance();
       }
@@ -4216,19 +4505,48 @@ ParserContext.prototype.parseClass = function(firstFlag) {
 
 ParserContext.prototype.parseFunction = function(firstFlag, parent) {
   var token = this.current;
+  var nameRange = null;
+  var name = null;
 
-  if (parent === null) {
-    globals.assert(token.kind === 52);
-    this.advance();
+  if (parent !== null && this.eat(60)) {
+    var end = this.current;
+
+    if (!this.expect(18) || !this.expect(34)) {
+      return null;
+    }
+
+    if (this.peek(5)) {
+      nameRange = spanRanges(token.range, this.current.range);
+      name = globals.String_new("[]=");
+      this.advance();
+    }
+
+    else {
+      nameRange = spanRanges(token.range, end.range);
+      name = globals.String_new("[]");
+    }
   }
 
-  var name = this.current;
+  else {
+    if (parent === null) {
+      globals.assert(token.kind === 52);
+      this.advance();
+    }
 
-  if (!this.expect(2) || !this.expect(19)) {
+    nameRange = this.current.range;
+
+    if (!this.expect(2)) {
+      return null;
+    }
+
+    name = nameRange.toString();
+  }
+
+  if (!this.expect(19)) {
     return null;
   }
 
-  var node = createFunction(name.range.toString());
+  var node = createFunction(name);
   node.firstFlag = firstFlag;
   node.flags = allFlags(firstFlag);
 
@@ -4325,14 +4643,14 @@ ParserContext.prototype.parseFunction = function(firstFlag, parent) {
 
   node.appendChild(block);
 
-  return node.withRange(spanRanges(token.range, block.range)).withInternalRange(name.range);
+  return node.withRange(spanRanges(token.range, block.range)).withInternalRange(nameRange);
 };
 
 ParserContext.prototype.parseVariables = function(firstFlag, parent) {
   var token = this.current;
 
   if (parent === null) {
-    globals.assert(token.kind === 43 || token.kind === 57 || token.kind === 69);
+    globals.assert(token.kind === 43 || token.kind === 57 || token.kind === 70);
     this.advance();
   }
 
@@ -4416,23 +4734,23 @@ ParserContext.prototype.parseFlags = function() {
       flag = 4;
     }
 
-    else if (this.eat(60)) {
+    else if (this.eat(61)) {
       flag = 16;
     }
 
-    else if (this.eat(61)) {
+    else if (this.eat(62)) {
       flag = 32;
     }
 
-    else if (this.eat(62)) {
+    else if (this.eat(63)) {
       flag = 64;
     }
 
-    else if (this.eat(65)) {
+    else if (this.eat(66)) {
       flag = 256;
     }
 
-    else if (this.eat(68)) {
+    else if (this.eat(69)) {
       flag = 512;
     }
 
@@ -4473,11 +4791,11 @@ ParserContext.prototype.parseUnsafe = function() {
 ParserContext.prototype.parseStatement = function(mode) {
   var firstFlag = mode === 1 ? this.parseFlags() : null;
 
-  if (this.peek(68) && firstFlag === null) {
+  if (this.peek(69) && firstFlag === null) {
     return this.parseUnsafe();
   }
 
-  if (this.peek(43) || this.peek(57) || this.peek(69)) {
+  if (this.peek(43) || this.peek(57) || this.peek(70)) {
     return this.parseVariables(firstFlag, null);
   }
 
@@ -4515,11 +4833,11 @@ ParserContext.prototype.parseStatement = function(mode) {
     return this.parseIf();
   }
 
-  if (this.peek(70)) {
+  if (this.peek(71)) {
     return this.parseWhile();
   }
 
-  if (this.peek(63)) {
+  if (this.peek(64)) {
     return this.parseReturn();
   }
 
@@ -4925,7 +5243,8 @@ function WasmModule() {
   this.lastSignature = null;
   this.signatureCount = 0;
   this.memoryInitializer = null;
-  this.heapPointerOffset = 0;
+  this.currentHeapPointer = 0;
+  this.originalHeapPointer = 0;
   this.mallocFunctionIndex = 0;
   this.context = null;
 }
@@ -5014,14 +5333,8 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
 };
 
 WasmModule.prototype.emitModule = function(array) {
-  array.append(0);
-  array.append(97);
-  array.append(115);
-  array.append(109);
-  array.append(10);
-  array.append(0);
-  array.append(0);
-  array.append(0);
+  ByteArray_append32(array, 1836278016);
+  ByteArray_append32(array, 10);
   this.emitSignatures(array);
   this.emitImportTable(array);
   this.emitFunctionSignatures(array);
@@ -5098,8 +5411,8 @@ WasmModule.prototype.emitFunctionSignatures = function(array) {
 
 WasmModule.prototype.emitMemory = function(array) {
   var section = wasmStartSection(array, globals.String_new("memory"));
-  wasmWriteVarUnsigned(array, 256);
-  wasmWriteVarUnsigned(array, 256);
+  wasmWriteVarUnsigned(array, 64);
+  wasmWriteVarUnsigned(array, 64);
   wasmWriteVarUnsigned(array, 1);
   wasmFinishSection(array, section);
 };
@@ -5180,11 +5493,8 @@ WasmModule.prototype.emitDataSegments = function(array) {
   var memoryInitializer = this.memoryInitializer;
   var initalizerLength = memoryInitializer.length();
   var initialHeapPointer = alignToNextMultipleOf(initalizerLength + 8 | 0, 8);
-  var heapPointerOffset = this.heapPointerOffset;
-  memoryInitializer.set(heapPointerOffset, initialHeapPointer & 255);
-  memoryInitializer.set(heapPointerOffset + 1 | 0, initialHeapPointer >> 8 & 255);
-  memoryInitializer.set(heapPointerOffset + 2 | 0, initialHeapPointer >> 16 & 255);
-  memoryInitializer.set(heapPointerOffset + 3 | 0, initialHeapPointer >> 24 & 255);
+  ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
+  ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
   var section = wasmStartSection(array, globals.String_new("data_segments"));
   wasmWriteVarUnsigned(array, 1);
   wasmWriteVarUnsigned(array, 8);
@@ -5200,29 +5510,57 @@ WasmModule.prototype.emitDataSegments = function(array) {
 };
 
 WasmModule.prototype.prepareToEmit = function(node) {
-  if (node.kind === 28) {
+  if (node.kind === 29) {
     var text = node.stringValue;
     var length = globals.String_length(text);
-    var offset = this.context.allocateGlobalVariableOffset(length + 1 | 0, 1);
+    var offset = this.context.allocateGlobalVariableOffset(length + 4 | 0, 4);
+    node.intValue = offset;
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
+    ByteArray_set32(memoryInitializer, offset, length);
+    offset = offset + 4 | 0;
     var i = 0;
 
     while (i < length) {
       memoryInitializer.set(offset + i | 0, globals.String_get(text, i) & 255);
       i = i + 1 | 0;
     }
-
-    memoryInitializer.set(offset + length | 0, 0);
-    node.intValue = offset;
   }
 
   else if (node.kind === 1) {
     var symbol = node.symbol;
 
-    if (node.symbol.kind === 8 && globals.String_equalNew(symbol.name, "mallocOffset")) {
-      globals.assert(this.heapPointerOffset === -1);
-      this.heapPointerOffset = symbol.offset;
+    if (symbol.kind === 8) {
+      var sizeOf = symbol.resolvedType.variableSizeOf();
+      var value = symbol.node.variableValue().intValue;
+      var memoryInitializer = this.memoryInitializer;
+      this.growMemoryInitializer();
+
+      if (sizeOf === 1) {
+        memoryInitializer.set(symbol.offset, value & 255);
+      }
+
+      else if (sizeOf === 2) {
+        ByteArray_set16(memoryInitializer, symbol.offset, value);
+      }
+
+      else if (sizeOf === 4) {
+        ByteArray_set32(memoryInitializer, symbol.offset, value);
+      }
+
+      else {
+        globals.assert(false);
+      }
+
+      if (globals.String_equalNew(symbol.name, "currentHeapPointer")) {
+        globals.assert(this.currentHeapPointer === -1);
+        this.currentHeapPointer = symbol.offset;
+      }
+
+      else if (globals.String_equalNew(symbol.name, "originalHeapPointer")) {
+        globals.assert(this.originalHeapPointer === -1);
+        this.originalHeapPointer = symbol.offset;
+      }
     }
   }
 
@@ -5504,7 +5842,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     }
   }
 
-  else if (node.kind === 23) {
+  else if (node.kind === 24) {
     var symbol = node.symbol;
 
     if (symbol.kind === 6 || symbol.kind === 10) {
@@ -5521,17 +5859,17 @@ WasmModule.prototype.emitNode = function(array, node) {
     }
   }
 
-  else if (node.kind === 25) {
+  else if (node.kind === 26) {
     array.append(10);
     wasmWriteVarSigned(array, 0);
   }
 
-  else if (node.kind === 22 || node.kind === 17) {
+  else if (node.kind === 23 || node.kind === 17) {
     array.append(10);
     wasmWriteVarSigned(array, node.intValue);
   }
 
-  else if (node.kind === 28) {
+  else if (node.kind === 29) {
     array.append(10);
     wasmWriteVarSigned(array, node.intValue + 8 | 0);
   }
@@ -5555,7 +5893,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     }
   }
 
-  else if (node.kind === 24) {
+  else if (node.kind === 25) {
     var type = node.newType();
     globals.assert(type.symbol.kind === 0);
     array.append(18);
@@ -5565,25 +5903,25 @@ WasmModule.prototype.emitNode = function(array, node) {
     wasmWriteVarSigned(array, type.symbol.byteSize);
   }
 
-  else if (node.kind === 34) {
+  else if (node.kind === 35) {
     this.emitNode(array, node.unaryValue());
   }
 
-  else if (node.kind === 32) {
+  else if (node.kind === 33) {
     array.append(65);
     array.append(10);
     wasmWriteVarSigned(array, 0);
     this.emitNode(array, node.unaryValue());
   }
 
-  else if (node.kind === 31) {
+  else if (node.kind === 32) {
     array.append(73);
     array.append(10);
     wasmWriteVarSigned(array, -1);
     this.emitNode(array, node.unaryValue());
   }
 
-  else if (node.kind === 33) {
+  else if (node.kind === 34) {
     array.append(90);
     this.emitNode(array, node.unaryValue());
   }
@@ -5633,7 +5971,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     }
   }
 
-  else if (node.kind === 40) {
+  else if (node.kind === 41) {
     var left = node.binaryLeft();
     var symbol = left.symbol;
 
@@ -5656,7 +5994,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     }
   }
 
-  else if (node.kind === 50) {
+  else if (node.kind === 51) {
     array.append(4);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -5664,7 +6002,7 @@ WasmModule.prototype.emitNode = function(array, node) {
     wasmWriteVarSigned(array, 0);
   }
 
-  else if (node.kind === 51) {
+  else if (node.kind === 52) {
     array.append(4);
     this.emitNode(array, node.binaryLeft());
     array.append(10);
@@ -5675,67 +6013,67 @@ WasmModule.prototype.emitNode = function(array, node) {
   else {
     var isUnsigned = node.isUnsignedOperator();
 
-    if (node.kind === 39) {
+    if (node.kind === 40) {
       this.emitBinaryExpression(array, node, 64);
     }
 
-    else if (node.kind === 41) {
+    else if (node.kind === 42) {
       this.emitBinaryExpression(array, node, 71);
     }
 
-    else if (node.kind === 42) {
+    else if (node.kind === 43) {
       this.emitBinaryExpression(array, node, 72);
     }
 
-    else if (node.kind === 43) {
+    else if (node.kind === 44) {
       this.emitBinaryExpression(array, node, 73);
     }
 
-    else if (node.kind === 45) {
+    else if (node.kind === 46) {
       this.emitBinaryExpression(array, node, 77);
     }
 
-    else if (node.kind === 52) {
+    else if (node.kind === 53) {
       this.emitBinaryExpression(array, node, 66);
     }
 
-    else if (node.kind === 53) {
+    else if (node.kind === 54) {
       this.emitBinaryExpression(array, node, 78);
     }
 
-    else if (node.kind === 55) {
+    else if (node.kind === 56) {
       this.emitBinaryExpression(array, node, 74);
     }
 
-    else if (node.kind === 57) {
+    else if (node.kind === 58) {
       this.emitBinaryExpression(array, node, 65);
     }
 
-    else if (node.kind === 44) {
+    else if (node.kind === 45) {
       this.emitBinaryExpression(array, node, isUnsigned ? 68 : 67);
     }
 
-    else if (node.kind === 46) {
+    else if (node.kind === 47) {
       this.emitBinaryExpression(array, node, isUnsigned ? 85 : 83);
     }
 
-    else if (node.kind === 47) {
+    else if (node.kind === 48) {
       this.emitBinaryExpression(array, node, isUnsigned ? 86 : 84);
     }
 
-    else if (node.kind === 48) {
+    else if (node.kind === 49) {
       this.emitBinaryExpression(array, node, isUnsigned ? 81 : 79);
     }
 
-    else if (node.kind === 49) {
+    else if (node.kind === 50) {
       this.emitBinaryExpression(array, node, isUnsigned ? 82 : 80);
     }
 
-    else if (node.kind === 54) {
+    else if (node.kind === 55) {
       this.emitBinaryExpression(array, node, isUnsigned ? 70 : 69);
     }
 
-    else if (node.kind === 56) {
+    else if (node.kind === 57) {
       this.emitBinaryExpression(array, node, isUnsigned ? 75 : 76);
     }
 
@@ -5879,10 +6217,12 @@ function wasmEmit(global, context, array) {
   module.context = context;
   module.memoryInitializer = new ByteArray();
   module.mallocFunctionIndex = -1;
-  module.heapPointerOffset = -1;
+  module.currentHeapPointer = -1;
+  module.originalHeapPointer = -1;
   module.prepareToEmit(global);
   globals.assert(module.mallocFunctionIndex !== -1);
-  globals.assert(module.heapPointerOffset !== -1);
+  globals.assert(module.currentHeapPointer !== -1);
+  globals.assert(module.originalHeapPointer !== -1);
   module.emitModule(array);
 }
 

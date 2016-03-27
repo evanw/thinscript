@@ -8,49 +8,127 @@
 
   h1, p {
     padding-right: 50px;
+    clear: both;
   }
 
-  #backend-wasm[disabled] + span,
-  #backend-wasm[disabled] + span + span {
-    color: #BBB;
+  h1 {
+    margin-bottom: 50px;
   }
 
-  #backend-wasm + span + span {
+  p {
+    max-width: 800px;
+    margin: 0 0 30px 0;
+  }
+
+  h2 {
+    clear: both;
+    margin: 0;
+    height: 50px;
+    line-height: 30px;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .not-supported-warning-text {
     display: none;
   }
 
-  #backend-wasm[disabled] + span + span {
+  .wasm-unavailable .wasm-backend-text {
+    color: #BBB;
+  }
+
+  .wasm-unavailable .not-supported-warning-text {
     display: inline;
   }
 
   button {
-    float: right;
+    position: absolute;
+    width: 100px;
+    height: 30px;
+    top: 50px;
+    right: 50px;
+    background: white;
+    border: 1px solid #BBB;
+    border-top-right-radius: 5px;
+    border-bottom-left-radius: 5px;
+    font: inherit;
+    line-height: 20px;
+    padding: 1px 0;
+    background: linear-gradient(white, #F7F7F7);
+    cursor: pointer;
+    color: black;
   }
 
   textarea {
     width: 100%;
     height: 400px;
-    font: 12px/130% monospace;
+    resize: vertical;
+  }
+
+  button:active:not(:disabled) {
+    background: linear-gradient(#EEE, #F7F7F7);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    padding: 2px 0 0 0;
+  }
+
+  button:focus, textarea:focus {
+    outline: none;
+    border-color: #777;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
+
+  textarea:focus + button {
+    border-color: #777;
+  }
+
+  button:disabled {
+    color: black;
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  textarea, code {
+    font: 12px/130% Consolas, monospace;
+  }
+
+  textarea {
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    padding: 5px;
   }
 
   section {
+    position: relative;
     width: 50%;
     float: left;
-    padding-right: 50px;
+    padding: 0 50px 50px 0;
     box-sizing: border-box;
+  }
+
+  .spacer {
+    height: 50px;
   }
 </style>
 <body>
   <h1>ThinScript Compiler Demo</h1>
+
   <p>
-    Compile using:
-    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
-    <label><input type="radio" name="backend" id="backend-wasm"><span> WebAssembly</span><span> (not supported by your browser)</span></label>
-    <br>
-    Compile to:
-    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
-    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly</label>
+    ThinScript is an experimental programming language that compiles to both WebAssembly and JavaScript.
+    It's meant to be a thin layer on top of WebAssembly that makes it easier to work with: no dependencies and fast compile times.
+    The syntax is inspired by TypeScript and the compiler is <a href="https://github.com/evanw/thinscript">open source</a> and bootstrapped (it can compile itself).
   </p>
+
+  <p>
+    This is still an experiment and isn't intended for real use yet.
+    The generated code currently doesn't delete anything.
+    WebAssembly is a volatile work-in-progress and the binary format will be changed before the final release.
+    Debugging support for WebAssembly is non-existent in current implementations.
+    You get the idea.
+  </p>
+
+  <div class="spacer"></div>
 
   <section>
     <h2>Input</h2>
@@ -58,16 +136,47 @@
   </section>
 
   <section>
-    <h2>Output <button id="download">Download</button></h2>
+    <h2>Output</h2>
     <textarea id="output" readonly></textarea>
+    <button id="download">Download</button>
+  </section>
+
+  <p>
+    <b>Compile using:</b>
+    <label><input type="radio" name="backend" id="backend-js"> JavaScript</label>
+    <label><input type="radio" name="backend" id="backend-wasm"> <span class="wasm-backend-text">WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></span></label>
+    <br>
+    <b>Compile to:</b>
+    <label><input type="radio" name="target" id="target-js"> JavaScript</label>
+    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
+    <br>Compile time: <span id="compileTime"></span>
+  </p>
+
+  <div class="spacer"></div>
+
+  <section>
+    <h2>Usage</h2>
+    <textarea id="usage" readonly></textarea>
+    <button id="run">Run</button>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <textarea id="log" readonly></textarea>
+    <button id="clear" disabled>Clear</button>
   </section>
 </body>
 <script>
 
 (function() {
+  var run = document.getElementById('run');
+  var clear = document.getElementById('clear');
   var input = document.getElementById('input');
   var output = document.getElementById('output');
+  var usage = document.getElementById('usage');
+  var log = document.getElementById('log');
   var download = document.getElementById('download');
+  var compileTime = document.getElementById('compileTime');
 
   var backendWebAssembly = document.getElementById('backend-wasm');
   var backendJavaScript = document.getElementById('backend-js');
@@ -78,10 +187,19 @@
   var loadedWebAssembly = null;
   var loadedJavaScript = null;
 
+  var compiledWebAssembly = null;
+  var compiledJavaScript = null;
+
   var downloadName = null;
+  var javaScriptToRun = null;
+  var webAssemblyToRun = null;
   var blobToDownload = null;
 
-  var example = [
+  function joinLines(lines) {
+    return lines.join('\n');
+  }
+
+  var example = joinLines([
     'declare function print(text: string): void;',
     '',
     'class Link {',
@@ -117,10 +235,10 @@
     '    link = link.next;',
     '  }',
     '',
-    '  print("hello, world\\n");',
+    '  print("hello, world");',
     '  return total;',
     '}',
-  ].join('\n') + '\n';
+  ]) + '\n';
 
   function fetch(url, responseType, callback) {
     var xhr = new XMLHttpRequest;
@@ -142,24 +260,17 @@
     });
   }
 
-  function parseString(bytes, index, length) {
-    var hasLength = length > 0;
-    var text = '';
-
-    while (hasLength ? length > 0 : bytes[index] !== 0) {
-      text += String.fromCharCode(bytes[index]);
-      index++;
-      length--;
-    }
-
+  function extractLengthPrefixedString(ints, bytes, index) {
+    var text = '', length = ints[index >> 2], i = index + 4;
+    while (length-- > 0) text += String.fromCharCode(bytes[i++]);
     return text;
   }
 
   function loadStdlibForWebAssembly() {
-    var strings = [];
     var stdlib = {
-      strings: strings,
+      strings: [],
       bytes: null,
+      ints: null,
 
       assert: function(truth) {
         if (!truth) {
@@ -167,66 +278,71 @@
         }
       },
 
-      String_new: function(ptr) {
-        strings.push(parseString(stdlib.bytes, ptr, 0));
-        return strings.length;
+      Profiler_begin: function() {
+        time = now();
       },
 
-      String_newLength: function(ptr, length) {
-        strings.push(parseString(stdlib.bytes, ptr, length));
-        return strings.length;
+      Profiler_end: function(text) {
+        console.log(stdlib.strings[text - 1] + ': ' + Math.round(now() - time) + 'ms');
+      },
+
+      String_new: function(ptr) {
+        stdlib.strings.push(extractLengthPrefixedString(stdlib.ints, stdlib.bytes, ptr));
+        return stdlib.strings.length;
       },
 
       String_length: function(self) {
-        return strings[self - 1].length;
+        return stdlib.strings[self - 1].length;
       },
 
       String_get: function(self, index) {
-        return strings[self - 1].charCodeAt(index);
+        return stdlib.strings[self - 1].charCodeAt(index);
       },
 
       String_append: function(self, other) {
-        strings.push(strings[self - 1] + strings[other - 1]);
-        return strings.length;
+        stdlib.strings.push(stdlib.strings[self - 1] + stdlib.strings[other - 1]);
+        return stdlib.strings.length;
       },
 
       String_appendNew: function(self, other) {
-        strings.push(strings[self - 1] + parseString(stdlib.bytes, other));
-        return strings.length;
+        stdlib.strings.push(stdlib.strings[self - 1] + extractLengthPrefixedString(stdlib.ints, stdlib.bytes, other));
+        return stdlib.strings.length;
       },
 
       String_slice: function(self, start, end) {
-        strings.push(strings[self - 1].slice(start, end));
-        return strings.length;
+        stdlib.strings.push(stdlib.strings[self - 1].slice(start, end));
+        return stdlib.strings.length;
       },
 
       String_equal: function(self, other) {
-        return strings[self - 1] === strings[other - 1];
+        return stdlib.strings[self - 1] === stdlib.strings[other - 1];
       },
 
       String_equalNew: function(self, other) {
-        return strings[self - 1] === parseString(stdlib.bytes, other);
+        return stdlib.strings[self - 1] === extractLengthPrefixedString(stdlib.ints, stdlib.bytes, other);
       },
 
       String_toStringSigned: function(value) {
-        strings.push((value | 0).toString());
-        return strings.length;
+        stdlib.strings.push((value | 0).toString());
+        return stdlib.strings.length;
       },
 
       String_toStringUnsigned: function(value) {
-        strings.push((value >>> 0).toString());
-        return strings.length;
+        stdlib.strings.push((value >>> 0).toString());
+        return stdlib.strings.length;
       },
 
       String_quote: function(self) {
-        strings.push(JSON.stringify(strings[self - 1]));
-        return strings.length;
+        stdlib.strings.push(JSON.stringify(stdlib.strings[self - 1]));
+        return stdlib.strings.length;
       },
     };
     return stdlib;
   }
 
   function loadStdlibForJavaScript() {
+    var time = 0;
+
     return {
       assert: function(truth) {
         if (!truth) {
@@ -234,11 +350,15 @@
         }
       },
 
-      String_new: function(value) {
-        return value;
+      Profiler_begin: function() {
+        time = now();
       },
 
-      String_newLength: function(value, length) {
+      Profiler_end: function(text) {
+        console.log(text + ': ' + Math.round(now() - time) + 'ms');
+      },
+
+      String_new: function(value) {
         return value;
       },
 
@@ -282,24 +402,8 @@
         return JSON.stringify(self);
       },
 
-      ByteArray_new: function() {
-        return [];
-      },
-
-      ByteArray_length: function(self) {
-        return self.length;
-      },
-
-      ByteArray_getByte: function(self, index) {
-        return self[index];
-      },
-
-      ByteArray_setByte: function(self, index, byte) {
-        self[index] = byte & 255;
-      },
-
-      ByteArray_appendByte: function(self, byte) {
-        self.push(byte & 255);
+      Uint8Array_new: function(length) {
+        return new Uint8Array(length);
       },
     };
   }
@@ -309,49 +413,57 @@
     WEBASSEMBLY: 2,
   };
 
-  function compileAndRunWebAssembly(code, input, target) {
+  function compileWebAssembly(code) {
     var stdlib = loadStdlibForWebAssembly();
     var module = Wasm.instantiateModule(code, {globals: stdlib});
     var exports = module.exports;
     var memory = exports.memory;
-
     stdlib.bytes = new Uint8Array(memory);
+    stdlib.ints = new Int32Array(memory);
 
-    stdlib.strings.push('<stdin>');
-    var nameString = stdlib.strings.length;
+    return function(input, target) {
+      stdlib.strings = [];
 
-    stdlib.strings.push(input);
-    var contentsString = stdlib.strings.length;
+      stdlib.strings.push('<stdin>');
+      var nameString = stdlib.strings.length;
 
-    var compiler = exports.Compiler_new(target);
-    exports.Compiler_addInput(compiler, nameString, contentsString);
-    exports.Compiler_finish(compiler);
+      stdlib.strings.push(input);
+      var contentsString = stdlib.strings.length;
 
-    var wasm = exports.Compiler_wasm(compiler);
-    var ints = new Int32Array(memory);
-    var wasmData = wasm && ints[wasm >> 2];
-    var wasmLength = wasm && ints[(wasm + 4) >> 2];
-    return {
-      wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
-      log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
-      js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
+      exports.Compiler_resetHeapPointer();
+      var compiler = exports.Compiler_new(target);
+      exports.Compiler_addInput(compiler, nameString, contentsString);
+      exports.Compiler_finish(compiler);
+
+      var wasm = exports.Compiler_wasm(compiler);
+      var wasmData = wasm && stdlib.ints[wasm >> 2];
+      var wasmLength = wasm && stdlib.ints[(wasm + 4) >> 2];
+
+      return {
+        wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
+        log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
+        js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
+      };
     };
   }
 
-  function compileAndRunJavaScript(code, input, target) {
+  function compileJavaScript(code) {
     var stdlib = loadStdlibForJavaScript();
     var exports = {};
     new Function('globals', 'exports', code)(stdlib, exports);
 
-    var compiler = exports.Compiler_new(target);
-    exports.Compiler_addInput(compiler, '<stdin>', input);
-    exports.Compiler_finish(compiler);
+    return function(input, target) {
+      var compiler = exports.Compiler_new(target);
+      exports.Compiler_addInput(compiler, '<stdin>', input);
+      exports.Compiler_finish(compiler);
 
-    var wasm = exports.Compiler_wasm(compiler);
-    return {
-      wasm: wasm ? new Uint8Array(wasm) : null,
-      log: exports.Compiler_log(compiler),
-      js: exports.Compiler_js(compiler),
+      var wasm = exports.Compiler_wasm(compiler);
+
+      return {
+        wasm: wasm ? wasm.bytes() : null,
+        log: exports.Compiler_log(compiler),
+        js: exports.Compiler_js(compiler),
+      };
     };
   }
 
@@ -385,16 +497,42 @@
     return text;
   }
 
+  function now() {
+    return window.performance && performance.now ? performance.now() : +new Date;
+  }
+
   function compile() {
     var target = targetJavaScript.checked ? CompileTarget.JAVASCRIPT : CompileTarget.WEBASSEMBLY;
 
     try {
+      // Compile to JS
+      var before = now();
       if (backendWebAssembly.checked) {
-        var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value, target);
+        console.log('compiling to JavaScript using WebAssembly');
+        var compilerJS = compiledWebAssembly(input.value, CompileTarget.JAVASCRIPT);
       } else {
-        var compiler = compileAndRunJavaScript(loadedJavaScript, input.value, target);
+        console.log('compiling to JavaScript using JavaScript');
+        var compilerJS = compiledJavaScript(input.value, CompileTarget.JAVASCRIPT);
       }
-    } catch (e) {
+      var after = now();
+      var jsTime = Math.round(after - before);
+      console.log('total time: ' + jsTime + 'ms');
+
+      // Compile to WASM
+      var before = now();
+      if (backendWebAssembly.checked) {
+        console.log('compiling to WebAssembly using WebAssembly');
+        var compilerWASM = compiledWebAssembly(input.value, CompileTarget.WEBASSEMBLY);
+      } else {
+        console.log('compiling to WebAssembly using JavaScript');
+        var compilerWASM = compiledJavaScript(input.value, CompileTarget.WEBASSEMBLY);
+      }
+      var after = now();
+      var wasmTime = Math.round(after - before);
+      console.log('total time: ' + wasmTime + 'ms');
+    }
+
+    catch (e) {
       var message = e + '';
       if (e.stack) {
         message = e.stack.indexOf(message) !== -1 ? e.stack : message + '\n' + e.stack;
@@ -405,23 +543,67 @@
       return;
     }
 
-    if (compiler.log) {
-      output.value = compiler.log;
+    var log = (targetJavaScript.checked ? compilerJS : compilerWASM).log;
+
+    if (log) {
+      output.value = log;
       downloadName = 'log.txt';
-      blobToDownload = new Blob([compiler.log], {type: 'text/plain'});
+      blobToDownload = new Blob([log], {type: 'text/plain'});
     }
 
     else if (targetJavaScript.checked) {
-      output.value = compiler.js;
+      output.value = compilerJS.js;
       downloadName = 'compiled.js';
-      blobToDownload = new Blob([compiler.js], {type: 'text/plain'});
+      blobToDownload = new Blob([compilerJS.js], {type: 'text/plain'});
     }
 
     else {
-      output.value = compiler.wasm && hexdump(compiler.wasm);
+      output.value = compilerWASM.wasm && hexdump(compilerWASM.wasm);
       downloadName = 'compiled.wasm';
-      blobToDownload = new Blob([compiler.wasm], {type: 'application/octet-stream'});
+      blobToDownload = new Blob([compilerWASM.wasm], {type: 'application/octet-stream'});
     }
+
+    javaScriptToRun = joinLines([
+      'function compileAndRunJavaScript(compiled) {',
+      '  var globals = {',
+      '    print: function(text) {',
+      '      console.log(text);',
+      '    },',
+      '  };',
+      '  var exports = {};',
+      '  var code = new Function("globals", "exports", compiled)',
+      '  code(globals, exports);',
+      '  var result = exports.main();',
+      '  console.log("result:", result);',
+      '}',
+      '',
+      'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || compilerJS.log) + ');',
+    ]);
+
+    webAssemblyToRun = joinLines([
+      'function compileAndRunWebAssembly(compiled) {',
+      '  var extractLengthPrefixedString = function(ptr) {',
+      '    var text = "", length = ints[ptr >> 2], i = ptr + 4;',
+      '    while (length-- > 0) text += String.fromCharCode(bytes[i++]);',
+      '    return text;',
+      '  };',
+      '  var globals = {',
+      '    print: function(ptr) {',
+      '      console.log(extractLengthPrefixedString(ptr));',
+      '    },',
+      '  };',
+      '  var exports = Wasm.instantiateModule(compiled, {globals: globals}).exports;',
+      '  var bytes = new Uint8Array(exports.memory);',
+      '  var ints = new Int32Array(exports.memory);',
+      '  var result = exports.main();',
+      '  console.log("result:", result);',
+      '}',
+      '',
+      'compileAndRunWebAssembly(new Uint8Array([' + (compilerWASM.wasm ? Array.prototype.slice.call(compilerWASM.wasm).join(', ') : '') + ']));',
+    ]);
+
+    usage.textContent = targetWebAssembly.checked ? webAssemblyToRun : javaScriptToRun;
+    compileTime.textContent = (targetWebAssembly.checked ? wasmTime : jsTime) + 'ms';
   }
 
   function downloadCompiledResult() {
@@ -431,6 +613,39 @@
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  function logAppend() {
+    log.value += (log.value !== '' ? '\n' : '') + '> ' + Array.prototype.map.call(arguments, function(item) {
+      var text = item + '';
+      return text === '' || text.indexOf('\n') !== -1 ? JSON.stringify(text) : text;
+    }).join(' ');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function runCompiledResult() {
+    var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? webAssemblyToRun : javaScriptToRun);
+    var target =
+      targetJavaScript.checked ? 'JavaScript' :
+      supportsWebAssembly() ? 'WebAssembly' :
+      'JavaScript (WebAssembly is not supported by your browser)';
+    clear.disabled = false;
+    log.value += (log.value !== '' ? '\n\n' : '') + 'Running using ' + target + ':';
+
+    try {
+      code({ log: logAppend });
+    } catch (e) {
+      logAppend(e + '');
+    }
+  }
+
+  function clearLog() {
+    log.value = '';
+    clear.disabled = true;
+  }
+
+  function supportsWebAssembly() {
+    return typeof Wasm !== 'undefined';
   }
 
   function main() {
@@ -446,15 +661,25 @@
         targetJavaScript.onchange = compile;
         input.oninput = compile;
         download.onclick = downloadCompiledResult;
+        run.onclick = runCompiledResult;
+        clear.onclick = clearLog;
 
-        if (typeof Wasm !== 'undefined') {
+        compiledJavaScript = compileJavaScript(loadedJavaScript);
+
+        if (supportsWebAssembly()) {
+          compiledWebAssembly = compileWebAssembly(loadedWebAssembly);
           backendWebAssembly.checked = true;
-        } else {
+        }
+
+        else {
           backendJavaScript.checked = true;
           backendWebAssembly.disabled = true;
+          document.body.className = 'wasm-unavailable';
         }
 
         input.value = example;
+        input.selectionStart = 0;
+        input.selectionEnd = 0;
         compile();
       });
     });
