@@ -63,7 +63,7 @@ class ParserContext {
       var currentLine = this.current.range.enclosingLine();
 
       // Show missing token errors on the previous line for clarity
-      if (!previousLine.equals(currentLine)) {
+      if (kind != TokenKind.IDENTIFIER && !previousLine.equals(currentLine)) {
         this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
           String_new("Expected "),
           tokenToString(kind)));
@@ -290,8 +290,13 @@ class ParserContext {
       var name = this.current;
       var range = name.range;
 
+      // Allow contextual keywords
+      if (isKeyword(name.kind)) {
+        this.advance();
+      }
+
       // Recover from a missing identifier
-      if (!this.expect(TokenKind.IDENTIFIER)) {
+      else if (!this.expect(TokenKind.IDENTIFIER)) {
         range = createRange(range.source, token.end, token.end);
       }
 
@@ -625,17 +630,22 @@ class ParserContext {
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
       var childFlags = this.parseFlags();
       var childName = this.current;
+      var oldKind = childName.kind;
 
-      if (!this.expect(TokenKind.IDENTIFIER)) {
+      // Support contextual keywords
+      if (isKeyword(childName.kind)) {
+        childName.kind = TokenKind.IDENTIFIER;
+        this.advance();
+      } else if (!this.expect(TokenKind.IDENTIFIER)) {
         return null;
       }
 
-      // The "get" and "set" flags are contextual
       if (this.peek(TokenKind.IDENTIFIER)) {
         var text = childName.range.toString();
         var isGet = String_equalNew(text, "get");
         var isSet = String_equalNew(text, "set");
 
+        // The "get" and "set" flags are contextual
         if (isGet || isSet) {
           var flag = new NodeFlag();
           flag.flag = isGet ? NODE_FLAG_GET : NODE_FLAG_SET;
@@ -649,6 +659,27 @@ class ParserContext {
           } else {
             childFlags = flag;
           }
+
+          // Get the real identifier
+          childName = this.current;
+          this.advance();
+        }
+
+        // Recover from an extra "function" token
+        else if (oldKind == TokenKind.FUNCTION) {
+          this.log.error(childName.range, String_new("Instance functions don't need the 'function' keyword"));
+
+          // Get the real identifier
+          childName = this.current;
+          this.advance();
+        }
+
+        // Recover from an extra variable tokens
+        else if (oldKind == TokenKind.CONST || oldKind == TokenKind.LET || oldKind == TokenKind.VAR) {
+          this.log.error(childName.range, String_appendNew(String_append(
+            String_new("Instance variables don't need the '"),
+            childName.range.toString()),
+            "' keyword"));
 
           // Get the real identifier
           childName = this.current;

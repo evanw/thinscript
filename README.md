@@ -12,7 +12,7 @@ You get the idea.
 
 ## Demo
 
-An interactive compiler demo is available online at http://evanw.github.io/thinscript/. Here's some example code to demonstrate the language (langauge documentation will be written at some point):
+An interactive compiler demo is available online at http://evanw.github.io/thinscript/. Here's some example code to demonstrate the language (documentation will be written at some point):
 
 ```TypeScript
 declare function print(text: string): void;

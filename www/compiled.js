@@ -1781,6 +1781,10 @@ function jsEmit(global, context) {
   return result.code;
 }
 
+function isKeyword(kind) {
+  return kind >= 39 && kind <= 70;
+}
+
 function Token() {
   this.kind = 0;
   this.range = null;
@@ -3471,7 +3475,7 @@ ParserContext.prototype.expect = function(kind) {
     var previousLine = this.previous.range.enclosingLine();
     var currentLine = this.current.range.enclosingLine();
 
-    if (!previousLine.equals(currentLine)) {
+    if (kind !== 2 && !previousLine.equals(currentLine)) {
       this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)));
     }
 
@@ -3745,7 +3749,11 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
     var name = this.current;
     var range = name.range;
 
-    if (!this.expect(2)) {
+    if (isKeyword(name.kind)) {
+      this.advance();
+    }
+
+    else if (!this.expect(2)) {
       range = createRange(range.source, token.end, token.end);
     }
 
@@ -4154,8 +4162,14 @@ ParserContext.prototype.parseClass = function(firstFlag) {
   while (!this.peek(0) && !this.peek(33)) {
     var childFlags = this.parseFlags();
     var childName = this.current;
+    var oldKind = childName.kind;
 
-    if (!this.expect(2)) {
+    if (isKeyword(childName.kind)) {
+      childName.kind = 2;
+      this.advance();
+    }
+
+    else if (!this.expect(2)) {
       return null;
     }
 
@@ -4183,6 +4197,18 @@ ParserContext.prototype.parseClass = function(firstFlag) {
           childFlags = flag;
         }
 
+        childName = this.current;
+        this.advance();
+      }
+
+      else if (oldKind === 52) {
+        this.log.error(childName.range, globals.String_new("Instance functions don't need the 'function' keyword"));
+        childName = this.current;
+        this.advance();
+      }
+
+      else if (oldKind === 43 || oldKind === 57 || oldKind === 69) {
+        this.log.error(childName.range, globals.String_appendNew(globals.String_append(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
         childName = this.current;
         this.advance();
       }

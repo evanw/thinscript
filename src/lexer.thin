@@ -78,6 +78,10 @@ enum TokenKind {
   WHILE,
 }
 
+function isKeyword(kind: TokenKind): bool {
+  return kind >= TokenKind.ALIGNOF && kind <= TokenKind.WHILE;
+}
+
 class Token {
   kind: TokenKind;
   range: Range;

@@ -520,7 +520,7 @@
       return;
     }
 
-    var log = compilerJS.log || compilerWASM.log;
+    var log = (targetJavaScript.checked ? compilerJS : compilerWASM).log;
 
     if (log) {
       output.value = log;
@@ -554,7 +554,7 @@
       '  console.log("result:", result);',
       '}',
       '',
-      'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || '') + ');',
+      'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || compilerJS.log) + ');',
     ]);
 
     webAssemblyToRun = joinLines([
@@ -592,6 +592,14 @@
     document.body.removeChild(link);
   }
 
+  function logAppend() {
+    log.value += (log.value !== '' ? '\n' : '') + '> ' + Array.prototype.map.call(arguments, function(item) {
+      var text = item + '';
+      return text === '' || text.indexOf('\n') !== -1 ? JSON.stringify(text) : text;
+    }).join(' ');
+    log.scrollTop = log.scrollHeight;
+  }
+
   function runCompiledResult() {
     var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? webAssemblyToRun : javaScriptToRun);
     var target =
@@ -600,15 +608,12 @@
       'JavaScript (WebAssembly is not supported by your browser)';
     clear.disabled = false;
     log.value += (log.value !== '' ? '\n\n' : '') + 'Running using ' + target + ':';
-    code({
-      log: function() {
-        log.value += (log.value !== '' ? '\n' : '') + '> ' + Array.prototype.map.call(arguments, function(item) {
-          var text = item + '';
-          return text === '' || text.indexOf('\n') !== -1 ? JSON.stringify(text) : text;
-        }).join(' ');
-        log.scrollTop = log.scrollHeight;
-      },
-    });
+
+    try {
+      code({ log: logAppend });
+    } catch (e) {
+      logAppend(e + '');
+    }
   }
 
   function clearLog() {
@@ -645,6 +650,8 @@
         }
 
         input.value = example;
+        input.selectionStart = 0;
+        input.selectionEnd = 0;
         compile();
       });
     });
