@@ -1,10 +1,5 @@
 function libraryWASM(): string {
   return `
-// Casting to this enables writing to arbitrary locations in memory
-unsafe class UBytePtr {
-  value: ubyte;
-}
-
 // This will be filled in by the code generator with the inital heap pointer
 unsafe var mallocOffset: uint = 0;
 
@@ -16,35 +11,6 @@ unsafe function malloc(sizeOf: uint): uint {
   mallocOffset = offset + sizeOf;
 
   return offset;
-}
-
-unsafe function memcpy(to: uint, from: uint, length: uint): void {
-  // Early out: nothing to do
-  if (from == to || length == 0) {
-    return;
-  }
-
-  // Forwards
-  if (from > to) {
-    while (length != 0) {
-      (to as UBytePtr).value = (from as UBytePtr).value;
-      to = to + 1;
-      from = from + 1;
-      length = length - 1;
-    }
-  }
-
-  // Backwards
-  else {
-    to = to + length;
-    from = from + length;
-    while (length != 0) {
-      to = to - 1;
-      from = from - 1;
-      (to as UBytePtr).value = (from as UBytePtr).value;
-      length = length - 1;
-    }
-  }
 }
 `;
 }

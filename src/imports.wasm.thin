@@ -1,3 +1,8 @@
+// Casting to this enables writing to arbitrary locations in memory
+unsafe class UBytePtr {
+  value: ubyte;
+}
+
 class ByteArray {
   unsafe _data: uint;
   unsafe _length: uint;
@@ -40,16 +45,25 @@ class ByteArray {
     }
   }
 
-  _resize(length: uint): void {
-    unsafe {
-      if (length > this._capacity) {
-        var capacity = length * 2;
-        var data = malloc(capacity);
-        memcpy(data, this._data, this._length);
-        this._capacity = capacity;
-        this._data = data;
+  unsafe _resize(length: uint): void {
+    if (length > this._capacity) {
+      var capacity = length * 2;
+      var data = malloc(capacity);
+      var source = this._data;
+      var limit = this._length;
+      var i: uint = 0;
+
+      // Copy the old bytes over
+      while (i < limit) {
+        ((data + i) as UBytePtr).value = ((source + i) as UBytePtr).value;
+        i = i + 1;
       }
-      this._length = length;
+
+      // Swap in the new bytes
+      this._capacity = capacity;
+      this._data = data;
     }
+
+    this._length = length;
   }
 }

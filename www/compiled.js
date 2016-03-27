@@ -2537,7 +2537,7 @@ function tokenize(source, log) {
 }
 
 function libraryWASM() {
-  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n\nunsafe function memcpy(to: uint, from: uint, length: uint): void {\n  // Early out: nothing to do\n  if (from == to || length == 0) {\n    return;\n  }\n\n  // Forwards\n  if (from > to) {\n    while (length != 0) {\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      to = to + 1;\n      from = from + 1;\n      length = length - 1;\n    }\n  }\n\n  // Backwards\n  else {\n    to = to + length;\n    from = from + length;\n    while (length != 0) {\n      to = to - 1;\n      from = from - 1;\n      (to as UBytePtr).value = (from as UBytePtr).value;\n      length = length - 1;\n    }\n  }\n}\n";
+  return "\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n";
 }
 
 function Source() {
