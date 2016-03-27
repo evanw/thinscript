@@ -8,8 +8,9 @@ class JsResult {
   code: String;
   indent: int;
   foundMultiply: bool;
+  previousNode: Node;
 
-  appendIndent(): void {
+  emitIndent(): void {
     var i = this.indent;
     while (i > 0) {
       this.code = String_appendNew(this.code, "  ");
@@ -25,6 +26,17 @@ class JsResult {
     this.code = String_append(this.code, text);
   }
 
+  emitNewlineBefore(node: Node): void {
+    if (this.previousNode != null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+      this.emitText("\n");
+    }
+    this.previousNode = null;
+  }
+
+  emitNewlineAfter(node: Node): void {
+    this.previousNode = node;
+  }
+
   emitStatements(node: Node): void {
     while (node != null) {
       this.emitStatement(node);
@@ -33,12 +45,14 @@ class JsResult {
   }
 
   emitBlock(node: Node): void {
+    this.previousNode = null;
     this.emitText("{\n");
     this.indent = this.indent + 1;
     this.emitStatements(node.firstChild);
     this.indent = this.indent - 1;
-    this.appendIndent();
+    this.emitIndent();
     this.emitText("}");
+    this.previousNode = null;
   }
 
   emitUnary(node: Node, parentPrecedence: Precedence, operator: string): void {
@@ -319,7 +333,8 @@ class JsResult {
       }
 
       var needsSemicolon = false;
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
 
       if (node.parent.kind == NodeKind.CLASS) {
         this.emitString(node.parent.symbol.name);
@@ -360,10 +375,12 @@ class JsResult {
       this.emitText(") ");
       this.emitBlock(node.functionBody());
       this.emitText(needsSemicolon ? ";\n" : "\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.IF) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       while (true) {
         this.emitText("if (");
         this.emitExpression(node.ifValue(), Precedence.LOWEST);
@@ -374,7 +391,9 @@ class JsResult {
           this.emitText("\n");
           break;
         }
-        this.emitText(" else ");
+        this.emitText("\n\n");
+        this.emitIndent();
+        this.emitText("else ");
         if (no.firstChild == null || no.firstChild != no.lastChild || no.firstChild.kind != NodeKind.IF) {
           this.emitBlock(no);
           this.emitText("\n");
@@ -382,31 +401,40 @@ class JsResult {
         }
         node = no.firstChild;
       }
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.WHILE) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitText("while (");
       this.emitExpression(node.whileValue(), Precedence.LOWEST);
       this.emitText(") ");
       this.emitBlock(node.whileBody());
       this.emitText("\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.BREAK) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitText("break;\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.CONTINUE) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitText("continue;\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.EXPRESSION) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitExpression(node.expressionValue(), Precedence.LOWEST);
       this.emitText(";\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.EMPTY) {
@@ -414,7 +442,8 @@ class JsResult {
 
     else if (node.kind == NodeKind.RETURN) {
       var value = node.returnValue();
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       if (value != null) {
         this.emitText("return ");
         this.emitExpression(value, Precedence.LOWEST);
@@ -422,20 +451,24 @@ class JsResult {
       } else {
         this.emitText("return;\n");
       }
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.BLOCK) {
       if (node.parent.kind == NodeKind.BLOCK) {
         this.emitStatements(node.firstChild);
       } else {
-        this.appendIndent();
+        this.emitNewlineBefore(node);
+        this.emitIndent();
         this.emitBlock(node);
         this.emitText("\n");
+        this.emitNewlineAfter(node);
       }
     }
 
     else if (node.kind == NodeKind.VARIABLES) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitText("var ");
       var child = node.firstChild;
       while (child != null) {
@@ -450,10 +483,12 @@ class JsResult {
         this.emitExpression(value, Precedence.LOWEST);
       }
       this.emitText(";\n");
+      this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.CLASS) {
-      this.appendIndent();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
       this.emitText("function ");
       this.emitString(node.symbol.name);
       this.emitText("() {\n");
@@ -463,7 +498,7 @@ class JsResult {
       var child = node.firstChild;
       while (child != null) {
         if (child.kind == NodeKind.VARIABLE) {
-          this.appendIndent();
+          this.emitIndent();
           this.emitText("this.");
           this.emitString(child.symbol.name);
           this.emitText(" = ");
@@ -474,8 +509,9 @@ class JsResult {
       }
 
       this.indent = this.indent - 1;
-      this.appendIndent();
+      this.emitIndent();
       this.emitText("}\n");
+      this.emitNewlineAfter(node);
 
       // Emit instance functions
       child = node.firstChild;
@@ -496,19 +532,21 @@ class JsResult {
   }
 }
 
+function jsIsCompactNodeKind(kind: NodeKind): bool {
+  return
+    kind == NodeKind.CONSTANTS ||
+    kind == NodeKind.EXPRESSION ||
+    kind == NodeKind.VARIABLES;
+}
+
 function jsEmit(global: Node, context: CheckContext): String {
   var result = new JsResult();
   result.context = context;
   result.code = String_new("");
-
-  var child = global.firstChild;
-  while (child != null) {
-    result.emitStatement(child);
-    child = child.nextSibling;
-  }
+  result.emitStatements(global.firstChild);
 
   if (result.foundMultiply) {
-    result.emitText("var __imul = Math.imul || function(a, b) {\n");
+    result.emitText("\nvar __imul = Math.imul || function(a, b) {\n");
     result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
     result.emitText("};\n");
   }
