@@ -327,15 +327,15 @@
     stdlib.strings.push(input);
     var contentsString = stdlib.strings.length;
 
-    var result = exports.CompileResult_new();
-    exports.CompileResult_addInput(result, nameString, contentsString);
-    exports.CompileResult_finish(result);
+    var compiler = exports.Compiler_new();
+    exports.Compiler_addInput(compiler, nameString, contentsString);
+    exports.Compiler_finish(compiler);
 
-    var wasm = stdlib.arrays[exports.CompileResult_wasm(result) - 1];
+    var wasm = stdlib.arrays[exports.Compiler_wasm(compiler) - 1];
     return {
       wasm: wasm ? new Uint8Array(wasm) : null,
-      log: stdlib.strings[exports.CompileResult_log(result) - 1] || '',
-      js: stdlib.strings[exports.CompileResult_js(result) - 1] || '',
+      log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
+      js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
     };
   }
 
@@ -344,15 +344,15 @@
     var exports = {};
     new Function('__imports', 'exports', code)(stdlib, exports);
 
-    var result = exports.CompileResult_new();
-    exports.CompileResult_addInput(result, '<stdin>', input);
-    exports.CompileResult_finish(result);
+    var compiler = exports.Compiler_new();
+    exports.Compiler_addInput(compiler, '<stdin>', input);
+    exports.Compiler_finish(compiler);
 
-    var wasm = exports.CompileResult_wasm(result);
+    var wasm = exports.Compiler_wasm(compiler);
     return {
       wasm: wasm ? new Uint8Array(wasm) : null,
-      log: exports.CompileResult_log(result),
-      js: exports.CompileResult_js(result),
+      log: exports.Compiler_log(compiler),
+      js: exports.Compiler_js(compiler),
     };
   }
 
@@ -388,27 +388,27 @@
 
   function compile() {
     if (backendWebAssembly.checked) {
-      var result = compileAndRunWebAssembly(loadedWebAssembly, input.value);
+      var compiler = compileAndRunWebAssembly(loadedWebAssembly, input.value);
     } else {
-      var result = compileAndRunJavaScript(loadedJavaScript, input.value);
+      var compiler = compileAndRunJavaScript(loadedJavaScript, input.value);
     }
 
-    if (result.log) {
-      output.value = result.log;
+    if (compiler.log) {
+      output.value = compiler.log;
       downloadName = 'log.txt';
-      blobToDownload = new Blob([result.log], {type: 'text/plain'});
+      blobToDownload = new Blob([compiler.log], {type: 'text/plain'});
     }
 
     else if (targetJavaScript.checked) {
-      output.value = result.js;
+      output.value = compiler.js;
       downloadName = 'compiled.js';
-      blobToDownload = new Blob([result.js], {type: 'text/plain'});
+      blobToDownload = new Blob([compiler.js], {type: 'text/plain'});
     }
 
     else {
-      output.value = hexdump(result.wasm);
+      output.value = hexdump(compiler.wasm);
       downloadName = 'compiled.wasm';
-      blobToDownload = new Blob([result.wasm], {type: 'application/octet-stream'});
+      blobToDownload = new Blob([compiler.wasm], {type: 'application/octet-stream'});
     }
   }
 

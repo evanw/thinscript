@@ -78,28 +78,28 @@ function compileAndRunJavaScript(code, sources) {
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
   new Function('__imports', 'exports', code)(stdlib, exports);
-  var result = exports.CompileResult_new();
+  var compiler = exports.Compiler_new();
   sources.forEach(function(source) {
-    exports.CompileResult_addInput(result, source.name, source.contents);
+    exports.Compiler_addInput(compiler, source.name, source.contents);
   });
-  exports.CompileResult_finish(result);
-  var wasm = exports.CompileResult_wasm(result);
+  exports.Compiler_finish(compiler);
+  var wasm = exports.Compiler_wasm(compiler);
   return {
     wasm: wasm ? new Uint8Array(wasm) : null,
-    log: exports.CompileResult_log(result),
-    js: exports.CompileResult_js(result),
+    log: exports.Compiler_log(compiler),
+    js: exports.Compiler_js(compiler),
   };
 }
 
 function compile(compiler, sources) {
-  var result = compileAndRunJavaScript(compiler, sources);
+  var compiler = compileAndRunJavaScript(compiler, sources);
 
-  if (result.log) {
-    process.stdout.write(result.log);
+  if (compiler.log) {
+    process.stdout.write(compiler.log);
     process.exit(1);
   }
 
-  return result;
+  return compiler;
 }
 
 var sourceDir = __dirname + '/src';
@@ -117,16 +117,16 @@ fs.readdirSync(sourceDir).forEach(function(entry) {
 var compiler = fs.readFileSync(__dirname + '/www/compiled.js', 'utf8');
 
 console.log('compiling...');
-var result = compile(compiler, sources);
+var compiler = compile(compiler, sources);
 
 console.log('compiling again...');
-var result = compile(result.js, sources);
+var compiler = compile(compiler.js, sources);
 
 console.log('compiling again...');
-var result = compile(result.js, sources);
+var compiler = compile(compiler.js, sources);
 
-fs.writeFileSync(__dirname + '/www/compiled.wasm', Buffer(result.wasm));
+fs.writeFileSync(__dirname + '/www/compiled.wasm', Buffer(compiler.wasm));
 console.log('wrote to "www/compiled.wasm"');
 
-fs.writeFileSync(__dirname + '/www/compiled.js', result.js);
+fs.writeFileSync(__dirname + '/www/compiled.js', compiler.js);
 console.log('wrote to "www/compiled.js"');

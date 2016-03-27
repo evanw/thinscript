@@ -634,55 +634,68 @@ function check(global, log) {
   resolve(context, global, null);
   return context;
 }
-function CompileResult() {
+function Compiler() {
   this.log = null;
   this.global = null;
   this.context = null;
   this.wasm = null;
   this.js = null;
 }
-var CompileResult_new = exports.CompileResult_new = function() {
-  var result = new CompileResult();
-  result.log = new Log();
-  result.global = new Node();
-  result.global.kind = 0;
-  var malloc = CompileResult_addInput(result, __imports.String_new("<malloc>"), __imports.String_new("\n    var __mallocOffset = 0;\n\n    function __malloc(sizeOf: int): int {\n      var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n      __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n      return offset;\n    }\n  "));
+Compiler.prototype.initialize = function() {
+  __imports.assert(this.log === null);
+  this.log = new Log();
+  this.global = new Node();
+  this.global.kind = 0;
+  var malloc = this.addInput(__imports.String_new("<malloc>"), __imports.String_new("\n      var __mallocOffset = 0;\n\n      function __malloc(sizeOf: int): int {\n        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes\n        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now\n        return offset;\n      }\n    "));
   malloc.flags = malloc.flags | 1;
-  return result;
 };
-var CompileResult_addInput = exports.CompileResult_addInput = function(result, name, contents) {
+Compiler.prototype.addInput = function(name, contents) {
   var source = new Source();
   source.name = name;
   source.contents = contents;
-  var token = tokenize(source, result.log);
-  if (token !== null) {
-    var file = parse(token, result.log);
+  var firstToken = tokenize(source, this.log);
+  if (firstToken !== null) {
+    var file = parse(firstToken, this.log);
     if (file !== null) {
       while (file.firstChild !== null) {
         var child = file.firstChild;
         child.remove();
-        result.global.appendChild(child);
+        this.global.appendChild(child);
       }
     }
   }
   return source;
 };
-var CompileResult_finish = exports.CompileResult_finish = function(result) {
-  result.context = check(result.global, result.log);
-  if (result.log.first === null) {
-    result.wasm = __imports.ByteArray_new();
-    wasmEmit(result.global, result.context, result.wasm);
-    result.js = jsEmit(result.global, result.context);
+Compiler.prototype.finish = function() {
+  __imports.assert(this.context === null);
+  this.context = check(this.global, this.log);
+  if (this.log.first !== null) {
+    return false;
   }
+  this.wasm = __imports.ByteArray_new();
+  wasmEmit(this.global, this.context, this.wasm);
+  this.js = jsEmit(this.global, this.context);
+  return true;
 };
-var CompileResult_wasm = exports.CompileResult_wasm = function(result) {
-  return result.wasm;
+var Compiler_new = exports.Compiler_new = function() {
+  var compiler = new Compiler();
+  compiler.initialize();
+  return compiler;
 };
-var CompileResult_js = exports.CompileResult_js = function(result) {
-  return result.js;
+var Compiler_addInput = exports.Compiler_addInput = function(compiler, name, contents) {
+  compiler.addInput(name, contents);
 };
-var CompileResult_log = exports.CompileResult_log = function(result) {
-  return result.log.toString();
+var Compiler_finish = exports.Compiler_finish = function(compiler) {
+  compiler.finish();
+};
+var Compiler_wasm = exports.Compiler_wasm = function(compiler) {
+  return compiler.wasm;
+};
+var Compiler_js = exports.Compiler_js = function(compiler) {
+  return compiler.js;
+};
+var Compiler_log = exports.Compiler_log = function(compiler) {
+  return compiler.log.toString();
 };
 function String() {
 }

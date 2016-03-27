@@ -1,0 +1,87 @@
+class Compiler {
+  log: Log;
+  global: Node;
+  context: CheckContext;
+  wasm: ByteArray;
+  js: String;
+
+  initialize(): void {
+    assert(this.log == null);
+    this.log = new Log();
+    this.global = new Node();
+    this.global.kind = NodeKind.GLOBAL;
+
+    var malloc = this.addInput(String_new("<malloc>"), String_new(`
+      var __mallocOffset = 0;
+
+      function __malloc(sizeOf: int): int {
+        var offset = (__mallocOffset + 7) & ~7; // Align all allocations to 8 bytes
+        __mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
+        return offset;
+      }
+    `));
+    malloc.flags = malloc.flags | SOURCE_FLAG_WASM_ONLY;
+  }
+
+  addInput(name: String, contents: String): Source {
+    var source = new Source();
+    source.name = name;
+    source.contents = contents;
+
+    var firstToken = tokenize(source, this.log);
+    if (firstToken != null) {
+      var file = parse(firstToken, this.log);
+
+      if (file != null) {
+        while (file.firstChild != null) {
+          var child = file.firstChild;
+          child.remove();
+          this.global.appendChild(child);
+        }
+      }
+    }
+
+    return source;
+  }
+
+  finish(): bool {
+    assert(this.context == null);
+    this.context = check(this.global, this.log);
+
+    if (this.log.first != null) {
+      return false;
+    }
+
+    this.wasm = ByteArray_new();
+    wasmEmit(this.global, this.context, this.wasm);
+
+    this.js = jsEmit(this.global, this.context);
+    return true;
+  }
+}
+
+extern function Compiler_new(): Compiler {
+  var compiler = new Compiler();
+  compiler.initialize();
+  return compiler;
+}
+
+extern function Compiler_addInput(compiler: Compiler, name: String, contents: String): void {
+  compiler.addInput(name, contents);
+}
+
+extern function Compiler_finish(compiler: Compiler): void {
+  compiler.finish();
+}
+
+extern function Compiler_wasm(compiler: Compiler): ByteArray {
+  return compiler.wasm;
+}
+
+extern function Compiler_js(compiler: Compiler): String {
+  return compiler.js;
+}
+
+extern function Compiler_log(compiler: Compiler): String {
+  return compiler.log.toString();
+}
