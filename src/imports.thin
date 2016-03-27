@@ -15,15 +15,6 @@ function String_toStringSigned(value: int): String;
 function String_toStringUnsigned(value: uint): String;
 function String_quote(self: String): String;
 
-// This is an external handle for now
-class ByteArray {}
-
-function ByteArray_new(): ByteArray;
-function ByteArray_length(self: ByteArray): int;
-function ByteArray_getByte(self: ByteArray, index: int): ubyte;
-function ByteArray_setByte(self: ByteArray, index: int, byte: ubyte): void;
-function ByteArray_appendByte(self: ByteArray, byte: ubyte): void;
-
 function isPositivePowerOf2(value: int): bool {
   return value > 0 && (value & (value - 1)) == 0;
 }

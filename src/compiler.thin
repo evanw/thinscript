@@ -19,16 +19,12 @@ class Compiler {
     this.global.kind = NodeKind.GLOBAL;
     this.target = target;
 
-    if (target == CompileTarget.WEBASSEMBLY) {
-      this.addInput(String_new("<malloc>"), String_new(`
-        var mallocOffset: int = 0; // This will be filled in by the code generator with the inital heap pointer
+    if (target == CompileTarget.JAVASCRIPT) {
+      this.addInput(String_new("<native>"), String_new(libraryJS()));
+    }
 
-        unsafe function malloc(sizeOf: int): int {
-          var offset = (mallocOffset + 7) & ~7 as int; // Align all allocations to 8 bytes
-          mallocOffset = offset + sizeOf; // Use a simple bump allocator for now
-          return offset;
-        }
-      `));
+    else if (target == CompileTarget.WEBASSEMBLY) {
+      this.addInput(String_new("<native>"), String_new(libraryWASM()));
     }
   }
 
@@ -64,7 +60,7 @@ class Compiler {
     }
 
     else if (this.target == CompileTarget.WEBASSEMBLY) {
-      this.wasm = ByteArray_new();
+      this.wasm = new ByteArray();
       wasmEmit(this.global, this.context, this.wasm);
     }
 
@@ -86,8 +82,8 @@ extern function Compiler_finish(compiler: Compiler): void {
   compiler.finish();
 }
 
-extern function Compiler_wasm(compiler: Compiler): ByteArray {
-  return compiler.wasm;
+extern function Compiler_wasm(compiler: Compiler): int {
+  return compiler.wasm == null ? 0 : compiler.wasm.handle();
 }
 
 extern function Compiler_js(compiler: Compiler): String {

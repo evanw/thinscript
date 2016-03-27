@@ -151,10 +151,8 @@
   }
 
   function loadStdlibForWebAssembly() {
-    var arrays = [];
     var strings = [];
     var stdlib = {
-      arrays: arrays,
       strings: strings,
       bytes: null,
 
@@ -213,27 +211,6 @@
       String_quote: function(self) {
         strings.push(JSON.stringify(strings[self - 1]));
         return strings.length;
-      },
-
-      ByteArray_new: function() {
-        arrays.push([]);
-        return arrays.length;
-      },
-
-      ByteArray_length: function(self) {
-        return arrays[self - 1].length;
-      },
-
-      ByteArray_getByte: function(self, index) {
-        return arrays[self - 1][index];
-      },
-
-      ByteArray_setByte: function(self, index, byte) {
-        arrays[self - 1][index] = byte & 255;
-      },
-
-      ByteArray_appendByte: function(self, byte) {
-        arrays[self - 1].push(byte & 255);
       },
     };
     return stdlib;
@@ -336,9 +313,12 @@
     exports.Compiler_addInput(compiler, nameString, contentsString);
     exports.Compiler_finish(compiler);
 
-    var wasm = stdlib.arrays[exports.Compiler_wasm(compiler) - 1];
+    var wasm = exports.Compiler_wasm(compiler);
+    var ints = new Int32Array(memory);
+    var wasmData = wasm && ints[wasm >> 2];
+    var wasmLength = wasm && ints[(wasm + 4) >> 2];
     return {
-      wasm: wasm ? new Uint8Array(wasm) : null,
+      wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
       log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
       js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
     };
@@ -401,9 +381,13 @@
         var compiler = compileAndRunJavaScript(loadedJavaScript, input.value, target);
       }
     } catch (e) {
-      output.value = e && e.stack || e;
+      var message = e + '';
+      if (e.stack) {
+        message = e.stack.indexOf(message) !== -1 ? e.stack : message + '\n' + e.stack;
+      }
+      output.value = message;
       downloadName = 'error.txt';
-      blobToDownload = new Blob([output.value], {type: 'text/plain'});
+      blobToDownload = new Blob([message], {type: 'text/plain'});
       return;
     }
 
@@ -420,7 +404,7 @@
     }
 
     else {
-      output.value = hexdump(compiler.wasm);
+      output.value = compiler.wasm && hexdump(compiler.wasm);
       downloadName = 'compiled.wasm';
       blobToDownload = new Blob([compiler.wasm], {type: 'application/octet-stream'});
     }

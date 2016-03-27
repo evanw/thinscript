@@ -263,11 +263,11 @@ class WasmModule {
 
   growMemoryInitializer(): void {
     var array = this.memoryInitializer;
-    var current = ByteArray_length(array);
+    var current = array.length();
     var length = this.context.nextGlobalVariableOffset;
 
     while (current < length) {
-      ByteArray_appendByte(array, 0);
+      array.append(0);
       current = current + 1;
     }
   }
@@ -329,15 +329,15 @@ class WasmModule {
   }
 
   emitModule(array: ByteArray): void {
-    ByteArray_appendByte(array, WASM_MAGIC as ubyte);
-    ByteArray_appendByte(array, (WASM_MAGIC >> 8) as ubyte);
-    ByteArray_appendByte(array, (WASM_MAGIC >> 16) as ubyte);
-    ByteArray_appendByte(array, (WASM_MAGIC >> 24) as ubyte);
+    array.append(WASM_MAGIC as ubyte);
+    array.append((WASM_MAGIC >> 8) as ubyte);
+    array.append((WASM_MAGIC >> 16) as ubyte);
+    array.append((WASM_MAGIC >> 24) as ubyte);
 
-    ByteArray_appendByte(array, WASM_VERSION as ubyte);
-    ByteArray_appendByte(array, (WASM_VERSION >> 8) as ubyte);
-    ByteArray_appendByte(array, (WASM_VERSION >> 16) as ubyte);
-    ByteArray_appendByte(array, (WASM_VERSION >> 24) as ubyte);
+    array.append(WASM_VERSION as ubyte);
+    array.append((WASM_VERSION >> 8) as ubyte);
+    array.append((WASM_VERSION >> 16) as ubyte);
+    array.append((WASM_VERSION >> 24) as ubyte);
 
     this.emitSignatures(array);
     this.emitImportTable(array);
@@ -461,13 +461,13 @@ class WasmModule {
 
     var fn = this.firstFunction;
     while (fn != null) {
-      var bodyLength = ByteArray_length(array);
+      var bodyLength = array.length();
       wasmWriteVarUnsigned(array, ~0); // This will be patched later
 
       if (fn.intLocalCount > 0) {
         wasmWriteVarUnsigned(array, 1);
         wasmWriteVarUnsigned(array, fn.intLocalCount);
-        ByteArray_appendByte(array, WasmType.I32);
+        array.append(WasmType.I32);
       } else {
         wasmWriteVarUnsigned(array, 0);
       }
@@ -478,7 +478,7 @@ class WasmModule {
         child = child.nextSibling;
       }
 
-      wasmPatchVarUnsigned(array, bodyLength, ByteArray_length(array) - bodyLength - 5, ~0);
+      wasmPatchVarUnsigned(array, bodyLength, array.length() - bodyLength - 5, ~0);
       fn = fn.next;
     }
 
@@ -488,15 +488,15 @@ class WasmModule {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = ByteArray_length(memoryInitializer);
+    var initalizerLength = memoryInitializer.length();
     var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
 
     // Pass the initial heap pointer to "malloc"
     var heapPointerOffset = this.heapPointerOffset;
-    ByteArray_setByte(memoryInitializer, heapPointerOffset, initialHeapPointer as ubyte);
-    ByteArray_setByte(memoryInitializer, heapPointerOffset + 1, (initialHeapPointer >> 8) as ubyte);
-    ByteArray_setByte(memoryInitializer, heapPointerOffset + 2, (initialHeapPointer >> 16) as ubyte);
-    ByteArray_setByte(memoryInitializer, heapPointerOffset + 3, (initialHeapPointer >> 24) as ubyte);
+    memoryInitializer.set(heapPointerOffset, initialHeapPointer as ubyte);
+    memoryInitializer.set(heapPointerOffset + 1, (initialHeapPointer >> 8) as ubyte);
+    memoryInitializer.set(heapPointerOffset + 2, (initialHeapPointer >> 16) as ubyte);
+    memoryInitializer.set(heapPointerOffset + 3, (initialHeapPointer >> 24) as ubyte);
 
     var section = wasmStartSection(array, String_new("data_segments"));
     wasmWriteVarUnsigned(array, 1);
@@ -507,7 +507,7 @@ class WasmModule {
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
     while (i < initalizerLength) {
-      ByteArray_appendByte(array, ByteArray_getByte(memoryInitializer, i));
+      array.append(memoryInitializer.get(i));
       i = i + 1;
     }
 
@@ -523,10 +523,10 @@ class WasmModule {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        ByteArray_setByte(memoryInitializer, offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
         i = i + 1;
       }
-      ByteArray_setByte(memoryInitializer, offset + length, 0);
+      memoryInitializer.set(offset + length, 0);
       node.intValue = offset;
     }
 
@@ -597,7 +597,7 @@ class WasmModule {
   }
 
   emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
-    ByteArray_appendByte(array, opcode);
+    array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
   }
@@ -606,17 +606,17 @@ class WasmModule {
     var sizeOf = type.variableSizeOf();
 
     if (sizeOf == 1) {
-      ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
+      array.append(type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
       wasmWriteVarUnsigned(array, 0);
     }
 
     else if (sizeOf == 2) {
-      ByteArray_appendByte(array, type.isUnsigned() ? WASM_OPCODE_I32_LOAD16_U : WASM_OPCODE_I32_LOAD16_S);
+      array.append(type.isUnsigned() ? WASM_OPCODE_I32_LOAD16_U : WASM_OPCODE_I32_LOAD16_S);
       wasmWriteVarUnsigned(array, 1);
     }
 
     else if (sizeOf == 4) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_LOAD);
+      array.append(WASM_OPCODE_I32_LOAD);
       wasmWriteVarUnsigned(array, 2);
     }
 
@@ -633,7 +633,7 @@ class WasmModule {
 
     // Absolute address
     else {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarUnsigned(array, 0);
     }
   }
@@ -642,17 +642,17 @@ class WasmModule {
     var sizeOf = type.variableSizeOf();
 
     if (sizeOf == 1) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE8);
+      array.append(WASM_OPCODE_I32_STORE8);
       wasmWriteVarUnsigned(array, 0);
     }
 
     else if (sizeOf == 2) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE16);
+      array.append(WASM_OPCODE_I32_STORE16);
       wasmWriteVarUnsigned(array, 1);
     }
 
     else if (sizeOf == 4) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_STORE);
+      array.append(WASM_OPCODE_I32_STORE);
       wasmWriteVarUnsigned(array, 2);
     }
 
@@ -669,7 +669,7 @@ class WasmModule {
 
     // Absolute address
     else {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarUnsigned(array, 0);
     }
 
@@ -680,8 +680,8 @@ class WasmModule {
     assert(!isExpression(node) || node.resolvedType != null);
 
     if (node.kind == NodeKind.BLOCK) {
-      ByteArray_appendByte(array, WASM_OPCODE_BLOCK);
-      var offset = ByteArray_length(array);
+      array.append(WASM_OPCODE_BLOCK);
+      var offset = array.length();
       wasmWriteVarUnsigned(array, ~0);
       var count = 0;
       var child = node.firstChild;
@@ -701,17 +701,17 @@ class WasmModule {
         return 0;
       }
 
-      ByteArray_appendByte(array, WASM_OPCODE_LOOP);
-      var offset = ByteArray_length(array);
+      array.append(WASM_OPCODE_LOOP);
+      var offset = array.length();
       wasmWriteVarUnsigned(array, ~0);
       var count = 0;
 
       // Emit the condition as "loop { if (!condition) break; }" as long as it's not a "while (true)" loop
       if (value.kind != NodeKind.BOOL) {
-        ByteArray_appendByte(array, WASM_OPCODE_BR_IF);
+        array.append(WASM_OPCODE_BR_IF);
         wasmWriteVarUnsigned(array, 1); // Break out of the immediately enclosing loop
-        ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
-        ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ); // The conditional is flipped
+        array.append(WASM_OPCODE_NOP); // This is a statement, not an expression
+        array.append(WASM_OPCODE_I32_EQZ); // The conditional is flipped
         this.emitNode(array, value);
         count = count + 1;
       }
@@ -723,9 +723,9 @@ class WasmModule {
       }
 
       // Jump back to the top (this doesn't happen automatically)
-      ByteArray_appendByte(array, WASM_OPCODE_BR);
+      array.append(WASM_OPCODE_BR);
       wasmWriteVarUnsigned(array, 0); // Continue back to the immediately enclosing loop
-      ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
+      array.append(WASM_OPCODE_NOP); // This is a statement, not an expression
       count = count + 1;
 
       wasmPatchVarUnsigned(array, offset, count, ~0);
@@ -743,9 +743,9 @@ class WasmModule {
       }
 
       assert(label > 0);
-      ByteArray_appendByte(array, WASM_OPCODE_BR);
+      array.append(WASM_OPCODE_BR);
       wasmWriteVarUnsigned(array, label - (node.kind == NodeKind.BREAK ? 0 : 1));
-      ByteArray_appendByte(array, WASM_OPCODE_NOP); // This is a statement, not an expression
+      array.append(WASM_OPCODE_NOP); // This is a statement, not an expression
     }
 
     else if (node.kind == NodeKind.EMPTY) {
@@ -758,7 +758,7 @@ class WasmModule {
 
     else if (node.kind == NodeKind.RETURN) {
       var value = node.returnValue();
-      ByteArray_appendByte(array, WASM_OPCODE_RETURN);
+      array.append(WASM_OPCODE_RETURN);
       if (value != null) {
         this.emitNode(array, value);
       }
@@ -777,7 +777,7 @@ class WasmModule {
 
     else if (node.kind == NodeKind.IF) {
       var branch = node.ifFalse();
-      ByteArray_appendByte(array, branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
+      array.append(branch == null ? WASM_OPCODE_IF : WASM_OPCODE_IF_ELSE);
       this.emitNode(array, node.ifValue());
       this.emitNode(array, node.ifTrue());
       if (branch != null) {
@@ -786,7 +786,7 @@ class WasmModule {
     }
 
     else if (node.kind == NodeKind.HOOK) {
-      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      array.append(WASM_OPCODE_IF_ELSE);
       this.emitNode(array, node.hookValue());
       this.emitNode(array, node.hookTrue());
       this.emitNode(array, node.hookFalse());
@@ -796,7 +796,7 @@ class WasmModule {
       var value = node.variableValue();
 
       if (node.symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-        ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
+        array.append(WASM_OPCODE_SET_LOCAL);
         wasmWriteVarUnsigned(array, node.symbol.offset);
 
         if (value != null) {
@@ -805,7 +805,7 @@ class WasmModule {
 
         // Default initialization
         else {
-          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          array.append(WASM_OPCODE_I32_CONST);
           wasmWriteVarSigned(array, 0);
         }
       }
@@ -819,7 +819,7 @@ class WasmModule {
       var symbol = node.symbol;
 
       if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-        ByteArray_appendByte(array, WASM_OPCODE_GET_LOCAL);
+        array.append(WASM_OPCODE_GET_LOCAL);
         wasmWriteVarUnsigned(array, symbol.offset);
       }
 
@@ -833,17 +833,17 @@ class WasmModule {
     }
 
     else if (node.kind == NodeKind.NULL) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, 0);
     }
 
     else if (node.kind == NodeKind.INT || node.kind == NodeKind.BOOL) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, node.intValue);
     }
 
     else if (node.kind == NodeKind.STRING) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, WASM_MEMORY_INITIALIZER_BASE + node.intValue);
     }
 
@@ -852,7 +852,7 @@ class WasmModule {
       var symbol = value.symbol;
       assert(isFunction(symbol.kind));
 
-      ByteArray_appendByte(array, symbol.node.functionBody() == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
+      array.append(symbol.node.functionBody() == null ? WASM_OPCODE_CALL_IMPORT : WASM_OPCODE_CALL);
       wasmWriteVarUnsigned(array, symbol.offset);
 
       // Write out the implicit "this" argument
@@ -871,12 +871,12 @@ class WasmModule {
       var type = node.newType();
       assert(type.symbol.kind == SymbolKind.TYPE_CLASS);
 
-      ByteArray_appendByte(array, WASM_OPCODE_CALL);
+      array.append(WASM_OPCODE_CALL);
       wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
 
       // Pass the object size as the first argument
       assert(type.symbol.byteSize > 0);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, type.symbol.byteSize);
     }
 
@@ -885,21 +885,21 @@ class WasmModule {
     }
 
     else if (node.kind == NodeKind.NEGATIVE) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_SUB);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_SUB);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, 0);
       this.emitNode(array, node.unaryValue());
     }
 
     else if (node.kind == NodeKind.COMPLEMENT) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_XOR);
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_XOR);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, ~0);
       this.emitNode(array, node.unaryValue());
     }
 
     else if (node.kind == NodeKind.NOT) {
-      ByteArray_appendByte(array, WASM_OPCODE_I32_EQZ);
+      array.append(WASM_OPCODE_I32_EQZ);
       this.emitNode(array, node.unaryValue());
     }
 
@@ -918,20 +918,20 @@ class WasmModule {
         // Sign-extend
         if (type == context.byteType || type == context.shortType) {
           var shift = 32 - type.symbol.byteSize * 8;
-          ByteArray_appendByte(array, WASM_OPCODE_I32_SHR_S);
-          ByteArray_appendByte(array, WASM_OPCODE_I32_SHL);
+          array.append(WASM_OPCODE_I32_SHR_S);
+          array.append(WASM_OPCODE_I32_SHL);
           this.emitNode(array, value);
-          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          array.append(WASM_OPCODE_I32_CONST);
           wasmWriteVarSigned(array, shift);
-          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          array.append(WASM_OPCODE_I32_CONST);
           wasmWriteVarSigned(array, shift);
         }
 
         // Mask
         else if (type == context.ubyteType || type == context.ushortType) {
-          ByteArray_appendByte(array, WASM_OPCODE_I32_AND);
+          array.append(WASM_OPCODE_I32_AND);
           this.emitNode(array, value);
-          ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+          array.append(WASM_OPCODE_I32_CONST);
           wasmWriteVarSigned(array, type.integerBitMask() as int);
         }
 
@@ -967,7 +967,7 @@ class WasmModule {
       }
 
       else if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
-        ByteArray_appendByte(array, WASM_OPCODE_SET_LOCAL);
+        array.append(WASM_OPCODE_SET_LOCAL);
         wasmWriteVarUnsigned(array, symbol.offset);
         this.emitNode(array, node.binaryRight());
       }
@@ -978,17 +978,17 @@ class WasmModule {
     }
 
     else if (node.kind == NodeKind.LOGICAL_AND) {
-      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      array.append(WASM_OPCODE_IF_ELSE);
       this.emitNode(array, node.binaryLeft());
       this.emitNode(array, node.binaryRight());
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, 0);
     }
 
     else if (node.kind == NodeKind.LOGICAL_OR) {
-      ByteArray_appendByte(array, WASM_OPCODE_IF_ELSE);
+      array.append(WASM_OPCODE_IF_ELSE);
       this.emitNode(array, node.binaryLeft());
-      ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
+      array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, 1);
       this.emitNode(array, node.binaryRight());
     }
@@ -1048,7 +1048,7 @@ function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValu
     if (max != 0) {
       byte = byte | 128;
     }
-    ByteArray_setByte(array, offset, byte as ubyte);
+    array.set(offset, byte as ubyte);
     offset = offset + 1;
     if (max == 0) {
       break;
@@ -1064,7 +1064,7 @@ function wasmWriteVarUnsigned(array: ByteArray, value: int): void {
     if (current != 0) {
       byte = byte | 128;
     }
-    ByteArray_appendByte(array, byte as ubyte);
+    array.append(byte as ubyte);
     if (current == 0) {
       break;
     }
@@ -1081,7 +1081,7 @@ function wasmWriteVarSigned(array: ByteArray, value: int): void {
     if (!done) {
       byte = byte | 128;
     }
-    ByteArray_appendByte(array, byte as ubyte);
+    array.append(byte as ubyte);
     if (done) {
       break;
     }
@@ -1093,20 +1093,20 @@ function wasmWriteLengthPrefixedString(array: ByteArray, value: String): void {
   wasmWriteVarUnsigned(array, length);
   var i = 0;
   while (i < length) {
-    ByteArray_appendByte(array, String_get(value, i) as ubyte);
+    array.append(String_get(value, i) as ubyte);
     i = i + 1;
   }
 }
 
 function wasmStartSection(array: ByteArray, name: String): int {
-  var offset = ByteArray_length(array);
+  var offset = array.length();
   wasmWriteVarUnsigned(array, ~0); // Section length, will be filled in later
   wasmWriteLengthPrefixedString(array, name);
   return offset;
 }
 
 function wasmFinishSection(array: ByteArray, offset: int): void {
-  wasmPatchVarUnsigned(array, offset, ByteArray_length(array) - offset - 5, ~0);
+  wasmPatchVarUnsigned(array, offset, array.length() - offset - 5, ~0);
 }
 
 function wasmWrapType(id: WasmType): WasmWrappedType {
@@ -1139,7 +1139,7 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
 function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   var module = new WasmModule();
   module.context = context;
-  module.memoryInitializer = ByteArray_new();
+  module.memoryInitializer = new ByteArray();
 
   // Set these to invalid values since "0" is valid
   module.mallocFunctionIndex = -1;
