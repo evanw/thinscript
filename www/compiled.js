@@ -409,8 +409,14 @@ function resolve(context, node, parentScope) {
     var type = node.castType();
     resolveAsExpression(context, value, parentScope);
     resolveAsType(context, type, parentScope);
-    checkConversion(context, value, type.resolvedType, 1);
-    node.resolvedType = type.resolvedType;
+    var castedType = type.resolvedType;
+    checkConversion(context, value, castedType, 1);
+    node.resolvedType = castedType;
+    if (value.kind === 20 && castedType.isInteger()) {
+      var result = value.intValue;
+      var shift = 32 - castedType.integerBitCount() | 0;
+      node.becomeIntegerConstant(castedType.isUnsigned() ? (castedType.integerBitMask() | 0) & result : result << shift >> shift);
+    }
   } else if (node.kind === 18) {
     var target = node.dotTarget();
     resolve(context, target, parentScope);
@@ -2929,7 +2935,7 @@ ParserContext.prototype.parseInt = function(range, node) {
     var c = __imports.String_get(source.contents, i);
     var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
     var baseValue = __imul(value, base) >>> 0;
-    if (baseValue / base >>> 0 !== value || baseValue > (-1 >>> 0) - digit >>> 0) {
+    if (baseValue / base >>> 0 !== value || baseValue > 4294967295 - digit >>> 0) {
       this.log.error(range, __imports.String_new("Integer literal is too big to fit in 32 bits"));
       return false;
     }
@@ -3086,8 +3092,11 @@ Type.prototype.isUnsigned = function() {
 Type.prototype.underlyingType = function(context) {
   return this.isEnum() ? context.intType : this;
 };
+Type.prototype.integerBitCount = function() {
+  return this.symbol.byteSize << 3;
+};
 Type.prototype.integerBitMask = function() {
-  return -1 >>> 0 >>> ((32 - (this.symbol.byteSize << 3) | 0) >>> 0);
+  return 4294967295 >>> ((32 - this.integerBitCount() | 0) >>> 0);
 };
 Type.prototype.isReference = function(context) {
   return this === context.stringType || this.isClass();
@@ -3234,14 +3243,14 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
   return i;
 };
 WasmModule.prototype.emitModule = function(array) {
-  __imports.ByteArray_appendByte(array, 1836278016 & 255);
-  __imports.ByteArray_appendByte(array, 7172961 & 255);
-  __imports.ByteArray_appendByte(array, 28019 & 255);
-  __imports.ByteArray_appendByte(array, 109 & 255);
-  __imports.ByteArray_appendByte(array, 10 & 255);
-  __imports.ByteArray_appendByte(array, 0 & 255);
-  __imports.ByteArray_appendByte(array, 0 & 255);
-  __imports.ByteArray_appendByte(array, 0 & 255);
+  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 97);
+  __imports.ByteArray_appendByte(array, 115);
+  __imports.ByteArray_appendByte(array, 109);
+  __imports.ByteArray_appendByte(array, 10);
+  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 0);
+  __imports.ByteArray_appendByte(array, 0);
   this.emitSignatures(array);
   this.emitImportTable(array);
   this.emitFunctionSignatures(array);

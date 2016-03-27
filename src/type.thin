@@ -28,8 +28,12 @@ class Type {
     return this.isEnum() ? context.intType : this;
   }
 
+  integerBitCount(): int {
+    return this.symbol.byteSize * 8;
+  }
+
   integerBitMask(): uint {
-    return ~0 as uint >> (32 - this.symbol.byteSize * 8) as uint;
+    return ~0 as uint >> (32 - this.integerBitCount()) as uint;
   }
 
   isReference(context: CheckContext): bool {

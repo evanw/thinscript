@@ -619,8 +619,18 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var type = node.castType();
     resolveAsExpression(context, value, parentScope);
     resolveAsType(context, type, parentScope);
-    checkConversion(context, value, type.resolvedType, ConversionKind.EXPLICIT);
-    node.resolvedType = type.resolvedType;
+    var castedType = type.resolvedType;
+    checkConversion(context, value, castedType, ConversionKind.EXPLICIT);
+    node.resolvedType = castedType;
+
+    // Automatically fold constants
+    if (value.kind == NodeKind.INT && castedType.isInteger()) {
+      var result = value.intValue;
+      var shift = 32 - castedType.integerBitCount();
+      node.becomeIntegerConstant(castedType.isUnsigned()
+        ? castedType.integerBitMask() as int & result
+        : result << shift >> shift);
+    }
   }
 
   else if (node.kind == NodeKind.DOT) {
