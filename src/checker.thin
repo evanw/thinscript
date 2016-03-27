@@ -616,16 +616,17 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.NAME) {
-    var symbol = parentScope.findNested(node.stringValue, FindNested.NORMAL);
+    var name = node.stringValue;
+    var symbol = parentScope.findNested(name, FindNested.NORMAL);
 
     if (symbol == null) {
       var message = String_appendNew(String_append(
         String_new("No symbol named '"),
-        node.stringValue),
+        name),
         "' here");
 
       // In JavaScript, "this." before instance symbols is required
-      symbol = parentScope.findNested(node.stringValue, FindNested.ALLOW_INSTANCE_ERRORS);
+      symbol = parentScope.findNested(name, FindNested.ALLOW_INSTANCE_ERRORS);
       if (symbol != null) {
         message = String_appendNew(String_append(String_appendNew(
           message,
@@ -634,13 +635,17 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           "'?");
       }
 
+      // People may try to use types from TypeScript
+      else if (String_equalNew(name, "number")) message = String_appendNew(message, ", did you mean 'int'?");
+      else if (String_equalNew(name, "boolean")) message = String_appendNew(message, ", did you mean 'bool'?");
+
       context.log.error(node.range, message);
     }
 
     else if (symbol.state == SymbolState.INITIALIZING) {
       context.log.error(node.range, String_appendNew(String_append(
         String_new("Cyclic reference to symbol '"),
-        node.stringValue),
+        name),
         "' here"));
     }
 

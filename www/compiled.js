@@ -452,16 +452,21 @@ function resolve(context, node, parentScope) {
   } else if (node.kind === 26) {
     node.resolvedType = context.errorType;
   } else if (node.kind === 23) {
-    var symbol = parentScope.findNested(node.stringValue, 0);
+    var name = node.stringValue;
+    var symbol = parentScope.findNested(name, 0);
     if (symbol === null) {
-      var message = __imports.String_appendNew(__imports.String_append(__imports.String_new("No symbol named '"), node.stringValue), "' here");
-      symbol = parentScope.findNested(node.stringValue, 1);
+      var message = __imports.String_appendNew(__imports.String_append(__imports.String_new("No symbol named '"), name), "' here");
+      symbol = parentScope.findNested(name, 1);
       if (symbol !== null) {
         message = __imports.String_appendNew(__imports.String_append(__imports.String_appendNew(message, ", did you mean 'this."), symbol.name), "'?");
+      } else if (__imports.String_equalNew(name, "number")) {
+        message = __imports.String_appendNew(message, ", did you mean 'int'?");
+      } else if (__imports.String_equalNew(name, "boolean")) {
+        message = __imports.String_appendNew(message, ", did you mean 'bool'?");
       }
       context.log.error(node.range, message);
     } else if (symbol.state === 1) {
-      context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cyclic reference to symbol '"), node.stringValue), "' here"));
+      context.log.error(node.range, __imports.String_appendNew(__imports.String_append(__imports.String_new("Cyclic reference to symbol '"), name), "' here"));
     } else if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
       context.log.error(node.range, __imports.String_new("Bare function references are not allowed"));
     } else if (isSymbolAccessAllowed(context, symbol, node.range)) {
@@ -2363,7 +2368,7 @@ ParserContext.prototype.expect = function(kind) {
   if (!this.peek(kind)) {
     var previousLine = this.previous.range.enclosingLine();
     var currentLine = this.current.range.enclosingLine();
-    if ((kind === 36 || kind === 10) && !previousLine.equals(currentLine)) {
+    if (!previousLine.equals(currentLine)) {
       this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), __imports.String_appendNew(__imports.String_new("Expected "), tokenToString(kind)));
     } else {
       this.log.error(this.current.range, __imports.String_appendNew(__imports.String_appendNew(__imports.String_appendNew(__imports.String_new("Expected "), tokenToString(kind)), " but found "), tokenToString(this.current.kind)));

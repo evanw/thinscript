@@ -62,8 +62,8 @@ class ParserContext {
       var previousLine = this.previous.range.enclosingLine();
       var currentLine = this.current.range.enclosingLine();
 
-      // Show missing terminator errors on the previous line for clarity
-      if ((kind == TokenKind.SEMICOLON || kind == TokenKind.COMMA) && !previousLine.equals(currentLine)) {
+      // Show missing token errors on the previous line for clarity
+      if (!previousLine.equals(currentLine)) {
         this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
           String_new("Expected "),
           tokenToString(kind)));
