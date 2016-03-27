@@ -178,6 +178,7 @@ const WASM_MAGIC = 0x6D736100;
 const WASM_VERSION = 10;
 const WASM_SIZE_IN_PAGES = 256;
 const WASM_MEMORY_INITIALIZER_OFFSET = 8; // Leave space for "null"
+const WASM_MALLOC_FUNCTION_INDEX = 0;
 
 const WASM_TYPE_VOID = 0;
 const WASM_TYPE_I32 = 1;
@@ -836,10 +837,10 @@ function wasmEmitNode(array: ByteArray, node: Node, context: CheckContext): int 
     assert(type.symbol.kind == SymbolKind.TYPE_CLASS);
 
     ByteArray_appendByte(array, WASM_OPCODE_CALL_IMPORT);
-    wasmWriteVarUnsigned(array, 0); // Invoke the "new" function
+    wasmWriteVarUnsigned(array, WASM_MALLOC_FUNCTION_INDEX);
 
     // Pass the object size as the first argument
-    // assert(type.symbol.byteSize > 0);
+    assert(type.symbol.byteSize > 0);
     ByteArray_appendByte(array, WASM_OPCODE_I32_CONST);
     wasmWriteVarSigned(array, type.symbol.byteSize);
   }

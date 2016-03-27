@@ -2160,38 +2160,6 @@ function createParseError() {
   node.kind = 24;
   return node;
 }
-function parseInt(range, node) {
-  var source = range.source;
-  var i = range.start;
-  var limit = range.end;
-  var value = 0;
-  var base = 10;
-  if (__imports.String_get(source.contents, i) === 48 && (i + 1 | 0) < limit) {
-    var c = __imports.String_get(source.contents, i + 1 | 0);
-    if (c === 98 || c === 66) {
-      base = 2;
-    } else if (c === 111 || c === 79) {
-      base = 8;
-    } else if (c === 120 || c === 88) {
-      base = 16;
-    }
-    if (base !== 10) {
-      i = i + 2 | 0;
-    }
-  }
-  while (i < limit) {
-    var c = __imports.String_get(source.contents, i);
-    var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
-    var baseValue = __imul(value, base) >>> 0;
-    if (baseValue / base >>> 0 !== value || baseValue > (-1 >>> 0) - digit >>> 0) {
-      return false;
-    }
-    value = baseValue + digit >>> 0;
-    i = i + 1 | 0;
-  }
-  node.intValue = value | 0;
-  return true;
-}
 function ParserContext() {
   this.previous = null;
   this.current = null;
@@ -2330,8 +2298,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
     }
     if (this.peek(3)) {
       var value = createInt(0);
-      if (!parseInt(token.range, value)) {
-        this.log.error(token.range, __imports.String_new("Integer literal is too big to fit in 32 bits"));
+      if (!this.parseInt(token.range, value)) {
         value = createParseError();
       }
       this.advance();
@@ -2873,6 +2840,42 @@ ParserContext.prototype.parseStatements = function(parent) {
     }
     parent.appendChild(child);
   }
+  return true;
+};
+ParserContext.prototype.parseInt = function(range, node) {
+  var source = range.source;
+  var i = range.start;
+  var limit = range.end;
+  var value = 0;
+  var base = 10;
+  if (__imports.String_get(source.contents, i) === 48 && (i + 1 | 0) < limit) {
+    var c = __imports.String_get(source.contents, i + 1 | 0);
+    if (c === 98 || c === 66) {
+      base = 2;
+    } else if (c === 111 || c === 79) {
+      base = 8;
+    } else if (c === 120 || c === 88) {
+      base = 16;
+    } else {
+      this.log.error(range, __imports.String_new("Use the '0o' prefix for octal integers"));
+      return false;
+    }
+    if (base !== 10) {
+      i = i + 2 | 0;
+    }
+  }
+  while (i < limit) {
+    var c = __imports.String_get(source.contents, i);
+    var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
+    var baseValue = __imul(value, base) >>> 0;
+    if (baseValue / base >>> 0 !== value || baseValue > (-1 >>> 0) - digit >>> 0) {
+      this.log.error(range, __imports.String_new("Integer literal is too big to fit in 32 bits"));
+      return false;
+    }
+    value = baseValue + digit >>> 0;
+    i = i + 1 | 0;
+  }
+  node.intValue = value | 0;
   return true;
 };
 function parse(firstToken, log) {
@@ -3556,6 +3559,7 @@ function wasmEmitNode(array, node, context) {
     __imports.assert(type.symbol.kind === 0);
     __imports.ByteArray_appendByte(array, 31);
     wasmWriteVarUnsigned(array, 0);
+    __imports.assert(type.symbol.byteSize > 0);
     __imports.ByteArray_appendByte(array, 10);
     wasmWriteVarSigned(array, type.symbol.byteSize);
   } else if (node.kind === 31) {

@@ -21,44 +21,6 @@ enum ParseKind {
   TYPE,
 }
 
-function parseInt(range: Range, node: Node): bool {
-  var source = range.source;
-  var i = range.start;
-  var limit = range.end;
-  var value: uint = 0;
-  var base: uint = 10;
-
-  // Handle binary, octal, and hexadecimal prefixes
-  if (String_get(source.contents, i) == '0' && i + 1 < limit) {
-    var c = String_get(source.contents, i + 1);
-    if (c == 'b' || c == 'B') base = 2;
-    else if (c == 'o' || c == 'O') base = 8;
-    else if (c == 'x' || c == 'X') base = 16;
-    if (base != 10) i = i + 2;
-  }
-
-  while (i < limit) {
-    var c = String_get(source.contents, i);
-    var digit = (
-      c >= 'A' && c <= 'F' ? c + (10 - 'A') :
-      c >= 'a' && c <= 'f' ? c + (10 - 'a') :
-      c - '0'
-    ) as uint;
-    var baseValue = value * base;
-
-    // Check for overflow (unsigned integer overflow supposedly doesn't result in undefined behavior)
-    if (baseValue / base != value || baseValue > ~0 as uint - digit) {
-      return false;
-    }
-
-    value = baseValue + digit;
-    i = i + 1;
-  }
-
-  node.intValue = value as int;
-  return true;
-}
-
 class ParserContext {
   previous: Token;
   current: Token;
@@ -239,8 +201,7 @@ class ParserContext {
 
       if (this.peek(TokenKind.INT)) {
         var value = createInt(0);
-        if (!parseInt(token.range, value)) {
-          this.log.error(token.range, String_new("Integer literal is too big to fit in 32 bits"));
+        if (!this.parseInt(token.range, value)) {
           value = createParseError();
         }
         this.advance();
@@ -861,6 +822,49 @@ class ParserContext {
       }
       parent.appendChild(child);
     }
+    return true;
+  }
+
+  parseInt(range: Range, node: Node): bool {
+    var source = range.source;
+    var i = range.start;
+    var limit = range.end;
+    var value: uint = 0;
+    var base: uint = 10;
+
+    // Handle binary, octal, and hexadecimal prefixes
+    if (String_get(source.contents, i) == '0' && i + 1 < limit) {
+      var c = String_get(source.contents, i + 1);
+      if (c == 'b' || c == 'B') base = 2;
+      else if (c == 'o' || c == 'O') base = 8;
+      else if (c == 'x' || c == 'X') base = 16;
+      else {
+        this.log.error(range, String_new("Use the '0o' prefix for octal integers"));
+        return false;
+      }
+      if (base != 10) i = i + 2;
+    }
+
+    while (i < limit) {
+      var c = String_get(source.contents, i);
+      var digit = (
+        c >= 'A' && c <= 'F' ? c + (10 - 'A') :
+        c >= 'a' && c <= 'f' ? c + (10 - 'a') :
+        c - '0'
+      ) as uint;
+      var baseValue = value * base;
+
+      // Check for overflow (unsigned integer overflow supposedly doesn't result in undefined behavior)
+      if (baseValue / base != value || baseValue > ~0 as uint - digit) {
+        this.log.error(range, String_new("Integer literal is too big to fit in 32 bits"));
+        return false;
+      }
+
+      value = baseValue + digit;
+      i = i + 1;
+    }
+
+    node.intValue = value as int;
     return true;
   }
 }
