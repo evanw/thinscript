@@ -861,12 +861,18 @@ function resolve(context, node, parentScope) {
       resolveAsExpression(context, value, parentScope);
 
       if (context.currentReturnType !== null) {
-        checkConversion(context, value, context.currentReturnType, 0);
+        if (context.currentReturnType !== context.voidType) {
+          checkConversion(context, value, context.currentReturnType, 0);
+        }
+
+        else {
+          context.log.error(value.range, globals.String_new("Unexpected return value in function returning 'void'"));
+        }
       }
     }
 
     else if (context.currentReturnType !== null && context.currentReturnType !== context.voidType) {
-      context.log.error(node.range, globals.String_new("Expected return value"));
+      context.log.error(node.range, globals.String_appendNew(globals.String_append(globals.String_new("Expected return value in function returning '"), context.currentReturnType.toString()), "'"));
     }
   }
 
@@ -4058,7 +4064,7 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
     var isIndex = this.peek(18);
 
     if ((isIndex || this.peek(19)) && precedence < 13) {
-      return this.parseArgumentList(token, isIndex ? createIndex(node) : createCall(node));
+      return this.parseArgumentList(node.range, isIndex ? createIndex(node) : createCall(node));
     }
 
     if (this.peek(31) && precedence < 1) {

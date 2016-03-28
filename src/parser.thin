@@ -344,7 +344,7 @@ class ParserContext {
       // Call or index
       var isIndex = this.peek(TokenKind.LEFT_BRACKET);
       if ((isIndex || this.peek(TokenKind.LEFT_PARENTHESIS)) && precedence < Precedence.UNARY_POSTFIX) {
-        return this.parseArgumentList(token, isIndex ? createIndex(node) : createCall(node));
+        return this.parseArgumentList(node.range, isIndex ? createIndex(node) : createCall(node));
       }
 
       // Hook

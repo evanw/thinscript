@@ -892,12 +892,21 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       resolveAsExpression(context, value, parentScope);
 
       if (context.currentReturnType != null) {
-        checkConversion(context, value, context.currentReturnType, ConversionKind.IMPLICIT);
+        if (context.currentReturnType != context.voidType) {
+          checkConversion(context, value, context.currentReturnType, ConversionKind.IMPLICIT);
+        }
+
+        else {
+          context.log.error(value.range, String_new("Unexpected return value in function returning 'void'"));
+        }
       }
     }
 
     else if (context.currentReturnType != null && context.currentReturnType != context.voidType) {
-      context.log.error(node.range, String_new("Expected return value"));
+      context.log.error(node.range, String_appendNew(String_append(
+        String_new("Expected return value in function returning '"),
+        context.currentReturnType.toString()),
+        "'"));
     }
   }
 
