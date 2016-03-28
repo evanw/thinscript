@@ -1150,6 +1150,8 @@ function check(global, log) {
 function Compiler() {
   this.log = null;
   this.global = null;
+  this.firstSource = null;
+  this.lastSource = null;
   this.target = 0;
   this.context = null;
   this.wasm = null;
@@ -1172,28 +1174,58 @@ Compiler.prototype.addInput = function(name, contents) {
   var source = new Source();
   source.name = name;
   source.contents = contents;
-  var firstToken = tokenize(source, this.log);
 
-  if (firstToken !== null) {
-    var file = parse(firstToken, this.log);
-
-    if (file !== null) {
-      while (file.firstChild !== null) {
-        var child = file.firstChild;
-        child.remove();
-        this.global.appendChild(child);
-      }
-    }
+  if (this.firstSource === null) {
+    this.firstSource = source;
   }
+
+  else {
+    this.lastSource.next = source;
+  }
+
+  this.lastSource = source;
 };
 
 Compiler.prototype.finish = function() {
+  globals.Profiler_begin();
+  var source = this.firstSource;
+
+  while (source !== null) {
+    source.firstToken = tokenize(source, this.log);
+    source = source.next;
+  }
+
+  globals.Profiler_end(globals.String_new("lexing"));
+  globals.Profiler_begin();
+  source = this.firstSource;
+
+  while (source !== null) {
+    if (source.firstToken !== null) {
+      var file = parse(source.firstToken, this.log);
+
+      if (file !== null) {
+        while (file.firstChild !== null) {
+          var child = file.firstChild;
+          child.remove();
+          this.global.appendChild(child);
+        }
+      }
+    }
+
+    source = source.next;
+  }
+
+  globals.Profiler_end(globals.String_new("parsing"));
+  globals.Profiler_begin();
   globals.assert(this.context === null);
   this.context = check(this.global, this.log);
+  globals.Profiler_end(globals.String_new("checking"));
 
   if (this.log.first !== null) {
     return false;
   }
+
+  globals.Profiler_begin();
 
   if (this.target === 1) {
     this.js = jsEmit(this.global, this.context);
@@ -1203,6 +1235,8 @@ Compiler.prototype.finish = function() {
     this.wasm = new ByteArray();
     wasmEmit(this.global, this.context, this.wasm);
   }
+
+  globals.Profiler_end(globals.String_new("emitting"));
 
   return true;
 };
@@ -2731,6 +2765,8 @@ function libraryForWebAssembly() {
 function Source() {
   this.name = null;
   this.contents = null;
+  this.next = null;
+  this.firstToken = null;
 }
 
 function Range() {

@@ -278,6 +278,14 @@
         }
       },
 
+      Profiler_begin: function() {
+        time = now();
+      },
+
+      Profiler_end: function(text) {
+        console.log(stdlib.strings[text - 1] + ': ' + Math.round(now() - time) + 'ms');
+      },
+
       String_new: function(ptr) {
         stdlib.strings.push(extractLengthPrefixedString(stdlib.ints, stdlib.bytes, ptr));
         return stdlib.strings.length;
@@ -333,11 +341,21 @@
   }
 
   function loadStdlibForJavaScript() {
+    var time = 0;
+
     return {
       assert: function(truth) {
         if (!truth) {
           throw new Error('Assertion failed');
         }
+      },
+
+      Profiler_begin: function() {
+        time = now();
+      },
+
+      Profiler_end: function(text) {
+        console.log(text + ': ' + Math.round(now() - time) + 'ms');
       },
 
       String_new: function(value) {
@@ -485,17 +503,36 @@
 
   function compile() {
     var target = targetJavaScript.checked ? CompileTarget.JAVASCRIPT : CompileTarget.WEBASSEMBLY;
-    var before = now();
 
     try {
+      // Compile to JS
+      var before = now();
       if (backendWebAssembly.checked) {
+        console.log('compiling to JavaScript using WebAssembly');
         var compilerJS = compiledWebAssembly(input.value, CompileTarget.JAVASCRIPT);
+      } else {
+        console.log('compiling to JavaScript using JavaScript');
+        var compilerJS = compiledJavaScript(input.value, CompileTarget.JAVASCRIPT);
+      }
+      var after = now();
+      var jsTime = Math.round(after - before);
+      console.log('total time: ' + jsTime + 'ms');
+
+      // Compile to WASM
+      var before = now();
+      if (backendWebAssembly.checked) {
+        console.log('compiling to WebAssembly using WebAssembly');
         var compilerWASM = compiledWebAssembly(input.value, CompileTarget.WEBASSEMBLY);
       } else {
-        var compilerJS = compiledJavaScript(input.value, CompileTarget.JAVASCRIPT);
+        console.log('compiling to WebAssembly using JavaScript');
         var compilerWASM = compiledJavaScript(input.value, CompileTarget.WEBASSEMBLY);
       }
-    } catch (e) {
+      var after = now();
+      var wasmTime = Math.round(after - before);
+      console.log('total time: ' + wasmTime + 'ms');
+    }
+
+    catch (e) {
       var message = e + '';
       if (e.stack) {
         message = e.stack.indexOf(message) !== -1 ? e.stack : message + '\n' + e.stack;
@@ -506,7 +543,6 @@
       return;
     }
 
-    var after = now();
     var log = (targetJavaScript.checked ? compilerJS : compilerWASM).log;
 
     if (log) {
@@ -567,7 +603,7 @@
     ]);
 
     usage.textContent = targetWebAssembly.checked ? webAssemblyToRun : javaScriptToRun;
-    compileTime.textContent = Math.round(after - before) + 'ms';
+    compileTime.textContent = (targetWebAssembly.checked ? wasmTime : jsTime) + 'ms';
   }
 
   function downloadCompiledResult() {

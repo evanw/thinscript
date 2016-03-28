@@ -7,6 +7,8 @@ enum CompileTarget {
 class Compiler {
   log: Log;
   global: Node;
+  firstSource: Source;
+  lastSource: Source;
   target: CompileTarget;
   context: CheckContext;
   wasm: ByteArray;
@@ -29,27 +31,52 @@ class Compiler {
     source.name = name;
     source.contents = contents;
 
-    var firstToken = tokenize(source, this.log);
-    if (firstToken != null) {
-      var file = parse(firstToken, this.log);
-
-      if (file != null) {
-        while (file.firstChild != null) {
-          var child = file.firstChild;
-          child.remove();
-          this.global.appendChild(child);
-        }
-      }
-    }
+    if (this.firstSource == null) this.firstSource = source;
+    else this.lastSource.next = source;
+    this.lastSource = source;
   }
 
   finish(): bool {
+    Profiler_begin();
+
+    var source = this.firstSource;
+    while (source != null) {
+      source.firstToken = tokenize(source, this.log);
+      source = source.next;
+    }
+
+    Profiler_end(String_new("lexing"));
+    Profiler_begin();
+
+    source = this.firstSource;
+    while (source != null) {
+      if (source.firstToken != null) {
+        var file = parse(source.firstToken, this.log);
+
+        if (file != null) {
+          while (file.firstChild != null) {
+            var child = file.firstChild;
+            child.remove();
+            this.global.appendChild(child);
+          }
+        }
+      }
+      source = source.next;
+    }
+
+    Profiler_end(String_new("parsing"));
+    Profiler_begin();
+
     assert(this.context == null);
     this.context = check(this.global, this.log);
+
+    Profiler_end(String_new("checking"));
 
     if (this.log.first != null) {
       return false;
     }
+
+    Profiler_begin();
 
     if (this.target == CompileTarget.JAVASCRIPT) {
       this.js = jsEmit(this.global, this.context);
@@ -59,6 +86,8 @@ class Compiler {
       this.wasm = new ByteArray();
       wasmEmit(this.global, this.context, this.wasm);
     }
+
+    Profiler_end(String_new("emitting"));
 
     return true;
   }

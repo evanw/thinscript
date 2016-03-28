@@ -1,4 +1,6 @@
 declare function assert(truth: bool): void;
+declare function Profiler_begin(): void;
+declare function Profiler_end(text: String): void;
 
 // An external string handle for now
 class String {}

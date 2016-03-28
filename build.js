@@ -1,11 +1,21 @@
 var fs = require('fs');
 
 function loadStdlibForJavaScript() {
+  var time = 0;
+
   return {
     assert: function(truth) {
       if (!truth) {
         throw new Error('Assertion failed');
       }
+    },
+
+    Profiler_begin: function() {
+      time = Date.now();
+    },
+
+    Profiler_end: function(text) {
+      console.log(text + ': ' + (Date.now() - time) + 'ms');
     },
 
     String_new: function(value) {

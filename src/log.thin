@@ -1,6 +1,10 @@
 class Source {
   name: String;
   contents: String;
+
+  // These are for internal use by the compiler
+  next: Source;
+  firstToken: Token;
 }
 
 class Range {
