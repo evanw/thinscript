@@ -1,0 +1,183 @@
+<meta charset="utf8">
+<title>ThinScript Compiler Demo</title>
+<style>
+  body {
+    font: 14px/150% sans-serif;
+    margin: 50px 0 50px 50px;
+  }
+
+  h2 {
+    margin-top: 50px;
+  }
+
+  #unsupported {
+    display: none;
+    text-align: center;
+  }
+</style>
+<body>
+  <h1>ThinScript Compiler Benchmark</h1>
+  <p>
+    This tests the relative speed of the two compiler backends.
+  </p>
+
+  <p id="unsupported">
+    Your browser doesn't support WebAssembly.
+  </p>
+
+  <h2>JS</h2>
+  <canvas id="js-canvas" width="800" height="400" style="background:#EEE;"></canvas>
+
+  <h2>WASM</h2>
+  <canvas id="wasm-canvas" width="800" height="400" style="background:#EEE;"></canvas>
+</body>
+<script src="common.js"></script>
+<script>
+
+(function() {
+  var width = 800;
+  var height = 400;
+  var unsupported = document.getElementById('unsupported');
+
+  function draw(context, times) {
+    var scale = 1 / 1000;
+
+    // Reset the canvas
+    var ratio = window.devicePixelRatio || 1;
+    var canvas = context.canvas;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    var plotWidth = width - 100;
+    context.scale(ratio, ratio);
+    context.clearRect(0, 0, width, height);
+
+    // Skip the first few times so we can measure the time after the JIT has warmed up
+    var ignore = 2;
+
+    // Compute the average
+    var average = 0;
+    var included = 0;
+    for (var i = Math.min(ignore, times.length - 1); i < times.length; i++) {
+      average += times[i];
+      included++;
+    }
+    average /= included;
+
+    // Draw the times
+    var count = times.length;
+    for (var i = 0; i < count; i++) {
+      var x0 = (i + 0.2) * plotWidth / count;
+      var x1 = (i + 0.8) * plotWidth / count;
+      var y0 = height * (1 - times[i] * scale);
+      var y1 = height;
+      context.fillStyle = i < ignore ? '#777' : '#000';
+      context.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
+    context.fillStyle = '#000';
+
+    // Draw lines every 100ms
+    context.globalAlpha = 0.25;
+    for (var i = 100; i <= 0.999 / scale; i += 100) {
+      var y = height * (1 - i * scale);
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+      context.stroke();
+    }
+    context.globalAlpha = 1;
+
+    // Draw average line
+    var y = height * (1 - average * scale);
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(plotWidth, y);
+    context.stroke();
+
+    // Draw average text
+    context.textBaseline = 'middle';
+    context.fillText('Average: ' + Math.round(average) + 'ms', plotWidth, y);
+  }
+
+  var wasmCanvas = document.getElementById('wasm-canvas');
+  var wasmContext = wasmCanvas.getContext('2d');
+
+  var jsCanvas = document.getElementById('js-canvas');
+  var jsContext = jsCanvas.getContext('2d');
+
+  function supportsWebAssembly() {
+    return typeof Wasm !== 'undefined';
+  }
+
+  function main() {
+    if (!supportsWebAssembly()) {
+      unsupported.style.display = 'block';
+      return;
+    }
+
+    draw(jsContext, []);
+    draw(wasmContext, []);
+
+    loadWebAssembly(function(wasm) {
+      loadJavaScript(function(js) {
+        fetch('benchmark.thin', 'text', function(input) {
+          var compiledWASM = compileWebAssembly(wasm);
+          var compiledJS = compileJavaScript(js);
+          var sources = [{
+            name: '<stdin>',
+            contents: input,
+          }];
+          var timeout = 10;
+          var limit = 20;
+          var count = 0;
+
+          var jsTimes = [];
+          var wasmTimes = [];
+
+          function renderTimes() {
+            draw(jsContext, jsTimes);
+            draw(wasmContext, wasmTimes);
+          }
+
+          var tickJS = function() {
+            var before = now();
+            var result = compiledJS(sources, CompileTarget.WEBASSEMBLY);
+            var time = Math.round(now() - before);
+            console.log('total time for JavaScript: ' + time + 'ms');
+            jsTimes.push(time);
+            renderTimes();
+
+            if (++count < limit) {
+              setTimeout(tickJS, timeout);
+            }
+
+            else {
+              count = 0;
+              setTimeout(tickWASM, timeout);
+            }
+          };
+
+          var tickWASM = function() {
+            var before = now();
+            var result = compiledWASM(sources, CompileTarget.WEBASSEMBLY);
+            var time = Math.round(now() - before);
+            console.log('total time for WebAssembly: ' + time + 'ms');
+            wasmTimes.push(time);
+            renderTimes();
+
+            if (++count < limit) {
+              setTimeout(tickWASM, timeout);
+            }
+          };
+
+          setTimeout(tickJS, timeout);
+        });
+      });
+    });
+  }
+
+  main();
+})();
+
+</script>
