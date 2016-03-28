@@ -1,3 +1,11 @@
+function ByteArray_setString(array: ByteArray, index: int, text: string): void {
+  unsafe {
+    var length = (text as UIntPtr).value;
+    assert(index >= 0 && index + length as int <= array.length());
+    memcpy(array._data + index as uint, text as uint + 4, length);
+  }
+}
+
 class ByteArray {
   _data: uint;
   _length: uint;
@@ -28,15 +36,15 @@ class ByteArray {
   append(value: ubyte): void {
     var offset = this._length;
     unsafe {
-      this.resize(offset + 1);
+      this.resize(offset as int + 1);
       ((this._data + offset) as UBytePtr).value = value;
     }
   }
 
-  resize(length: uint): void {
-    if (length > this._capacity) {
+  resize(length: int): void {
+    if (length as uint > this._capacity) {
       unsafe {
-        var capacity = length * 2;
+        var capacity = length as uint * 2;
         var data = malloc(capacity);
         memcpy(data, this._data, this._length);
         this._capacity = capacity;
@@ -44,6 +52,6 @@ class ByteArray {
       }
     }
 
-    this._length = length;
+    this._length = length as uint;
   }
 }

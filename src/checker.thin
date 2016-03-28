@@ -56,7 +56,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
 
     var symbol = new Symbol();
     symbol.kind = SymbolKind.TYPE_GLOBAL;
-    symbol.name = String_new("<global>");
+    symbol.name = "<global>";
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     symbol.state = SymbolState.INITIALIZED;
@@ -108,7 +108,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
       var parent = symbol.parent();
       assert(parent.kind == SymbolKind.TYPE_CLASS);
       initializeSymbol(context, parent);
-      node.insertChildBefore(node.firstChild, createVariable(String_new("this"), createType(parent.resolvedType), null));
+      node.insertChildBefore(node.firstChild, createVariable("this", createType(parent.resolvedType), null));
     }
   }
 
@@ -271,7 +271,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     // Validate the variable type
     if (symbol.resolvedType == context.voidType || symbol.resolvedType == context.nullType) {
-      context.log.error(node.internalRange, String_appendNew(String_append(
+      context.log.error(node.internalRange, String_appendNew(String_appendNew(
         String_new("Cannot create a variable with type '"),
         symbol.resolvedType.toString()),
         "'"));
@@ -316,7 +316,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       while (scope != null) {
         var shadowed = scope.findLocal(symbol.name);
         if (shadowed != null) {
-          context.log.error(node.internalRange, String_appendNew(String_append(
+          context.log.error(node.internalRange, String_appendNew(String_appendNew(
             String_new("The symbol '"),
             symbol.name),
             "' shadows another symbol with the same name in a parent scope"));
@@ -419,7 +419,7 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
   }
 
   // All other conversions are an error
-  var message = String_appendNew(String_append(String_appendNew(String_append(
+  var message = String_appendNew(String_appendNew(String_appendNew(String_appendNew(
     String_new("Cannot convert from type '"),
     from.toString()),
     "' to type '"),
@@ -531,7 +531,7 @@ function binaryHasUnsignedArguments(node: Node): bool {
 
 function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Range): bool {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-    context.log.error(range, String_appendNew(String_append(
+    context.log.error(range, String_appendNew(String_appendNew(
       String_new("Cannot use symbol '"),
       symbol.name),
       "' outside an unsafe block"));
@@ -656,10 +656,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var type = target.resolvedType;
 
     if (type != context.errorType) {
-      var symbol = type.isClass() ? type.findMember(String_new("[]")) : null;
+      var symbol = type.isClass() ? type.findMember("[]") : null;
 
       if (symbol == null) {
-        context.log.error(node.internalRange, String_appendNew(String_append(
+        context.log.error(node.internalRange, String_appendNew(String_appendNew(
           String_new("Cannot index into type '"),
           target.resolvedType.toString()),
           "'"));
@@ -699,7 +699,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.THIS) {
-    var symbol = parentScope.findNested(String_new("this"), FindNested.NORMAL);
+    var symbol = parentScope.findNested("this", FindNested.NORMAL);
     if (symbol == null) {
       context.log.error(node.range, String_new("Cannot use 'this' here"));
     } else {
@@ -716,7 +716,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var symbol = parentScope.findNested(name, FindNested.NORMAL);
 
     if (symbol == null) {
-      var message = String_appendNew(String_append(
+      var message = String_appendNew(String_appendNew(
         String_new("No symbol named '"),
         name),
         "' here");
@@ -724,7 +724,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       // In JavaScript, "this." before instance symbols is required
       symbol = parentScope.findNested(name, FindNested.ALLOW_INSTANCE_ERRORS);
       if (symbol != null) {
-        message = String_appendNew(String_append(String_appendNew(
+        message = String_appendNew(String_appendNew(String_appendNew(
           message,
           ", did you mean 'this."),
           symbol.name),
@@ -732,14 +732,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       }
 
       // People may try to use types from TypeScript
-      else if (String_equalNew(name, "number")) message = String_appendNew(message, ", did you mean 'int'?");
-      else if (String_equalNew(name, "boolean")) message = String_appendNew(message, ", did you mean 'bool'?");
+      else if (string_equals(name, "number")) message = String_appendNew(message, ", did you mean 'int'?");
+      else if (string_equals(name, "boolean")) message = String_appendNew(message, ", did you mean 'bool'?");
 
       context.log.error(node.range, message);
     }
 
     else if (symbol.state == SymbolState.INITIALIZING) {
-      context.log.error(node.range, String_appendNew(String_append(
+      context.log.error(node.range, String_appendNew(String_appendNew(
         String_new("Cyclic reference to symbol '"),
         name),
         "' here"));
@@ -795,11 +795,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         var name = node.stringValue;
 
         // Empty names are left over from parse errors that have already been reported
-        if (String_length(name) > 0) {
+        if (string_length(name) > 0) {
           var symbol = target.resolvedType.findMember(name);
 
           if (symbol == null) {
-            context.log.error(node.internalRange, String_appendNew(String_append(String_appendNew(String_append(
+            context.log.error(node.internalRange, String_appendNew(String_appendNew(String_appendNew(String_appendNew(
               String_new("No member named '"),
               name),
               "' on type '"),
@@ -821,7 +821,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       }
 
       else {
-        context.log.error(node.internalRange, String_appendNew(String_append(
+        context.log.error(node.internalRange, String_appendNew(String_appendNew(
           String_new("The type '"),
           target.resolvedType.toString()),
           "' has no members"));
@@ -838,7 +838,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       // Only functions are callable
       if (symbol == null || !isFunction(symbol.kind)) {
-        context.log.error(value.range, String_appendNew(String_append(
+        context.log.error(value.range, String_appendNew(String_appendNew(
           String_new("Cannot call value of type '"),
           value.resolvedType.toString()),
           "'"));
@@ -861,7 +861,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
         // Not enough arguments?
         if (argumentVariable != returnType) {
-          context.log.error(node.internalRange, String_appendNew(String_append(
+          context.log.error(node.internalRange, String_appendNew(String_appendNew(
             String_new("Not enough arguments for function '"),
             symbol.name),
             "'"));
@@ -873,7 +873,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
             resolveAsExpression(context, argumentValue, parentScope);
             argumentValue = argumentValue.nextSibling;
           }
-          context.log.error(node.internalRange, String_appendNew(String_append(
+          context.log.error(node.internalRange, String_appendNew(String_appendNew(
             String_new("Too many arguments for function '"),
             symbol.name),
             "'"));
@@ -903,7 +903,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
 
     else if (context.currentReturnType != null && context.currentReturnType != context.voidType) {
-      context.log.error(node.range, String_appendNew(String_append(
+      context.log.error(node.range, String_appendNew(String_appendNew(
         String_new("Expected return value in function returning '"),
         context.currentReturnType.toString()),
         "'"));
@@ -948,7 +948,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var commonType = (yes.resolvedType == context.nullType ? no : yes).resolvedType;
     if (yes.resolvedType != commonType && (yes.resolvedType != context.nullType || !commonType.isReference(context)) &&
         no.resolvedType != commonType && (no.resolvedType != context.nullType || !commonType.isReference(context))) {
-      context.log.error(spanRanges(yes.range, no.range), String_appendNew(String_append(String_appendNew(String_append(
+      context.log.error(spanRanges(yes.range, no.range), String_appendNew(String_appendNew(String_appendNew(String_appendNew(
         String_new("Type '"),
         yes.resolvedType.toString()),
         "' is not the same as type '"),
@@ -969,10 +969,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       var type = target.resolvedType;
 
       if (type != context.errorType) {
-        var symbol = type.isClass() ? type.findMember(String_new("[]=")) : null;
+        var symbol = type.isClass() ? type.findMember("[]=") : null;
 
         if (symbol == null) {
-          context.log.error(left.internalRange, String_appendNew(String_append(
+          context.log.error(left.internalRange, String_appendNew(String_appendNew(
             String_new("Cannot index into type '"),
             target.resolvedType.toString()),
             "'"));
@@ -1094,7 +1094,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         (rightType != context.nullType || !leftType.isReference(context)) &&
         (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
         (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-      context.log.error(node.range, String_appendNew(String_append(String_appendNew(String_append(
+      context.log.error(node.range, String_appendNew(String_appendNew(String_appendNew(String_appendNew(
         String_new("Cannot compare type '"),
         leftType.toString()),
         "' with type '"),
@@ -1138,7 +1138,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (type.resolvedType != context.errorType) {
       if (!type.resolvedType.isClass()) {
-        context.log.error(type.range, String_appendNew(String_append(
+        context.log.error(type.range, String_appendNew(String_appendNew(
           String_new("Cannot construct type '"),
           type.resolvedType.toString()),
           "'"));

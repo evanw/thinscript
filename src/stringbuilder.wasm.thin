@@ -95,7 +95,7 @@ class StringBuilder {
     var index = bytes._length;
     unsafe {
       var length = (text as UIntPtr).value;
-      bytes.resize(index + length);
+      bytes.resize((index + length) as int);
       memcpy(bytes._data + index, text as uint + 4, length);
     }
     return this;

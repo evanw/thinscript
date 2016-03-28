@@ -9,10 +9,10 @@ class Scope {
   firstSymbol: Symbol;
   lastSymbol: Symbol;
 
-  findLocal(name: String): Symbol {
+  findLocal(name: string): Symbol {
     var symbol = this.firstSymbol;
     while (symbol != null) {
-      if (String_equal(symbol.name, name)) {
+      if (string_equals(symbol.name, name)) {
         return symbol;
       }
       symbol = symbol.next;
@@ -20,7 +20,7 @@ class Scope {
     return null;
   }
 
-  findNested(name: String, mode: FindNested): Symbol {
+  findNested(name: string, mode: FindNested): Symbol {
     var scope = this;
     while (scope != null) {
       if (scope.symbol == null || scope.symbol.kind != SymbolKind.TYPE_CLASS || mode == FindNested.ALLOW_INSTANCE_ERRORS) {
@@ -37,7 +37,7 @@ class Scope {
   define(log: Log, symbol: Symbol): bool {
     var existing = this.findLocal(symbol.name);
     if (existing != null) {
-      log.error(symbol.range, String_appendNew(String_append(String_new("Duplicate symbol '"), symbol.name), "'"));
+      log.error(symbol.range, String_appendNew(String_appendNew(String_new("Duplicate symbol '"), symbol.name), "'"));
       return false;
     }
 
@@ -51,7 +51,7 @@ class Scope {
   defineNativeType(log: Log, name: string, byteSizeAndMaxAlignment: int): Type {
     var symbol = new Symbol();
     symbol.kind = SymbolKind.TYPE_NATIVE;
-    symbol.name = String_new(name);
+    symbol.name = name;
     symbol.byteSize = byteSizeAndMaxAlignment;
     symbol.maxAlignment = byteSizeAndMaxAlignment;
     symbol.resolvedType = new Type();

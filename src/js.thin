@@ -133,7 +133,7 @@ class JsResult {
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
         this.emitText("globals.");
       }
-      this.emitString(symbol.name);
+      this.emitText(symbol.name);
     }
 
     else if (node.kind == NodeKind.NULL) {
@@ -151,7 +151,7 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.STRING) {
-      this.emitString(String_quote(node.stringValue));
+      this.emitString(String_quote(String_new(node.stringValue)));
     }
 
     else if (node.kind == NodeKind.CAST) {
@@ -259,14 +259,14 @@ class JsResult {
       var value = node.callValue();
       var isDeclaredInstance = value.kind == NodeKind.DOT && value.symbol.node.isDeclare();
 
-      if (isDeclaredInstance && String_equalNew(value.symbol.name, "[]")) {
+      if (isDeclaredInstance && string_equals(value.symbol.name, "[]")) {
         this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
         this.emitText("[");
         this.emitCommaSeparatedExpressions(value.nextSibling, null);
         this.emitText("]");
       }
 
-      else if (isDeclaredInstance && String_equalNew(value.symbol.name, "[]=")) {
+      else if (isDeclaredInstance && string_equals(value.symbol.name, "[]=")) {
         if (parentPrecedence > Precedence.ASSIGN) {
           this.emitText("(");
         }
@@ -355,16 +355,16 @@ class JsResult {
   }
 
   emitSymbolAccess(symbol: Symbol): void {
-    var c = String_get(symbol.name, 0);
+    var c = string_get(symbol.name, 0);
 
     if (isAlpha(c)) {
       this.emitText(".");
-      this.emitString(symbol.name);
+      this.emitText(symbol.name);
     }
 
     else {
       this.emitText("[");
-      this.emitString(String_quote(symbol.name));
+      this.emitString(String_quote(String_new(symbol.name)));
       this.emitText("]");
     }
   }
@@ -382,7 +382,7 @@ class JsResult {
       this.emitIndent();
 
       if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-        this.emitString(symbol.parent().name);
+        this.emitText(symbol.parent().name);
         this.emitText(".prototype");
         this.emitSymbolAccess(symbol);
         this.emitText(" = function");
@@ -391,16 +391,16 @@ class JsResult {
 
       else if (node.isExtern()) {
         this.emitText("var ");
-        this.emitString(symbol.name);
+        this.emitText(symbol.name);
         this.emitText(" = exports.");
-        this.emitString(symbol.name);
+        this.emitText(symbol.name);
         this.emitText(" = function");
         needsSemicolon = true;
       }
 
       else {
         this.emitText("function ");
-        this.emitString(symbol.name);
+        this.emitText(symbol.name);
       }
 
       this.emitText("(");
@@ -410,7 +410,7 @@ class JsResult {
 
       while (child != returnType) {
         assert(child.kind == NodeKind.VARIABLE);
-        this.emitString(child.symbol.name);
+        this.emitText(child.symbol.name);
         child = child.nextSibling;
         if (child != returnType) {
           this.emitText(", ");
@@ -518,7 +518,7 @@ class JsResult {
       var child = node.firstChild;
       while (child != null) {
         var value = child.variableValue();
-        this.emitString(child.symbol.name);
+        this.emitText(child.symbol.name);
         child = child.nextSibling;
         if (child != null) {
           this.emitText(", ");
@@ -539,7 +539,7 @@ class JsResult {
       this.emitNewlineBefore(node);
       this.emitIndent();
       this.emitText("function ");
-      this.emitString(node.symbol.name);
+      this.emitText(node.symbol.name);
       this.emitText("() {\n");
       this.indent = this.indent + 1;
 
@@ -549,7 +549,7 @@ class JsResult {
         if (child.kind == NodeKind.VARIABLE) {
           this.emitIndent();
           this.emitText("this.");
-          this.emitString(child.symbol.name);
+          this.emitText(child.symbol.name);
           this.emitText(" = ");
           this.emitExpression(child.variableValue(), Precedence.LOWEST);
           this.emitText(";\n");

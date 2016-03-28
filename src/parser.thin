@@ -169,7 +169,7 @@ class ParserContext {
 
     if (this.peek(TokenKind.IDENTIFIER)) {
       this.advance();
-      return createName(String_new(token.range.toString())).withRange(token.range);
+      return createName(token.range.toString()).withRange(token.range);
     }
 
     if (mode == ParseKind.EXPRESSION) {
@@ -200,7 +200,7 @@ class ParserContext {
           return null;
         }
         this.advance();
-        return createString(String_new(text)).withRange(token.range);
+        return createString(text).withRange(token.range);
       }
 
       if (this.peek(TokenKind.INT)) {
@@ -299,7 +299,7 @@ class ParserContext {
         range = createRange(range.source, token.end, token.end);
       }
 
-      return createDot(node, String_new(range.toString())).withRange(spanRanges(node.range, range)).withInternalRange(range);
+      return createDot(node, range.toString()).withRange(spanRanges(node.range, range)).withInternalRange(range);
     }
 
     if (mode == ParseKind.EXPRESSION) {
@@ -570,7 +570,7 @@ class ParserContext {
       return null;
     }
 
-    var text = String_new(name.range.toString());
+    var text = name.range.toString();
     var node = createEnum(text);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
@@ -590,7 +590,7 @@ class ParserContext {
         }
       }
 
-      var variable = createVariable(String_new(member.toString()), createName(text), value);
+      var variable = createVariable(member.toString(), createName(text), value);
       node.appendChild(variable.withRange(value != null ? spanRanges(member, value.range) : member).withInternalRange(member));
 
       // Recover from a terminating semicolon
@@ -627,7 +627,7 @@ class ParserContext {
       return null;
     }
 
-    var node = createClass(String_new(name.range.toString()));
+    var node = createClass(name.range.toString());
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
 
@@ -764,7 +764,7 @@ class ParserContext {
       return null;
     }
 
-    var node = createFunction(String_new(name));
+    var node = createFunction(name);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
 
@@ -802,7 +802,7 @@ class ParserContext {
           type = createParseError();
         }
 
-        var variable = createVariable(String_new(argument.range.toString()), type, null);
+        var variable = createVariable(argument.range.toString(), type, null);
         variable.firstFlag = firstArgumentFlag;
         variable.flags = allFlags(firstArgumentFlag);
         node.appendChild(variable.withRange(range).withInternalRange(argument.range));
@@ -912,7 +912,7 @@ class ParserContext {
         type != null ? spanRanges(name.range, type.range) :
         name.range;
 
-      var variable = createVariable(String_new(name.range.toString()), type, value);
+      var variable = createVariable(name.range.toString(), type, value);
       variable.firstFlag = firstFlag;
       variable.flags = allFlags(firstFlag);
       (parent != null ? parent : node).appendChild(variable.withRange(range).withInternalRange(name.range));

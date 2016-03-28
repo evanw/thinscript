@@ -37,7 +37,7 @@ const SYMBOL_FLAG_IS_UNSIGNED = 2;
 
 class Symbol {
   kind: SymbolKind;
-  name: String;
+  name: string;
   node: Node;
   range: Range;
   scope: Scope;

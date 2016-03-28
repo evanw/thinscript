@@ -153,7 +153,7 @@ class Node {
   previousSibling: Node;
   nextSibling: Node;
   intValue: int;
-  stringValue: String;
+  stringValue: string;
   resolvedType: Type;
   symbol: Symbol;
   scope: Scope;
@@ -595,14 +595,14 @@ function createInt(value: int): Node {
   return node;
 }
 
-function createString(value: String): Node {
+function createString(value: string): Node {
   var node = new Node();
   node.kind = NodeKind.STRING;
   node.stringValue = value;
   return node;
 }
 
-function createName(value: String): Node {
+function createName(value: string): Node {
   var node = new Node();
   node.kind = NodeKind.NAME;
   node.stringValue = value;
@@ -637,14 +637,14 @@ function createBlock(): Node {
   return node;
 }
 
-function createClass(name: String): Node {
+function createClass(name: string): Node {
   var node = new Node();
   node.kind = NodeKind.CLASS;
   node.stringValue = name;
   return node;
 }
 
-function createEnum(name: String): Node {
+function createEnum(name: string): Node {
   var node = new Node();
   node.kind = NodeKind.ENUM;
   node.stringValue = name;
@@ -697,7 +697,7 @@ function createConstants(): Node {
   return node;
 }
 
-function createVariable(name: String, type: Node, value: Node): Node {
+function createVariable(name: string, type: Node, value: Node): Node {
   assert(type == null || isExpression(type));
   assert(value == null || isExpression(value));
 
@@ -713,7 +713,7 @@ function createVariable(name: String, type: Node, value: Node): Node {
   return node;
 }
 
-function createFunction(name: String): Node {
+function createFunction(name: string): Node {
   var node = new Node();
   node.kind = NodeKind.FUNCTION;
   node.stringValue = name;
@@ -758,7 +758,7 @@ function createCast(value: Node, type: Node): Node {
   return node;
 }
 
-function createDot(value: Node, name: String): Node {
+function createDot(value: Node, name: string): Node {
   assert(isExpression(value));
   var node = new Node();
   node.kind = NodeKind.DOT;

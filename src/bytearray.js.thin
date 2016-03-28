@@ -1,5 +1,16 @@
 declare function Uint8Array_new(length: int): Uint8Array;
 
+function ByteArray_setString(array: ByteArray, index: int, text: string): void {
+  var length = string_length(text);
+  assert(index >= 0 && index + length <= array.length());
+  var data = array._data;
+  var i = 0;
+  while (i < length) {
+    data[index + i] = string_get(text, i) as ubyte;
+    i = i + 1;
+  }
+}
+
 declare class Uint8Array {
   length: int;
   set(source: Uint8Array): void;

@@ -228,7 +228,7 @@ function wasmAreSignaturesEqual(a: WasmSignature, b: WasmSignature): bool {
 }
 
 class WasmFunction {
-  name: String;
+  name: string;
   signatureIndex: int;
   body: Node;
   isExported: bool;
@@ -238,8 +238,8 @@ class WasmFunction {
 
 class WasmImport {
   signatureIndex: int;
-  module: String;
-  name: String;
+  module: string;
+  name: string;
   next: WasmImport;
 }
 
@@ -273,7 +273,7 @@ class WasmModule {
     }
   }
 
-  allocateImport(signatureIndex: int, mod: String, name: String): WasmImport {
+  allocateImport(signatureIndex: int, mod: string, name: string): WasmImport {
     var result = new WasmImport();
     result.signatureIndex = signatureIndex;
     result.module = mod;
@@ -287,7 +287,7 @@ class WasmModule {
     return result;
   }
 
-  allocateFunction(name: String, signatureIndex: int, body: Node): WasmFunction {
+  allocateFunction(name: string, signatureIndex: int, body: Node): WasmFunction {
     var fn = new WasmFunction();
     fn.name = name;
     fn.signatureIndex = signatureIndex;
@@ -343,7 +343,7 @@ class WasmModule {
   }
 
   emitSignatures(array: ByteArray): void {
-    var section = wasmStartSection(array, String_new("signatures"));
+    var section = wasmStartSection(array, "signatures");
     wasmWriteVarUnsigned(array, this.signatureCount);
 
     var signature = this.firstSignature;
@@ -376,7 +376,7 @@ class WasmModule {
       return;
     }
 
-    var section = wasmStartSection(array, String_new("import_table"));
+    var section = wasmStartSection(array, "import_table");
     wasmWriteVarUnsigned(array, this.importCount);
 
     var current = this.firstImport;
@@ -395,7 +395,7 @@ class WasmModule {
       return;
     }
 
-    var section = wasmStartSection(array, String_new("function_signatures"));
+    var section = wasmStartSection(array, "function_signatures");
     wasmWriteVarUnsigned(array, this.functionCount);
 
     var fn = this.firstFunction;
@@ -408,7 +408,7 @@ class WasmModule {
   }
 
   emitMemory(array: ByteArray): void {
-    var section = wasmStartSection(array, String_new("memory"));
+    var section = wasmStartSection(array, "memory");
     wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
     wasmWriteVarUnsigned(array, WASM_SIZE_IN_PAGES);
     wasmWriteVarUnsigned(array, 1); // The memory array is exported
@@ -428,7 +428,7 @@ class WasmModule {
       return;
     }
 
-    var section = wasmStartSection(array, String_new("export_table"));
+    var section = wasmStartSection(array, "export_table");
     wasmWriteVarUnsigned(array, exportedCount);
 
     var i = 0;
@@ -450,7 +450,7 @@ class WasmModule {
       return;
     }
 
-    var section = wasmStartSection(array, String_new("function_bodies"));
+    var section = wasmStartSection(array, "function_bodies");
     wasmWriteVarUnsigned(array, this.functionCount);
 
     var fn = this.firstFunction;
@@ -489,7 +489,7 @@ class WasmModule {
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
     ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
 
-    var section = wasmStartSection(array, String_new("data_segments"));
+    var section = wasmStartSection(array, "data_segments");
 
     // This only writes one single section containing everything
     wasmWriteVarUnsigned(array, 1);
@@ -511,7 +511,7 @@ class WasmModule {
   prepareToEmit(node: Node): void {
     if (node.kind == NodeKind.STRING) {
       var text = node.stringValue;
-      var length = String_length(text);
+      var length = string_length(text);
       var offset = this.context.allocateGlobalVariableOffset(length + 4, 4);
       node.intValue = offset;
       this.growMemoryInitializer();
@@ -519,14 +519,7 @@ class WasmModule {
 
       // Emit a length-prefixed string
       ByteArray_set32(memoryInitializer, offset, length);
-      offset = offset + 4;
-
-      // Emit the string contents without a terminating null character
-      var i = 0;
-      while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
-        i = i + 1;
-      }
+      ByteArray_setString(memoryInitializer, offset + 4, text);
     }
 
     else if (node.kind == NodeKind.VARIABLE) {
@@ -545,13 +538,13 @@ class WasmModule {
         else assert(false);
 
         // Make sure the heap offset is tracked
-        if (String_equalNew(symbol.name, "currentHeapPointer")) {
+        if (string_equals(symbol.name, "currentHeapPointer")) {
           assert(this.currentHeapPointer == -1);
           this.currentHeapPointer = symbol.offset;
         }
 
         // Make sure the heap offset is tracked
-        else if (String_equalNew(symbol.name, "originalHeapPointer")) {
+        else if (string_equals(symbol.name, "originalHeapPointer")) {
           assert(this.originalHeapPointer == -1);
           this.originalHeapPointer = symbol.offset;
         }
@@ -582,7 +575,7 @@ class WasmModule {
 
       // Functions without bodies are imports
       if (body == null) {
-        var moduleName = symbol.kind == SymbolKind.FUNCTION_INSTANCE ? symbol.parent().name : String_new("globals");
+        var moduleName = symbol.kind == SymbolKind.FUNCTION_INSTANCE ? symbol.parent().name : "globals";
         symbol.offset = this.importCount;
         this.allocateImport(signatureIndex, moduleName, symbol.name);
         node = node.nextSibling;
@@ -593,7 +586,7 @@ class WasmModule {
       var fn = this.allocateFunction(symbol.name, signatureIndex, body);
 
       // Make sure "malloc" is tracked
-      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && String_equalNew(symbol.name, "malloc")) {
+      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && string_equals(symbol.name, "malloc")) {
         assert(this.mallocFunctionIndex == -1);
         this.mallocFunctionIndex = symbol.offset;
       }
@@ -1107,17 +1100,15 @@ function wasmWriteVarSigned(array: ByteArray, value: int): void {
   }
 }
 
-function wasmWriteLengthPrefixedString(array: ByteArray, value: String): void {
-  var length = String_length(value);
+function wasmWriteLengthPrefixedString(array: ByteArray, value: string): void {
+  var length = string_length(value);
   wasmWriteVarUnsigned(array, length);
-  var i = 0;
-  while (i < length) {
-    array.append(String_get(value, i) as ubyte);
-    i = i + 1;
-  }
+  var index = array.length();
+  array.resize(index + length);
+  ByteArray_setString(array, index, value);
 }
 
-function wasmStartSection(array: ByteArray, name: String): int {
+function wasmStartSection(array: ByteArray, name: string): int {
   var offset = array.length();
   wasmWriteVarUnsigned(array, ~0); // Section length, will be filled in later
   wasmWriteLengthPrefixedString(array, name);

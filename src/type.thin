@@ -56,17 +56,17 @@ class Type {
     return this.variableSizeOf(); // This is true right now
   }
 
-  toString(): String {
+  toString(): string {
     return this.symbol.name;
   }
 
-  findMember(name: String): Symbol {
+  findMember(name: string): Symbol {
     var child = this.symbol.node.firstChild;
 
     while (child != null) {
       assert(child.kind == NodeKind.VARIABLE || child.kind == NodeKind.FUNCTION);
 
-      if (String_equal(child.symbol.name, name)) {
+      if (string_equals(child.symbol.name, name)) {
         return child.symbol;
       }
 
