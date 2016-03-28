@@ -1,0 +1,5 @@
+extern function Compiler_resetHeapPointer(): void {
+  unsafe {
+    currentHeapPointer = originalHeapPointer; // Reset the heap
+  }
+}

@@ -21,6 +21,7 @@ unsafe function malloc(sizeOf: uint): uint {
   while (sizeOf != 0) {
     (ptr as UBytePtr).value = 0;
     sizeOf = sizeOf - 1;
+    ptr = ptr + 1;
   }
 
   return offset;

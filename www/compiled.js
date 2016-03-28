@@ -2725,7 +2725,7 @@ function tokenize(source, log) {
 }
 
 function libraryForWebAssembly() {
-  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  currentHeapPointer = offset + sizeOf;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (sizeOf != 0) {\n    (ptr as UBytePtr).value = 0;\n    sizeOf = sizeOf - 1;\n  }\n\n  return offset;\n}\n";
+  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  currentHeapPointer = offset + sizeOf;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (sizeOf != 0) {\n    (ptr as UBytePtr).value = 0;\n    sizeOf = sizeOf - 1;\n    ptr = ptr + 1;\n  }\n\n  return offset;\n}\n";
 }
 
 function Source() {
