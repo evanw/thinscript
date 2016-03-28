@@ -9,11 +9,20 @@
   h2 {
     margin-top: 50px;
   }
+
+  #unsupported {
+    display: none;
+    text-align: center;
+  }
 </style>
 <body>
   <h1>ThinScript Compiler Benchmark</h1>
   <p>
     This tests the relative speed of the two compiler backends.
+  </p>
+
+  <p id="unsupported">
+    Your browser doesn't support WebAssembly.
   </p>
 
   <h2>JS</h2>
@@ -26,13 +35,22 @@
 <script>
 
 (function() {
+  var width = 800;
+  var height = 400;
+  var unsupported = document.getElementById('unsupported');
+
   function draw(context, times) {
     var scale = 1 / 1000;
 
     // Reset the canvas
-    var width = context.canvas.width;
-    var height = context.canvas.height;
+    var ratio = window.devicePixelRatio || 1;
+    var canvas = context.canvas;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
     var plotWidth = width - 100;
+    context.scale(ratio, ratio);
     context.clearRect(0, 0, width, height);
 
     // Skip the first few times so we can measure the time after the JIT has warmed up
@@ -88,8 +106,18 @@
   var jsCanvas = document.getElementById('js-canvas');
   var jsContext = jsCanvas.getContext('2d');
 
+  function supportsWebAssembly() {
+    return typeof Wasm !== 'undefined';
+  }
+
   function main() {
-    var count = 0;
+    if (!supportsWebAssembly()) {
+      unsupported.style.display = 'block';
+      return;
+    }
+
+    draw(jsContext, []);
+    draw(wasmContext, []);
 
     loadWebAssembly(function(wasm) {
       loadJavaScript(function(js) {
@@ -102,6 +130,7 @@
           }];
           var timeout = 10;
           var limit = 20;
+          var count = 0;
 
           var jsTimes = [];
           var wasmTimes = [];
