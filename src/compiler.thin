@@ -20,7 +20,7 @@ class Compiler {
     this.target = target;
 
     if (target == CompileTarget.WEBASSEMBLY) {
-      this.addInput(String_new("<native>"), String_new(libraryWASM()));
+      this.addInput(String_new("<native>"), String_new(libraryForWebAssembly()));
     }
   }
 

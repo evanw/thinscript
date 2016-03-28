@@ -15,10 +15,12 @@ class ByteArray {
   }
 
   get(index: int): ubyte {
+    assert((index as uint) < (this._length as uint));
     return this._data[index];
   }
 
   set(index: int, value: ubyte): void {
+    assert((index as uint) < (this._length as uint));
     this._data[index] = value;
   }
 

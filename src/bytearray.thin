@@ -1,0 +1,18 @@
+function ByteArray_set16(array: ByteArray, index: int, value: int): void {
+  array.set(index, value as ubyte);
+  array.set(index + 1, (value >> 8) as ubyte);
+}
+
+function ByteArray_set32(array: ByteArray, index: int, value: int): void {
+  array.set(index, value as ubyte);
+  array.set(index + 1, (value >> 8) as ubyte);
+  array.set(index + 2, (value >> 16) as ubyte);
+  array.set(index + 3, (value >> 24) as ubyte);
+}
+
+function ByteArray_append32(array: ByteArray, value: int): void {
+  array.append(value as ubyte);
+  array.append((value >> 8) as ubyte);
+  array.append((value >> 16) as ubyte);
+  array.append((value >> 24) as ubyte);
+}

@@ -8,10 +8,13 @@ ByteArray.prototype.length = function() {
 };
 
 ByteArray.prototype.get = function(index) {
+  globals.assert(index >>> 0 < this._length >>> 0);
+
   return this._data[index];
 };
 
 ByteArray.prototype.set = function(index, value) {
+  globals.assert(index >>> 0 < this._length >>> 0);
   this._data[index] = value;
 };
 
@@ -39,6 +42,25 @@ ByteArray.prototype._resize = function(length) {
 
   this._length = length;
 };
+
+function ByteArray_set16(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+}
+
+function ByteArray_set32(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+  array.set(index + 2 | 0, value >> 16 & 255);
+  array.set(index + 3 | 0, value >> 24 & 255);
+}
+
+function ByteArray_append32(array, value) {
+  array.append(value & 255);
+  array.append(value >> 8 & 255);
+  array.append(value >> 16 & 255);
+  array.append(value >> 24 & 255);
+}
 
 function CheckContext() {
   this.log = null;
@@ -1136,7 +1158,7 @@ Compiler.prototype.initialize = function(target) {
   this.target = target;
 
   if (target === 2) {
-    this.addInput(globals.String_new("<native>"), globals.String_new(libraryWASM()));
+    this.addInput(globals.String_new("<native>"), globals.String_new(libraryForWebAssembly()));
   }
 };
 
@@ -2696,8 +2718,8 @@ function tokenize(source, log) {
   return first;
 }
 
-function libraryWASM() {
-  return "\n// This will be filled in by the code generator with the inital heap pointer\nunsafe var mallocOffset: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (mallocOffset + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  mallocOffset = offset + sizeOf;\n\n  return offset;\n}\n";
+function libraryForWebAssembly() {
+  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  currentHeapPointer = offset + sizeOf;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (sizeOf != 0) {\n    (ptr as UBytePtr).value = 0;\n    sizeOf = sizeOf - 1;\n  }\n\n  return offset;\n}\n";
 }
 
 function Source() {
@@ -5157,7 +5179,8 @@ function WasmModule() {
   this.lastSignature = null;
   this.signatureCount = 0;
   this.memoryInitializer = null;
-  this.heapPointerOffset = 0;
+  this.currentHeapPointer = 0;
+  this.originalHeapPointer = 0;
   this.mallocFunctionIndex = 0;
   this.context = null;
 }
@@ -5246,14 +5269,8 @@ WasmModule.prototype.allocateSignature = function(argumentTypes, returnType) {
 };
 
 WasmModule.prototype.emitModule = function(array) {
-  array.append(0);
-  array.append(97);
-  array.append(115);
-  array.append(109);
-  array.append(10);
-  array.append(0);
-  array.append(0);
-  array.append(0);
+  ByteArray_append32(array, 1836278016);
+  ByteArray_append32(array, 10);
   this.emitSignatures(array);
   this.emitImportTable(array);
   this.emitFunctionSignatures(array);
@@ -5412,11 +5429,8 @@ WasmModule.prototype.emitDataSegments = function(array) {
   var memoryInitializer = this.memoryInitializer;
   var initalizerLength = memoryInitializer.length();
   var initialHeapPointer = alignToNextMultipleOf(initalizerLength + 8 | 0, 8);
-  var heapPointerOffset = this.heapPointerOffset;
-  memoryInitializer.set(heapPointerOffset, initialHeapPointer & 255);
-  memoryInitializer.set(heapPointerOffset + 1 | 0, initialHeapPointer >> 8 & 255);
-  memoryInitializer.set(heapPointerOffset + 2 | 0, initialHeapPointer >> 16 & 255);
-  memoryInitializer.set(heapPointerOffset + 3 | 0, initialHeapPointer >> 24 & 255);
+  ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
+  ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
   var section = wasmStartSection(array, globals.String_new("data_segments"));
   wasmWriteVarUnsigned(array, 1);
   wasmWriteVarUnsigned(array, 8);
@@ -5452,9 +5466,37 @@ WasmModule.prototype.prepareToEmit = function(node) {
   else if (node.kind === 1) {
     var symbol = node.symbol;
 
-    if (node.symbol.kind === 8 && globals.String_equalNew(symbol.name, "mallocOffset")) {
-      globals.assert(this.heapPointerOffset === -1);
-      this.heapPointerOffset = symbol.offset;
+    if (symbol.kind === 8) {
+      var sizeOf = symbol.resolvedType.variableSizeOf();
+      var value = symbol.node.variableValue().intValue;
+      var memoryInitializer = this.memoryInitializer;
+      this.growMemoryInitializer();
+
+      if (sizeOf === 1) {
+        memoryInitializer.set(symbol.offset, value & 255);
+      }
+
+      else if (sizeOf === 2) {
+        ByteArray_set16(memoryInitializer, symbol.offset, value);
+      }
+
+      else if (sizeOf === 4) {
+        ByteArray_set32(memoryInitializer, symbol.offset, value);
+      }
+
+      else {
+        globals.assert(false);
+      }
+
+      if (globals.String_equalNew(symbol.name, "currentHeapPointer")) {
+        globals.assert(this.currentHeapPointer === -1);
+        this.currentHeapPointer = symbol.offset;
+      }
+
+      else if (globals.String_equalNew(symbol.name, "originalHeapPointer")) {
+        globals.assert(this.originalHeapPointer === -1);
+        this.originalHeapPointer = symbol.offset;
+      }
     }
   }
 
@@ -6111,10 +6153,12 @@ function wasmEmit(global, context, array) {
   module.context = context;
   module.memoryInitializer = new ByteArray();
   module.mallocFunctionIndex = -1;
-  module.heapPointerOffset = -1;
+  module.currentHeapPointer = -1;
+  module.originalHeapPointer = -1;
   module.prepareToEmit(global);
   globals.assert(module.mallocFunctionIndex !== -1);
-  globals.assert(module.heapPointerOffset !== -1);
+  globals.assert(module.currentHeapPointer !== -1);
+  globals.assert(module.originalHeapPointer !== -1);
   module.emitModule(array);
 }
 

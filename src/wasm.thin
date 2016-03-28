@@ -257,7 +257,8 @@ class WasmModule {
   signatureCount: int;
 
   memoryInitializer: ByteArray;
-  heapPointerOffset: int;
+  currentHeapPointer: int;
+  originalHeapPointer: int;
   mallocFunctionIndex: int;
   context: CheckContext;
 
@@ -329,15 +330,8 @@ class WasmModule {
   }
 
   emitModule(array: ByteArray): void {
-    array.append(WASM_MAGIC as ubyte);
-    array.append((WASM_MAGIC >> 8) as ubyte);
-    array.append((WASM_MAGIC >> 16) as ubyte);
-    array.append((WASM_MAGIC >> 24) as ubyte);
-
-    array.append(WASM_VERSION as ubyte);
-    array.append((WASM_VERSION >> 8) as ubyte);
-    array.append((WASM_VERSION >> 16) as ubyte);
-    array.append((WASM_VERSION >> 24) as ubyte);
+    ByteArray_append32(array, WASM_MAGIC);
+    ByteArray_append32(array, WASM_VERSION);
 
     this.emitSignatures(array);
     this.emitImportTable(array);
@@ -491,16 +485,16 @@ class WasmModule {
     var initalizerLength = memoryInitializer.length();
     var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
 
-    // Pass the initial heap pointer to "malloc"
-    var heapPointerOffset = this.heapPointerOffset;
-    memoryInitializer.set(heapPointerOffset, initialHeapPointer as ubyte);
-    memoryInitializer.set(heapPointerOffset + 1, (initialHeapPointer >> 8) as ubyte);
-    memoryInitializer.set(heapPointerOffset + 2, (initialHeapPointer >> 16) as ubyte);
-    memoryInitializer.set(heapPointerOffset + 3, (initialHeapPointer >> 24) as ubyte);
+    // Pass the initial heap pointer to the "malloc" function
+    ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
+    ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
 
     var section = wasmStartSection(array, String_new("data_segments"));
-    wasmWriteVarUnsigned(array, 1); // A single section containing everything
 
+    // This only writes one single section containing everything
+    wasmWriteVarUnsigned(array, 1);
+
+    // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
     wasmWriteVarUnsigned(array, initalizerLength);
 
@@ -533,10 +527,29 @@ class WasmModule {
     else if (node.kind == NodeKind.VARIABLE) {
       var symbol = node.symbol;
 
-      // Make sure the heap offset is tracked
-      if (node.symbol.kind == SymbolKind.VARIABLE_GLOBAL && String_equalNew(symbol.name, "mallocOffset")) {
-        assert(this.heapPointerOffset == -1);
-        this.heapPointerOffset = symbol.offset;
+      if (symbol.kind == SymbolKind.VARIABLE_GLOBAL) {
+        var sizeOf = symbol.resolvedType.variableSizeOf();
+        var value = symbol.node.variableValue().intValue;
+        var memoryInitializer = this.memoryInitializer;
+
+        // Copy the inital value into the memory initializer
+        this.growMemoryInitializer();
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
+        else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
+        else assert(false);
+
+        // Make sure the heap offset is tracked
+        if (String_equalNew(symbol.name, "currentHeapPointer")) {
+          assert(this.currentHeapPointer == -1);
+          this.currentHeapPointer = symbol.offset;
+        }
+
+        // Make sure the heap offset is tracked
+        else if (String_equalNew(symbol.name, "originalHeapPointer")) {
+          assert(this.originalHeapPointer == -1);
+          this.originalHeapPointer = symbol.offset;
+        }
       }
     }
 
@@ -1144,14 +1157,16 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
 
   // Set these to invalid values since "0" is valid
   module.mallocFunctionIndex = -1;
-  module.heapPointerOffset = -1;
+  module.currentHeapPointer = -1;
+  module.originalHeapPointer = -1;
 
   // Emission requires two passes
   module.prepareToEmit(global);
 
   // The standard library must be included
   assert(module.mallocFunctionIndex != -1);
-  assert(module.heapPointerOffset != -1);
+  assert(module.currentHeapPointer != -1);
+  assert(module.originalHeapPointer != -1);
 
   module.emitModule(array);
 }

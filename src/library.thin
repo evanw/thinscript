@@ -1,14 +1,27 @@
-function libraryWASM(): string {
+function libraryForWebAssembly(): string {
   return `
-// This will be filled in by the code generator with the inital heap pointer
-unsafe var mallocOffset: uint = 0;
+// Casting to this enables writing to arbitrary locations in memory
+unsafe class UBytePtr {
+  value: ubyte;
+}
+
+// These will be filled in by the WebAssembly code generator
+unsafe var currentHeapPointer: uint = 0;
+unsafe var originalHeapPointer: uint = 0;
 
 unsafe function malloc(sizeOf: uint): uint {
   // Align all allocations to 8 bytes
-  var offset = (mallocOffset + 7) & ~7 as uint;
+  var offset = (currentHeapPointer + 7) & ~7 as uint;
 
   // Use a simple bump allocator for now
-  mallocOffset = offset + sizeOf;
+  currentHeapPointer = offset + sizeOf;
+
+  // Make sure the memory starts off at zero
+  var ptr = offset;
+  while (sizeOf != 0) {
+    (ptr as UBytePtr).value = 0;
+    sizeOf = sizeOf - 1;
+  }
 
   return offset;
 }
