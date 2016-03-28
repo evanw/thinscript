@@ -1,111 +1,18 @@
 var fs = require('fs');
 
-function loadStdlibForJavaScript() {
-  var time = 0;
-
-  return {
-    assert: function(truth) {
-      if (!truth) {
-        throw new Error('Assertion failed');
-      }
-    },
-
-    Profiler_begin: function() {
-      time = Date.now();
-    },
-
-    Profiler_end: function(text) {
-      console.log(text + ': ' + (Date.now() - time) + 'ms');
-    },
-
-    String_new: function(value) {
-      return value;
-    },
-
-    String_length: function(self) {
-      return self.length;
-    },
-
-    String_get: function(self, index) {
-      return self.charCodeAt(index);
-    },
-
-    String_append: function(self, other) {
-      return self + other;
-    },
-
-    String_appendNew: function(self, other) {
-      return self + other;
-    },
-
-    String_slice: function(self, start, end) {
-      return self.slice(start, end);
-    },
-
-    String_equal: function(self, other) {
-      return self === other;
-    },
-
-    String_equalNew: function(self, other) {
-      return self === other;
-    },
-
-    String_toStringSigned: function(value) {
-      return (value | 0).toString();
-    },
-
-    String_toStringUnsigned: function(value) {
-      return (value >>> 0).toString();
-    },
-
-    String_quote: function(self) {
-      return JSON.stringify(self);
-    },
-
-    Uint8Array_new: function(length) {
-      return new Uint8Array(length);
-    },
-  };
-}
-
-var CompileTarget = {
-  JAVASCRIPT: 1,
-  WEBASSEMBLY: 2,
-};
-
-function compileAndRunJavaScript(code, sources, target) {
-  var before = Date.now();
-  var stdlib = loadStdlibForJavaScript();
-  var exports = {};
-  new Function('globals', 'exports', code)(stdlib, exports);
-  var compiler = exports.Compiler_new(target);
-  sources.forEach(function(source) {
-    if (/\.js\./.test(source.name) && target !== CompileTarget.JAVASCRIPT ||
-        /\.wasm\./.test(source.name) && target !== CompileTarget.WEBASSEMBLY) {
-      return;
-    }
-    exports.Compiler_addInput(compiler, source.name, source.contents);
-  });
-  exports.Compiler_finish(compiler);
-  var wasm = exports.Compiler_wasm(compiler);
-  var after = Date.now();
-  console.log('compile to', target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly', 'took ' + (after - before) + 'ms');
-  return {
-    wasm: wasm ? wasm.bytes() : null,
-    log: exports.Compiler_log(compiler),
-    js: exports.Compiler_js(compiler),
-  };
-}
+eval(fs.readFileSync('./www/common.js', 'utf8'));
 
 // Always build all targets to catch errors in other targets
 function compile(compiler, sources) {
-  var compilerJS = compileAndRunJavaScript(compiler, sources, CompileTarget.JAVASCRIPT);
+  var compiled = compileJavaScript(compiler);
+
+  var compilerJS = compiled(sources, CompileTarget.JAVASCRIPT);
   if (compilerJS.log) {
     process.stdout.write(compilerJS.log);
     process.exit(1);
   }
 
-  var compilerWASM = compileAndRunJavaScript(compiler, sources, CompileTarget.WEBASSEMBLY);
+  var compilerWASM = compiled(sources, CompileTarget.WEBASSEMBLY);
   if (compilerWASM.log) {
     process.stdout.write(compilerWASM.log);
     process.exit(1);
