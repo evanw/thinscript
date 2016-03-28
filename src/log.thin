@@ -1,6 +1,6 @@
 class Source {
-  name: String;
-  contents: String;
+  name: string;
+  contents: string;
 
   // These are for internal use by the compiler
   next: Source;
@@ -12,8 +12,8 @@ class Range {
   start: int;
   end: int;
 
-  toString(): String {
-    return String_slice(this.source.contents, this.start, this.end);
+  toString(): string {
+    return string_slice(this.source.contents, this.start, this.end);
   }
 
   equals(other: Range): bool {
@@ -28,12 +28,12 @@ class Range {
     var start = this.start;
     var end = this.start;
 
-    while (start > 0 && String_get(contents, start - 1) != '\n') {
+    while (start > 0 && string_get(contents, start - 1) != '\n') {
       start = start - 1;
     }
 
-    var length = String_length(contents);
-    while (end + 1 < length && String_get(contents, end) != '\n') {
+    var length = string_length(contents);
+    while (end + 1 < length && string_get(contents, end) != '\n') {
       end = end + 1;
     }
 
@@ -90,13 +90,13 @@ class Log {
 
       var i = 0;
       while (i < lineRange.start) {
-        if (String_get(lineRange.source.contents, i) == '\n') {
+        if (string_get(lineRange.source.contents, i) == '\n') {
           line = line + 1;
         }
         i = i + 1;
       }
 
-      result = String_append(result, d.range.source.name);
+      result = String_appendNew(result, d.range.source.name);
       result = String_appendNew(result, ":");
       result = String_append(result, String_toStringSigned(line + 1));
       result = String_appendNew(result, ":");
@@ -104,7 +104,7 @@ class Log {
       result = String_appendNew(result, ": error: ");
       result = String_append(result, d.message);
       result = String_appendNew(result, "\n");
-      result = String_append(result, lineRange.toString());
+      result = String_appendNew(result, lineRange.toString());
       result = String_appendNew(result, "\n");
 
       i = 0;

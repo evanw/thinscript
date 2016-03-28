@@ -97,6 +97,30 @@ function loadStdlibForJavaScript() {
       console.log(text + ': ' + Math.round(now() - time) + 'ms');
     },
 
+    string_length: function(self) {
+      return self.length;
+    },
+
+    string_get: function(self, index) {
+      return self.charCodeAt(index);
+    },
+
+    string_equals: function(a, b) {
+      return a === b;
+    },
+
+    string_slice: function(text, start, end) {
+      return text.slice(start, end);
+    },
+
+    StringBuilder_append: function(a, b) {
+      return a + b;
+    },
+
+    StringBuilder_appendChar: function(a, b) {
+      return a + String.fromCharCode(b);
+    },
+
     String_new: function(value) {
       return value;
     },
@@ -200,11 +224,19 @@ function compileWebAssembly(code) {
     var compiler = exports.Compiler_new(target);
 
     filterSources(sources, target, function(source) {
-      stdlib.strings.push(source.name);
-      var nameString = stdlib.strings.length;
+      var name = source.name;
+      var contents = source.contents;
+      var nameString = exports.string_new(name.length);
+      var contentsString = exports.string_new(contents.length);
+      var bytes = stdlib.bytes;
 
-      stdlib.strings.push(source.contents);
-      var contentsString = stdlib.strings.length;
+      for (var i = 0, length = name.length; i < length; i++) {
+        bytes[nameString + i + 4] = name.charCodeAt(i);
+      }
+
+      for (var i = 0, length = contents.length; i < length; i++) {
+        bytes[contentsString + i + 4] = contents.charCodeAt(i);
+      }
 
       exports.Compiler_addInput(compiler, nameString, contentsString);
     });

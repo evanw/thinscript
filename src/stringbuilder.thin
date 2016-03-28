@@ -1,0 +1,10 @@
+var stringBuilderPool: StringBuilder = null;
+
+// Remove an object from the pool or allocate a new object if the pool is empty
+function StringBuilder_new(): StringBuilder {
+  var sb = stringBuilderPool;
+  if (sb != null) stringBuilderPool = sb.next;
+  else sb = new StringBuilder();
+  sb.clear();
+  return sb;
+}

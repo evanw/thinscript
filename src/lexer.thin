@@ -195,12 +195,12 @@ function tokenize(source: Source, log: Log): Token {
   var first: Token = null;
   var last: Token = null;
   var contents = source.contents;
-  var limit = String_length(contents);
+  var limit = string_length(contents);
   var i = 0;
 
   while (i < limit) {
     var start = i;
-    var c = String_get(contents, i);
+    var c = string_get(contents, i);
     i = i + 1;
 
     if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
@@ -213,66 +213,66 @@ function tokenize(source: Source, log: Log): Token {
     if (isAlpha(c)) {
       kind = TokenKind.IDENTIFIER;
 
-      while (i < limit && (isAlpha(String_get(contents, i)) || isNumber(String_get(contents, i)))) {
+      while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
         i = i + 1;
       }
 
       // Keywords
       var length = i - start;
       if (length >= 2 && length <= 10) {
-        var text = String_slice(contents, start, i);
+        var text = string_slice(contents, start, i);
 
         if (length == 2) {
-          if (String_equalNew(text, "as")) kind = TokenKind.AS; else
-          if (String_equalNew(text, "if")) kind = TokenKind.IF;
+          if (string_equals(text, "as")) kind = TokenKind.AS; else
+          if (string_equals(text, "if")) kind = TokenKind.IF;
         }
 
         else if (length == 3) {
-          if (String_equalNew(text, "let")) kind = TokenKind.LET; else
-          if (String_equalNew(text, "new")) kind = TokenKind.NEW; else
-          if (String_equalNew(text, "var")) kind = TokenKind.VAR;
+          if (string_equals(text, "let")) kind = TokenKind.LET; else
+          if (string_equals(text, "new")) kind = TokenKind.NEW; else
+          if (string_equals(text, "var")) kind = TokenKind.VAR;
         }
 
         else if (length == 4) {
-          if (String_equalNew(text, "else")) kind = TokenKind.ELSE; else
-          if (String_equalNew(text, "enum")) kind = TokenKind.ENUM; else
-          if (String_equalNew(text, "null")) kind = TokenKind.NULL; else
-          if (String_equalNew(text, "this")) kind = TokenKind.THIS; else
-          if (String_equalNew(text, "true")) kind = TokenKind.TRUE;
+          if (string_equals(text, "else")) kind = TokenKind.ELSE; else
+          if (string_equals(text, "enum")) kind = TokenKind.ENUM; else
+          if (string_equals(text, "null")) kind = TokenKind.NULL; else
+          if (string_equals(text, "this")) kind = TokenKind.THIS; else
+          if (string_equals(text, "true")) kind = TokenKind.TRUE;
         }
 
         else if (length == 5) {
-          if (String_equalNew(text, "break")) kind = TokenKind.BREAK; else
-          if (String_equalNew(text, "class")) kind = TokenKind.CLASS; else
-          if (String_equalNew(text, "const")) kind = TokenKind.CONST; else
-          if (String_equalNew(text, "false")) kind = TokenKind.FALSE; else
-          if (String_equalNew(text, "while")) kind = TokenKind.WHILE;
+          if (string_equals(text, "break")) kind = TokenKind.BREAK; else
+          if (string_equals(text, "class")) kind = TokenKind.CLASS; else
+          if (string_equals(text, "const")) kind = TokenKind.CONST; else
+          if (string_equals(text, "false")) kind = TokenKind.FALSE; else
+          if (string_equals(text, "while")) kind = TokenKind.WHILE;
         }
 
         else if (length == 6) {
-          if (String_equalNew(text, "export")) kind = TokenKind.EXPORT; else
-          if (String_equalNew(text, "extern")) kind = TokenKind.EXTERN; else
-          if (String_equalNew(text, "import")) kind = TokenKind.IMPORT; else
-          if (String_equalNew(text, "public")) kind = TokenKind.PUBLIC; else
-          if (String_equalNew(text, "return")) kind = TokenKind.RETURN; else
-          if (String_equalNew(text, "sizeof")) kind = TokenKind.SIZEOF; else
-          if (String_equalNew(text, "static")) kind = TokenKind.STATIC; else
-          if (String_equalNew(text, "unsafe")) kind = TokenKind.UNSAFE;
+          if (string_equals(text, "export")) kind = TokenKind.EXPORT; else
+          if (string_equals(text, "extern")) kind = TokenKind.EXTERN; else
+          if (string_equals(text, "import")) kind = TokenKind.IMPORT; else
+          if (string_equals(text, "public")) kind = TokenKind.PUBLIC; else
+          if (string_equals(text, "return")) kind = TokenKind.RETURN; else
+          if (string_equals(text, "sizeof")) kind = TokenKind.SIZEOF; else
+          if (string_equals(text, "static")) kind = TokenKind.STATIC; else
+          if (string_equals(text, "unsafe")) kind = TokenKind.UNSAFE;
         }
 
         else if (length == 7) {
-          if (String_equalNew(text, "alignof")) kind = TokenKind.ALIGNOF; else
-          if (String_equalNew(text, "declare")) kind = TokenKind.DECLARE; else
-          if (String_equalNew(text, "extends")) kind = TokenKind.EXTENDS; else
-          if (String_equalNew(text, "private")) kind = TokenKind.PRIVATE;
+          if (string_equals(text, "alignof")) kind = TokenKind.ALIGNOF; else
+          if (string_equals(text, "declare")) kind = TokenKind.DECLARE; else
+          if (string_equals(text, "extends")) kind = TokenKind.EXTENDS; else
+          if (string_equals(text, "private")) kind = TokenKind.PRIVATE;
         }
 
         else {
-          if (String_equalNew(text, "continue")) kind = TokenKind.CONTINUE; else
-          if (String_equalNew(text, "function")) kind = TokenKind.FUNCTION; else
-          if (String_equalNew(text, "implements")) kind = TokenKind.IMPLEMENTS; else
-          if (String_equalNew(text, "interface")) kind = TokenKind.INTERFACE; else
-          if (String_equalNew(text, "protected")) kind = TokenKind.PROTECTED;
+          if (string_equals(text, "continue")) kind = TokenKind.CONTINUE; else
+          if (string_equals(text, "function")) kind = TokenKind.FUNCTION; else
+          if (string_equals(text, "implements")) kind = TokenKind.IMPLEMENTS; else
+          if (string_equals(text, "interface")) kind = TokenKind.INTERFACE; else
+          if (string_equals(text, "protected")) kind = TokenKind.PROTECTED;
         }
       }
     }
@@ -282,7 +282,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.INT;
 
       if (i < limit) {
-        var next = String_get(contents, i);
+        var next = string_get(contents, i);
         var base = 10;
 
         // Handle binary, octal, and hexadecimal prefixes
@@ -291,27 +291,27 @@ function tokenize(source: Source, log: Log): Token {
           else if (next == 'o' || next == 'O') base = 8;
           else if (next == 'x' || next == 'X') base = 16;
           if (base != 10) {
-            if (isDigit(String_get(contents, i + 1), base)) i = i + 2;
+            if (isDigit(string_get(contents, i + 1), base)) i = i + 2;
             else base = 10;
           }
         }
 
         // Scan the payload
-        while (i < limit && isDigit(String_get(contents, i), base)) {
+        while (i < limit && isDigit(string_get(contents, i), base)) {
           i = i + 1;
         }
 
         // Extra letters after the end is an error
-        if (i < limit && (isAlpha(String_get(contents, i)) || isNumber(String_get(contents, i)))) {
+        if (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
           i = i + 1;
 
-          while (i < limit && (isAlpha(String_get(contents, i)) || isNumber(String_get(contents, i)))) {
+          while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
             i = i + 1;
           }
 
-          log.error(createRange(source, start, i), String_appendNew(String_append(
+          log.error(createRange(source, start, i), String_appendNew(String_appendNew(
             String_new("Invalid integer literal: '"),
-            String_slice(contents, start, i)),
+            string_slice(contents, start, i)),
             "'"));
           return null;
         }
@@ -321,7 +321,7 @@ function tokenize(source: Source, log: Log): Token {
     // Character or string
     else if (c == '"' || c == '\'' || c == '`') {
       while (i < limit) {
-        var next = String_get(contents, i);
+        var next = string_get(contents, i);
 
         // Escape any character including newlines
         if (i + 1 < limit && next == '\\') {
@@ -377,10 +377,10 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.DIVIDE;
 
       // Single-line comments
-      if (i < limit && String_get(contents, i) == '/') {
+      if (i < limit && string_get(contents, i) == '/') {
         i = i + 1;
 
-        while (i < limit && String_get(contents, i) != '\n') {
+        while (i < limit && string_get(contents, i) != '\n') {
           i = i + 1;
         }
 
@@ -388,14 +388,14 @@ function tokenize(source: Source, log: Log): Token {
       }
 
       // Multi-line comments
-      if (i < limit && String_get(contents, i) == '*') {
+      if (i < limit && string_get(contents, i) == '*') {
         i = i + 1;
         var foundEnd = false;
 
         while (i < limit) {
-          var next = String_get(contents, i);
+          var next = string_get(contents, i);
 
-          if (next == '*' && i + 1 < limit && String_get(contents, i + 1) == '/') {
+          if (next == '*' && i + 1 < limit && string_get(contents, i + 1) == '/') {
             foundEnd = true;
             i = i + 2;
             break;
@@ -417,12 +417,12 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '!') {
       kind = TokenKind.NOT;
 
-      if (i < limit && String_get(contents, i) == '=') {
+      if (i < limit && string_get(contents, i) == '=') {
         kind = TokenKind.NOT_EQUAL;
         i = i + 1;
 
         // Recover from !==
-        if (i < limit && String_get(contents, i) == '=') {
+        if (i < limit && string_get(contents, i) == '=') {
           i = i + 1;
           log.error(createRange(source, start, i), String_new("Use '!=' instead of '!=='"));
         }
@@ -433,12 +433,12 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '=') {
       kind = TokenKind.ASSIGN;
 
-      if (i < limit && String_get(contents, i) == '=') {
+      if (i < limit && string_get(contents, i) == '=') {
         kind = TokenKind.EQUAL;
         i = i + 1;
 
         // Recover from ===
-        if (i < limit && String_get(contents, i) == '=') {
+        if (i < limit && string_get(contents, i) == '=') {
           i = i + 1;
           log.error(createRange(source, start, i), String_new("Use '==' instead of '==='"));
         }
@@ -449,7 +449,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '+') {
       kind = TokenKind.PLUS;
 
-      if (i < limit && String_get(contents, i) == '+') {
+      if (i < limit && string_get(contents, i) == '+') {
         kind = TokenKind.PLUS_PLUS;
         i = i + 1;
       }
@@ -459,7 +459,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '-') {
       kind = TokenKind.MINUS;
 
-      if (i < limit && String_get(contents, i) == '-') {
+      if (i < limit && string_get(contents, i) == '-') {
         kind = TokenKind.MINUS_MINUS;
         i = i + 1;
       }
@@ -469,7 +469,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '&') {
       kind = TokenKind.BITWISE_AND;
 
-      if (i < limit && String_get(contents, i) == '&') {
+      if (i < limit && string_get(contents, i) == '&') {
         kind = TokenKind.LOGICAL_AND;
         i = i + 1;
       }
@@ -479,7 +479,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '|') {
       kind = TokenKind.BITWISE_OR;
 
-      if (i < limit && String_get(contents, i) == '|') {
+      if (i < limit && string_get(contents, i) == '|') {
         kind = TokenKind.LOGICAL_OR;
         i = i + 1;
       }
@@ -490,7 +490,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.LESS_THAN;
 
       if (i < limit) {
-        c = String_get(contents, i);
+        c = string_get(contents, i);
 
         if (c == '<') {
           kind = TokenKind.SHIFT_LEFT;
@@ -509,7 +509,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.GREATER_THAN;
 
       if (i < limit) {
-        c = String_get(contents, i);
+        c = string_get(contents, i);
 
         if (c == '>') {
           kind = TokenKind.SHIFT_RIGHT;
@@ -526,12 +526,10 @@ function tokenize(source: Source, log: Log): Token {
     var range = createRange(source, start, i);
 
     if (kind == TokenKind.END_OF_FILE) {
-      log.error(range,
-        String_appendNew(
-          String_append(
-            String_new("Syntax error: '"),
-            String_slice(contents, start, start + 1)),
-          "'"));
+      log.error(range, String_appendNew(String_appendNew(
+        String_new("Syntax error: '"),
+        string_slice(contents, start, start + 1)),
+        "'"));
       return null;
     }
 

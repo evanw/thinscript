@@ -1170,7 +1170,7 @@ Compiler.prototype.initialize = function(target) {
   this.target = target;
 
   if (target === 2) {
-    this.addInput(globals.String_new("<native>"), globals.String_new(libraryForWebAssembly()));
+    this.addInput("<native>", libraryForWebAssembly());
   }
 };
 
@@ -2291,12 +2291,12 @@ function tokenize(source, log) {
   var first = null;
   var last = null;
   var contents = source.contents;
-  var limit = globals.String_length(contents);
+  var limit = globals.string_length(contents);
   var i = 0;
 
   while (i < limit) {
     var start = i;
-    var c = globals.String_get(contents, i);
+    var c = globals.string_get(contents, i);
     i = i + 1 | 0;
 
     if (c === 32 || c === 9 || c === 13 || c === 10) {
@@ -2308,152 +2308,152 @@ function tokenize(source, log) {
     if (isAlpha(c)) {
       kind = 2;
 
-      while (i < limit && (isAlpha(globals.String_get(contents, i)) || isNumber(globals.String_get(contents, i)))) {
+      while (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
         i = i + 1 | 0;
       }
 
       var length = i - start | 0;
 
       if (length >= 2 && length <= 10) {
-        var text = globals.String_slice(contents, start, i);
+        var text = globals.string_slice(contents, start, i);
 
         if (length === 2) {
-          if (globals.String_equalNew(text, "as")) {
+          if (globals.string_equals(text, "as")) {
             kind = 40;
           }
 
-          else if (globals.String_equalNew(text, "if")) {
+          else if (globals.string_equals(text, "if")) {
             kind = 53;
           }
         }
 
         else if (length === 3) {
-          if (globals.String_equalNew(text, "let")) {
+          if (globals.string_equals(text, "let")) {
             kind = 57;
           }
 
-          else if (globals.String_equalNew(text, "new")) {
+          else if (globals.string_equals(text, "new")) {
             kind = 58;
           }
 
-          else if (globals.String_equalNew(text, "var")) {
+          else if (globals.string_equals(text, "var")) {
             kind = 70;
           }
         }
 
         else if (length === 4) {
-          if (globals.String_equalNew(text, "else")) {
+          if (globals.string_equals(text, "else")) {
             kind = 46;
           }
 
-          else if (globals.String_equalNew(text, "enum")) {
+          else if (globals.string_equals(text, "enum")) {
             kind = 47;
           }
 
-          else if (globals.String_equalNew(text, "null")) {
+          else if (globals.string_equals(text, "null")) {
             kind = 59;
           }
 
-          else if (globals.String_equalNew(text, "this")) {
+          else if (globals.string_equals(text, "this")) {
             kind = 67;
           }
 
-          else if (globals.String_equalNew(text, "true")) {
+          else if (globals.string_equals(text, "true")) {
             kind = 68;
           }
         }
 
         else if (length === 5) {
-          if (globals.String_equalNew(text, "break")) {
+          if (globals.string_equals(text, "break")) {
             kind = 41;
           }
 
-          else if (globals.String_equalNew(text, "class")) {
+          else if (globals.string_equals(text, "class")) {
             kind = 42;
           }
 
-          else if (globals.String_equalNew(text, "const")) {
+          else if (globals.string_equals(text, "const")) {
             kind = 43;
           }
 
-          else if (globals.String_equalNew(text, "false")) {
+          else if (globals.string_equals(text, "false")) {
             kind = 51;
           }
 
-          else if (globals.String_equalNew(text, "while")) {
+          else if (globals.string_equals(text, "while")) {
             kind = 71;
           }
         }
 
         else if (length === 6) {
-          if (globals.String_equalNew(text, "export")) {
+          if (globals.string_equals(text, "export")) {
             kind = 48;
           }
 
-          else if (globals.String_equalNew(text, "extern")) {
+          else if (globals.string_equals(text, "extern")) {
             kind = 50;
           }
 
-          else if (globals.String_equalNew(text, "import")) {
+          else if (globals.string_equals(text, "import")) {
             kind = 55;
           }
 
-          else if (globals.String_equalNew(text, "public")) {
+          else if (globals.string_equals(text, "public")) {
             kind = 63;
           }
 
-          else if (globals.String_equalNew(text, "return")) {
+          else if (globals.string_equals(text, "return")) {
             kind = 64;
           }
 
-          else if (globals.String_equalNew(text, "sizeof")) {
+          else if (globals.string_equals(text, "sizeof")) {
             kind = 65;
           }
 
-          else if (globals.String_equalNew(text, "static")) {
+          else if (globals.string_equals(text, "static")) {
             kind = 66;
           }
 
-          else if (globals.String_equalNew(text, "unsafe")) {
+          else if (globals.string_equals(text, "unsafe")) {
             kind = 69;
           }
         }
 
         else if (length === 7) {
-          if (globals.String_equalNew(text, "alignof")) {
+          if (globals.string_equals(text, "alignof")) {
             kind = 39;
           }
 
-          else if (globals.String_equalNew(text, "declare")) {
+          else if (globals.string_equals(text, "declare")) {
             kind = 45;
           }
 
-          else if (globals.String_equalNew(text, "extends")) {
+          else if (globals.string_equals(text, "extends")) {
             kind = 49;
           }
 
-          else if (globals.String_equalNew(text, "private")) {
+          else if (globals.string_equals(text, "private")) {
             kind = 61;
           }
         }
 
-        else if (globals.String_equalNew(text, "continue")) {
+        else if (globals.string_equals(text, "continue")) {
           kind = 44;
         }
 
-        else if (globals.String_equalNew(text, "function")) {
+        else if (globals.string_equals(text, "function")) {
           kind = 52;
         }
 
-        else if (globals.String_equalNew(text, "implements")) {
+        else if (globals.string_equals(text, "implements")) {
           kind = 54;
         }
 
-        else if (globals.String_equalNew(text, "interface")) {
+        else if (globals.string_equals(text, "interface")) {
           kind = 56;
         }
 
-        else if (globals.String_equalNew(text, "protected")) {
+        else if (globals.string_equals(text, "protected")) {
           kind = 62;
         }
       }
@@ -2463,7 +2463,7 @@ function tokenize(source, log) {
       kind = 3;
 
       if (i < limit) {
-        var next = globals.String_get(contents, i);
+        var next = globals.string_get(contents, i);
         var base = 10;
 
         if (c === 48 && (i + 1 | 0) < limit) {
@@ -2480,7 +2480,7 @@ function tokenize(source, log) {
           }
 
           if (base !== 10) {
-            if (isDigit(globals.String_get(contents, i + 1 | 0), base)) {
+            if (isDigit(globals.string_get(contents, i + 1 | 0), base)) {
               i = i + 2 | 0;
             }
 
@@ -2490,18 +2490,18 @@ function tokenize(source, log) {
           }
         }
 
-        while (i < limit && isDigit(globals.String_get(contents, i), base)) {
+        while (i < limit && isDigit(globals.string_get(contents, i), base)) {
           i = i + 1 | 0;
         }
 
-        if (i < limit && (isAlpha(globals.String_get(contents, i)) || isNumber(globals.String_get(contents, i)))) {
+        if (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
           i = i + 1 | 0;
 
-          while (i < limit && (isAlpha(globals.String_get(contents, i)) || isNumber(globals.String_get(contents, i)))) {
+          while (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
             i = i + 1 | 0;
           }
 
-          log.error(createRange(source, start, i), globals.String_appendNew(globals.String_append(globals.String_new("Invalid integer literal: '"), globals.String_slice(contents, start, i)), "'"));
+          log.error(createRange(source, start, i), globals.String_appendNew(globals.String_appendNew(globals.String_new("Invalid integer literal: '"), globals.string_slice(contents, start, i)), "'"));
 
           return null;
         }
@@ -2510,7 +2510,7 @@ function tokenize(source, log) {
 
     else if (c === 34 || c === 39 || c === 96) {
       while (i < limit) {
-        var next = globals.String_get(contents, i);
+        var next = globals.string_get(contents, i);
 
         if ((i + 1 | 0) < limit && next === 92) {
           i = i + 2 | 0;
@@ -2601,24 +2601,24 @@ function tokenize(source, log) {
     else if (c === 47) {
       kind = 12;
 
-      if (i < limit && globals.String_get(contents, i) === 47) {
+      if (i < limit && globals.string_get(contents, i) === 47) {
         i = i + 1 | 0;
 
-        while (i < limit && globals.String_get(contents, i) !== 10) {
+        while (i < limit && globals.string_get(contents, i) !== 10) {
           i = i + 1 | 0;
         }
 
         continue;
       }
 
-      if (i < limit && globals.String_get(contents, i) === 42) {
+      if (i < limit && globals.string_get(contents, i) === 42) {
         i = i + 1 | 0;
         var foundEnd = false;
 
         while (i < limit) {
-          var next = globals.String_get(contents, i);
+          var next = globals.string_get(contents, i);
 
-          if (next === 42 && (i + 1 | 0) < limit && globals.String_get(contents, i + 1 | 0) === 47) {
+          if (next === 42 && (i + 1 | 0) < limit && globals.string_get(contents, i + 1 | 0) === 47) {
             foundEnd = true;
             i = i + 2 | 0;
 
@@ -2641,11 +2641,11 @@ function tokenize(source, log) {
     else if (c === 33) {
       kind = 27;
 
-      if (i < limit && globals.String_get(contents, i) === 61) {
+      if (i < limit && globals.string_get(contents, i) === 61) {
         kind = 28;
         i = i + 1 | 0;
 
-        if (i < limit && globals.String_get(contents, i) === 61) {
+        if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
           log.error(createRange(source, start, i), globals.String_new("Use '!=' instead of '!=='"));
         }
@@ -2655,11 +2655,11 @@ function tokenize(source, log) {
     else if (c === 61) {
       kind = 5;
 
-      if (i < limit && globals.String_get(contents, i) === 61) {
+      if (i < limit && globals.string_get(contents, i) === 61) {
         kind = 14;
         i = i + 1 | 0;
 
-        if (i < limit && globals.String_get(contents, i) === 61) {
+        if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
           log.error(createRange(source, start, i), globals.String_new("Use '==' instead of '==='"));
         }
@@ -2669,7 +2669,7 @@ function tokenize(source, log) {
     else if (c === 43) {
       kind = 29;
 
-      if (i < limit && globals.String_get(contents, i) === 43) {
+      if (i < limit && globals.string_get(contents, i) === 43) {
         kind = 30;
         i = i + 1 | 0;
       }
@@ -2678,7 +2678,7 @@ function tokenize(source, log) {
     else if (c === 45) {
       kind = 24;
 
-      if (i < limit && globals.String_get(contents, i) === 45) {
+      if (i < limit && globals.string_get(contents, i) === 45) {
         kind = 25;
         i = i + 1 | 0;
       }
@@ -2687,7 +2687,7 @@ function tokenize(source, log) {
     else if (c === 38) {
       kind = 6;
 
-      if (i < limit && globals.String_get(contents, i) === 38) {
+      if (i < limit && globals.string_get(contents, i) === 38) {
         kind = 22;
         i = i + 1 | 0;
       }
@@ -2696,7 +2696,7 @@ function tokenize(source, log) {
     else if (c === 124) {
       kind = 7;
 
-      if (i < limit && globals.String_get(contents, i) === 124) {
+      if (i < limit && globals.string_get(contents, i) === 124) {
         kind = 23;
         i = i + 1 | 0;
       }
@@ -2706,7 +2706,7 @@ function tokenize(source, log) {
       kind = 20;
 
       if (i < limit) {
-        c = globals.String_get(contents, i);
+        c = globals.string_get(contents, i);
 
         if (c === 60) {
           kind = 37;
@@ -2724,7 +2724,7 @@ function tokenize(source, log) {
       kind = 15;
 
       if (i < limit) {
-        c = globals.String_get(contents, i);
+        c = globals.string_get(contents, i);
 
         if (c === 62) {
           kind = 38;
@@ -2741,7 +2741,7 @@ function tokenize(source, log) {
     var range = createRange(source, start, i);
 
     if (kind === 0) {
-      log.error(range, globals.String_appendNew(globals.String_append(globals.String_new("Syntax error: '"), globals.String_slice(contents, start, start + 1 | 0)), "'"));
+      log.error(range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Syntax error: '"), globals.string_slice(contents, start, start + 1 | 0)), "'"));
 
       return null;
     }
@@ -2796,7 +2796,7 @@ function Range() {
 }
 
 Range.prototype.toString = function() {
-  return globals.String_slice(this.source.contents, this.start, this.end);
+  return globals.string_slice(this.source.contents, this.start, this.end);
 };
 
 Range.prototype.equals = function(other) {
@@ -2808,13 +2808,13 @@ Range.prototype.enclosingLine = function() {
   var start = this.start;
   var end = this.start;
 
-  while (start > 0 && globals.String_get(contents, start - 1 | 0) !== 10) {
+  while (start > 0 && globals.string_get(contents, start - 1 | 0) !== 10) {
     start = start - 1 | 0;
   }
 
-  var length = globals.String_length(contents);
+  var length = globals.string_length(contents);
 
-  while ((end + 1 | 0) < length && globals.String_get(contents, end) !== 10) {
+  while ((end + 1 | 0) < length && globals.string_get(contents, end) !== 10) {
     end = end + 1 | 0;
   }
 
@@ -2879,14 +2879,14 @@ Log.prototype.toString = function() {
     var i = 0;
 
     while (i < lineRange.start) {
-      if (globals.String_get(lineRange.source.contents, i) === 10) {
+      if (globals.string_get(lineRange.source.contents, i) === 10) {
         line = line + 1 | 0;
       }
 
       i = i + 1 | 0;
     }
 
-    result = globals.String_append(result, d.range.source.name);
+    result = globals.String_appendNew(result, d.range.source.name);
     result = globals.String_appendNew(result, ":");
     result = globals.String_append(result, globals.String_toStringSigned(line + 1 | 0));
     result = globals.String_appendNew(result, ":");
@@ -2894,7 +2894,7 @@ Log.prototype.toString = function() {
     result = globals.String_appendNew(result, ": error: ");
     result = globals.String_append(result, d.message);
     result = globals.String_appendNew(result, "\n");
-    result = globals.String_append(result, lineRange.toString());
+    result = globals.String_appendNew(result, lineRange.toString());
     result = globals.String_appendNew(result, "\n");
     i = 0;
 
@@ -3796,35 +3796,35 @@ ParserContext.prototype.parseUnaryPostfix = function(kind, value, localPrecedenc
 
 ParserContext.prototype.parseQuotedString = function(range) {
   globals.assert((range.end - range.start | 0) >= 2);
-  var text = range.toString();
-  var end = 1;
-  var limit = globals.String_length(text) - 1 | 0;
+  var text = range.source.contents;
+  var end = range.start + 1 | 0;
+  var limit = range.end - 1 | 0;
   var start = end;
-  var result = globals.String_new("");
+  var builder = StringBuilder_new();
 
   while (end < limit) {
-    var c = globals.String_get(text, end);
+    var c = globals.string_get(text, end);
 
     if (c === 92) {
-      result = globals.String_append(result, globals.String_slice(text, start, end));
+      builder.appendSlice(text, start, end);
       end = end + 1 | 0;
       start = end + 1 | 0;
-      c = globals.String_get(text, end);
+      c = globals.string_get(text, end);
 
       if (c === 48) {
-        result = globals.String_appendNew(result, "\u0000");
+        builder.appendChar(0);
       }
 
       else if (c === 116) {
-        result = globals.String_appendNew(result, "\t");
+        builder.appendChar(9);
       }
 
       else if (c === 110) {
-        result = globals.String_appendNew(result, "\n");
+        builder.appendChar(10);
       }
 
       else if (c === 114) {
-        result = globals.String_appendNew(result, "\r");
+        builder.appendChar(13);
       }
 
       else if (c === 34 || c === 39 || c === 96 || c === 10 || c === 92) {
@@ -3833,7 +3833,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
 
       else {
         var escape = createRange(range.source, (range.start + end | 0) - 1 | 0, (range.start + end | 0) + 1 | 0);
-        this.log.error(escape, globals.String_append(globals.String_append(globals.String_new("Invalid escape code '"), escape.toString()), globals.String_new("'")));
+        this.log.error(escape, globals.String_append(globals.String_appendNew(globals.String_new("Invalid escape code '"), escape.toString()), globals.String_new("'")));
 
         return null;
       }
@@ -3842,17 +3842,16 @@ ParserContext.prototype.parseQuotedString = function(range) {
     end = end + 1 | 0;
   }
 
-  return globals.String_append(result, globals.String_slice(text, start, end));
+  return builder.appendSlice(text, start, end).finish();
 };
 
 ParserContext.prototype.parsePrefix = function(mode) {
   var token = this.current;
 
   if (this.peek(2)) {
-    var value = token.range.toString();
     this.advance();
 
-    return createName(value).withRange(token.range);
+    return createName(globals.String_new(token.range.toString())).withRange(token.range);
   }
 
   if (mode === 0) {
@@ -3873,13 +3872,13 @@ ParserContext.prototype.parsePrefix = function(mode) {
 
       this.advance();
 
-      if (globals.String_length(text) !== 1) {
+      if (globals.string_length(text) !== 1) {
         this.log.error(token.range, globals.String_new("Invalid character literal (strings use double quotes)"));
 
         return createParseError().withRange(token.range);
       }
 
-      return createInt(globals.String_get(text, 0)).withRange(token.range);
+      return createInt(globals.string_get(text, 0)).withRange(token.range);
     }
 
     if (this.peek(4)) {
@@ -3891,7 +3890,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
 
       this.advance();
 
-      return createString(text).withRange(token.range);
+      return createString(globals.String_new(text)).withRange(token.range);
     }
 
     if (this.peek(3)) {
@@ -4020,7 +4019,7 @@ ParserContext.prototype.parseInfix = function(precedence, node, mode) {
       range = createRange(range.source, token.end, token.end);
     }
 
-    return createDot(node, range.toString()).withRange(spanRanges(node.range, range)).withInternalRange(range);
+    return createDot(node, globals.String_new(range.toString())).withRange(spanRanges(node.range, range)).withInternalRange(range);
   }
 
   if (mode === 0) {
@@ -4366,7 +4365,7 @@ ParserContext.prototype.parseEnum = function(firstFlag) {
     return null;
   }
 
-  var text = name.range.toString();
+  var text = globals.String_new(name.range.toString());
   var node = createEnum(text);
   node.firstFlag = firstFlag;
   node.flags = allFlags(firstFlag);
@@ -4387,7 +4386,7 @@ ParserContext.prototype.parseEnum = function(firstFlag) {
       }
     }
 
-    var variable = createVariable(member.toString(), createName(text), value);
+    var variable = createVariable(globals.String_new(member.toString()), createName(text), value);
     node.appendChild(variable.withRange(value !== null ? spanRanges(member, value.range) : member).withInternalRange(member));
 
     if (this.peek(36)) {
@@ -4423,7 +4422,7 @@ ParserContext.prototype.parseClass = function(firstFlag) {
     return null;
   }
 
-  var node = createClass(name.range.toString());
+  var node = createClass(globals.String_new(name.range.toString()));
   node.firstFlag = firstFlag;
   node.flags = allFlags(firstFlag);
 
@@ -4443,7 +4442,7 @@ ParserContext.prototype.parseClass = function(firstFlag) {
 
     var text = childName.range.toString();
 
-    if (globals.String_equalNew(text, "operator") && this.peek(18)) {
+    if (globals.string_equals(text, "operator") && this.peek(18)) {
       childName.kind = 60;
       this.current = childName;
 
@@ -4455,8 +4454,8 @@ ParserContext.prototype.parseClass = function(firstFlag) {
     }
 
     else if (this.peek(2)) {
-      var isGet = globals.String_equalNew(text, "get");
-      var isSet = globals.String_equalNew(text, "set");
+      var isGet = globals.string_equals(text, "get");
+      var isSet = globals.string_equals(text, "set");
 
       if (isGet || isSet) {
         childFlags = appendFlag(childFlags, isGet ? 8 : 128, childName.range);
@@ -4471,7 +4470,7 @@ ParserContext.prototype.parseClass = function(firstFlag) {
       }
 
       else if (oldKind === 43 || oldKind === 57 || oldKind === 70) {
-        this.log.error(childName.range, globals.String_appendNew(globals.String_append(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
+        this.log.error(childName.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
         childName = this.current;
         this.advance();
       }
@@ -4517,13 +4516,13 @@ ParserContext.prototype.parseFunction = function(firstFlag, parent) {
 
     if (this.peek(5)) {
       nameRange = spanRanges(token.range, this.current.range);
-      name = globals.String_new("[]=");
+      name = "[]=";
       this.advance();
     }
 
     else {
       nameRange = spanRanges(token.range, end.range);
-      name = globals.String_new("[]");
+      name = "[]";
     }
   }
 
@@ -4546,7 +4545,7 @@ ParserContext.prototype.parseFunction = function(firstFlag, parent) {
     return null;
   }
 
-  var node = createFunction(name);
+  var node = createFunction(globals.String_new(name));
   node.firstFlag = firstFlag;
   node.flags = allFlags(firstFlag);
 
@@ -4582,7 +4581,7 @@ ParserContext.prototype.parseFunction = function(firstFlag, parent) {
         type = createParseError();
       }
 
-      var variable = createVariable(argument.range.toString(), type, null);
+      var variable = createVariable(globals.String_new(argument.range.toString()), type, null);
       variable.firstFlag = firstArgumentFlag;
       variable.flags = allFlags(firstArgumentFlag);
       node.appendChild(variable.withRange(range).withInternalRange(argument.range));
@@ -4688,7 +4687,7 @@ ParserContext.prototype.parseVariables = function(firstFlag, parent) {
     }
 
     var range = value !== null ? spanRanges(name.range, value.range) : type !== null ? spanRanges(name.range, type.range) : name.range;
-    var variable = createVariable(name.range.toString(), type, value);
+    var variable = createVariable(globals.String_new(name.range.toString()), type, value);
     variable.firstFlag = firstFlag;
     variable.flags = allFlags(firstFlag);
     (parent !== null ? parent : node).appendChild(variable.withRange(range).withInternalRange(name.range));
@@ -4873,13 +4872,14 @@ ParserContext.prototype.parseStatements = function(parent) {
 
 ParserContext.prototype.parseInt = function(range, node) {
   var source = range.source;
+  var contents = source.contents;
   var i = range.start;
   var limit = range.end;
   var value = 0;
   var base = 10;
 
-  if (globals.String_get(source.contents, i) === 48 && (i + 1 | 0) < limit) {
-    var c = globals.String_get(source.contents, i + 1 | 0);
+  if (globals.string_get(contents, i) === 48 && (i + 1 | 0) < limit) {
+    var c = globals.string_get(contents, i + 1 | 0);
 
     if (c === 98 || c === 66) {
       base = 2;
@@ -4905,7 +4905,7 @@ ParserContext.prototype.parseInt = function(range, node) {
   }
 
   while (i < limit) {
-    var c = globals.String_get(source.contents, i);
+    var c = globals.string_get(contents, i);
     var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
     var baseValue = __imul(value, base) >>> 0;
 
@@ -5019,6 +5019,58 @@ Scope.prototype.defineNativeIntegerType = function(log, name, byteSizeAndMaxAlig
 
   return type;
 };
+
+function StringBuilder() {
+  this.next = null;
+  this._text = null;
+}
+
+StringBuilder.prototype.clear = function() {
+  this._text = "";
+};
+
+StringBuilder.prototype.appendChar = function(c) {
+  this._text = globals.StringBuilder_appendChar(this._text, c);
+
+  return this;
+};
+
+StringBuilder.prototype.appendSlice = function(text, start, end) {
+  this._text = globals.StringBuilder_append(this._text, globals.string_slice(text, start, end));
+
+  return this;
+};
+
+StringBuilder.prototype.append = function(text) {
+  this._text = globals.StringBuilder_append(this._text, text);
+
+  return this;
+};
+
+StringBuilder.prototype.finish = function() {
+  this.next = stringBuilderPool;
+  stringBuilderPool = this;
+
+  return this._text;
+};
+
+var stringBuilderPool = null;
+
+function StringBuilder_new() {
+  var sb = stringBuilderPool;
+
+  if (sb !== null) {
+    stringBuilderPool = sb.next;
+  }
+
+  else {
+    sb = new StringBuilder();
+  }
+
+  sb.clear();
+
+  return sb;
+}
 
 function isType(kind) {
   return kind >= 0 && kind <= 3;
