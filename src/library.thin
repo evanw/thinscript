@@ -1,9 +1,8 @@
 function libraryForWebAssembly(): string {
   return `
-// Casting to this enables writing to arbitrary locations in memory
-unsafe class UBytePtr {
-  value: ubyte;
-}
+// Cast to these to read from and write to arbitrary locations in memory
+unsafe class UBytePtr { value: ubyte; }
+unsafe class IntPtr { value: int; }
 
 // These will be filled in by the WebAssembly code generator
 unsafe var currentHeapPointer: uint = 0;

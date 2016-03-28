@@ -7,6 +7,10 @@ class ByteArray {
     return this._length as int;
   }
 
+  clear(): void {
+    this._length = 0;
+  }
+
   get(index: int): ubyte {
     assert((index as uint) < this._length);
     unsafe {
@@ -24,28 +28,20 @@ class ByteArray {
   append(value: ubyte): void {
     var offset = this._length;
     unsafe {
-      this._resize(offset + 1);
+      this.resize(offset + 1);
       ((this._data + offset) as UBytePtr).value = value;
     }
   }
 
-  unsafe _resize(length: uint): void {
+  resize(length: uint): void {
     if (length > this._capacity) {
-      var capacity = length * 2;
-      var data = malloc(capacity);
-      var source = this._data;
-      var limit = this._length;
-      var i: uint = 0;
-
-      // Copy the old bytes over
-      while (i < limit) {
-        ((data + i) as UBytePtr).value = ((source + i) as UBytePtr).value;
-        i = i + 1;
+      unsafe {
+        var capacity = length * 2;
+        var data = malloc(capacity);
+        memcpy(data, this._data, this._length);
+        this._capacity = capacity;
+        this._data = data;
       }
-
-      // Swap in the new bytes
-      this._capacity = capacity;
-      this._data = data;
     }
 
     this._length = length;

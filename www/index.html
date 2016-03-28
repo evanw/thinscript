@@ -460,7 +460,7 @@
       var wasm = exports.Compiler_wasm(compiler);
 
       return {
-        wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
+        wasm: wasm ? wasm.bytes() : null,
         log: exports.Compiler_log(compiler),
         js: exports.Compiler_js(compiler),
       };

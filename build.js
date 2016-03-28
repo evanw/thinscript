@@ -91,7 +91,7 @@ function compileAndRunJavaScript(code, sources, target) {
   var after = Date.now();
   console.log('compile to', target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly', 'took ' + (after - before) + 'ms');
   return {
-    wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
+    wasm: wasm ? wasm.bytes() : null,
     log: exports.Compiler_log(compiler),
     js: exports.Compiler_js(compiler),
   };

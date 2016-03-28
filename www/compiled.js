@@ -7,6 +7,10 @@ ByteArray.prototype.length = function() {
   return this._length;
 };
 
+ByteArray.prototype.clear = function() {
+  this._length = 0;
+};
+
 ByteArray.prototype.get = function(index) {
   globals.assert(index >>> 0 < this._length >>> 0);
 
@@ -20,21 +24,21 @@ ByteArray.prototype.set = function(index, value) {
 
 ByteArray.prototype.append = function(value) {
   var index = this._length;
-  this._resize(index + 1 | 0);
+  this.resize(index + 1 | 0);
   this._data[index] = value;
 };
 
-ByteArray.prototype._resize = function(length) {
+ByteArray.prototype.bytes = function() {
+  return this._data.subarray(0, this._length);
+};
+
+ByteArray.prototype.resize = function(length) {
   if (length > (this._data !== null ? this._data.length : 0)) {
     var capacity = length << 1;
     var data = globals.Uint8Array_new(capacity);
-    var source = this._data;
-    var limit = this._length;
-    var i = 0;
 
-    while (i < limit) {
-      data[i] = source[i];
-      i = i + 1 | 0;
+    if (this._data !== null) {
+      data.set(this._data);
     }
 
     this._data = data;
@@ -2759,7 +2763,7 @@ function tokenize(source, log) {
 }
 
 function libraryForWebAssembly() {
-  return "\n// Casting to this enables writing to arbitrary locations in memory\nunsafe class UBytePtr {\n  value: ubyte;\n}\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  currentHeapPointer = offset + sizeOf;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (sizeOf != 0) {\n    (ptr as UBytePtr).value = 0;\n    sizeOf = sizeOf - 1;\n    ptr = ptr + 1;\n  }\n\n  return offset;\n}\n";
+  return "\n// Cast to these to read from and write to arbitrary locations in memory\nunsafe class UBytePtr { value: ubyte; }\nunsafe class IntPtr { value: int; }\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  currentHeapPointer = offset + sizeOf;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (sizeOf != 0) {\n    (ptr as UBytePtr).value = 0;\n    sizeOf = sizeOf - 1;\n    ptr = ptr + 1;\n  }\n\n  return offset;\n}\n";
 }
 
 function Source() {
