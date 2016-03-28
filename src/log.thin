@@ -32,7 +32,8 @@ class Range {
       start = start - 1;
     }
 
-    while (end + 1 < String_length(contents) && String_get(contents, end) != '\n') {
+    var length = String_length(contents);
+    while (end + 1 < length && String_get(contents, end) != '\n') {
       end = end + 1;
     }
 

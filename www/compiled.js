@@ -2312,134 +2312,150 @@ function tokenize(source, log) {
         i = i + 1 | 0;
       }
 
-      var text = globals.String_slice(contents, start, i);
+      var length = i - start | 0;
 
-      if (globals.String_equalNew(text, "alignof")) {
-        kind = 39;
-      }
+      if (length >= 2 && length <= 10) {
+        var text = globals.String_slice(contents, start, i);
 
-      else if (globals.String_equalNew(text, "as")) {
-        kind = 40;
-      }
+        if (length === 2) {
+          if (globals.String_equalNew(text, "as")) {
+            kind = 40;
+          }
 
-      else if (globals.String_equalNew(text, "break")) {
-        kind = 41;
-      }
+          else if (globals.String_equalNew(text, "if")) {
+            kind = 53;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "class")) {
-        kind = 42;
-      }
+        else if (length === 3) {
+          if (globals.String_equalNew(text, "let")) {
+            kind = 57;
+          }
 
-      else if (globals.String_equalNew(text, "const")) {
-        kind = 43;
-      }
+          else if (globals.String_equalNew(text, "new")) {
+            kind = 58;
+          }
 
-      else if (globals.String_equalNew(text, "continue")) {
-        kind = 44;
-      }
+          else if (globals.String_equalNew(text, "var")) {
+            kind = 70;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "declare")) {
-        kind = 45;
-      }
+        else if (length === 4) {
+          if (globals.String_equalNew(text, "else")) {
+            kind = 46;
+          }
 
-      else if (globals.String_equalNew(text, "else")) {
-        kind = 46;
-      }
+          else if (globals.String_equalNew(text, "enum")) {
+            kind = 47;
+          }
 
-      else if (globals.String_equalNew(text, "enum")) {
-        kind = 47;
-      }
+          else if (globals.String_equalNew(text, "null")) {
+            kind = 59;
+          }
 
-      else if (globals.String_equalNew(text, "export")) {
-        kind = 48;
-      }
+          else if (globals.String_equalNew(text, "this")) {
+            kind = 67;
+          }
 
-      else if (globals.String_equalNew(text, "extends")) {
-        kind = 49;
-      }
+          else if (globals.String_equalNew(text, "true")) {
+            kind = 68;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "extern")) {
-        kind = 50;
-      }
+        else if (length === 5) {
+          if (globals.String_equalNew(text, "break")) {
+            kind = 41;
+          }
 
-      else if (globals.String_equalNew(text, "false")) {
-        kind = 51;
-      }
+          else if (globals.String_equalNew(text, "class")) {
+            kind = 42;
+          }
 
-      else if (globals.String_equalNew(text, "function")) {
-        kind = 52;
-      }
+          else if (globals.String_equalNew(text, "const")) {
+            kind = 43;
+          }
 
-      else if (globals.String_equalNew(text, "if")) {
-        kind = 53;
-      }
+          else if (globals.String_equalNew(text, "false")) {
+            kind = 51;
+          }
 
-      else if (globals.String_equalNew(text, "implements")) {
-        kind = 54;
-      }
+          else if (globals.String_equalNew(text, "while")) {
+            kind = 71;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "import")) {
-        kind = 55;
-      }
+        else if (length === 6) {
+          if (globals.String_equalNew(text, "export")) {
+            kind = 48;
+          }
 
-      else if (globals.String_equalNew(text, "interface")) {
-        kind = 56;
-      }
+          else if (globals.String_equalNew(text, "extern")) {
+            kind = 50;
+          }
 
-      else if (globals.String_equalNew(text, "let")) {
-        kind = 57;
-      }
+          else if (globals.String_equalNew(text, "import")) {
+            kind = 55;
+          }
 
-      else if (globals.String_equalNew(text, "new")) {
-        kind = 58;
-      }
+          else if (globals.String_equalNew(text, "public")) {
+            kind = 63;
+          }
 
-      else if (globals.String_equalNew(text, "null")) {
-        kind = 59;
-      }
+          else if (globals.String_equalNew(text, "return")) {
+            kind = 64;
+          }
 
-      else if (globals.String_equalNew(text, "private")) {
-        kind = 61;
-      }
+          else if (globals.String_equalNew(text, "sizeof")) {
+            kind = 65;
+          }
 
-      else if (globals.String_equalNew(text, "protected")) {
-        kind = 62;
-      }
+          else if (globals.String_equalNew(text, "static")) {
+            kind = 66;
+          }
 
-      else if (globals.String_equalNew(text, "public")) {
-        kind = 63;
-      }
+          else if (globals.String_equalNew(text, "unsafe")) {
+            kind = 69;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "return")) {
-        kind = 64;
-      }
+        else if (length === 7) {
+          if (globals.String_equalNew(text, "alignof")) {
+            kind = 39;
+          }
 
-      else if (globals.String_equalNew(text, "sizeof")) {
-        kind = 65;
-      }
+          else if (globals.String_equalNew(text, "declare")) {
+            kind = 45;
+          }
 
-      else if (globals.String_equalNew(text, "static")) {
-        kind = 66;
-      }
+          else if (globals.String_equalNew(text, "extends")) {
+            kind = 49;
+          }
 
-      else if (globals.String_equalNew(text, "this")) {
-        kind = 67;
-      }
+          else if (globals.String_equalNew(text, "private")) {
+            kind = 61;
+          }
+        }
 
-      else if (globals.String_equalNew(text, "true")) {
-        kind = 68;
-      }
+        else if (globals.String_equalNew(text, "continue")) {
+          kind = 44;
+        }
 
-      else if (globals.String_equalNew(text, "unsafe")) {
-        kind = 69;
-      }
+        else if (globals.String_equalNew(text, "function")) {
+          kind = 52;
+        }
 
-      else if (globals.String_equalNew(text, "var")) {
-        kind = 70;
-      }
+        else if (globals.String_equalNew(text, "implements")) {
+          kind = 54;
+        }
 
-      else if (globals.String_equalNew(text, "while")) {
-        kind = 71;
+        else if (globals.String_equalNew(text, "interface")) {
+          kind = 56;
+        }
+
+        else if (globals.String_equalNew(text, "protected")) {
+          kind = 62;
+        }
       }
     }
 
@@ -2796,7 +2812,9 @@ Range.prototype.enclosingLine = function() {
     start = start - 1 | 0;
   }
 
-  while ((end + 1 | 0) < globals.String_length(contents) && globals.String_get(contents, end) !== 10) {
+  var length = globals.String_length(contents);
+
+  while ((end + 1 | 0) < length && globals.String_get(contents, end) !== 10) {
     end = end + 1 | 0;
   }
 
