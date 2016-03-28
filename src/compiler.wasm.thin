@@ -23,7 +23,7 @@ unsafe function memcpy(target: uint, source: uint, length: uint): void {
     // Zip over the middle
     var end = target + length;
     while (target < end) {
-      (target as IntPtr).value = (source as IntPtr).value;
+      (target as UIntPtr).value = (source as UIntPtr).value;
       target = target + 4;
       source = source + 4;
     }
