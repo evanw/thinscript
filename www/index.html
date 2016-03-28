@@ -395,24 +395,8 @@
         return JSON.stringify(self);
       },
 
-      ByteArray_new: function() {
-        return [];
-      },
-
-      ByteArray_length: function(self) {
-        return self.length;
-      },
-
-      ByteArray_getByte: function(self, index) {
-        return self[index];
-      },
-
-      ByteArray_setByte: function(self, index, byte) {
-        self[index] = byte & 255;
-      },
-
-      ByteArray_appendByte: function(self, byte) {
-        self.push(byte & 255);
+      Uint8Array_new: function(length) {
+        return new Uint8Array(length);
       },
     };
   }
@@ -462,7 +446,7 @@
 
     var wasm = exports.Compiler_wasm(compiler);
     return {
-      wasm: wasm ? new Uint8Array(wasm) : null,
+      wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
       log: exports.Compiler_log(compiler),
       js: exports.Compiler_js(compiler),
     };

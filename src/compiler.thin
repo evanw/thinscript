@@ -78,8 +78,8 @@ extern function Compiler_finish(compiler: Compiler): void {
   compiler.finish();
 }
 
-extern function Compiler_wasm(compiler: Compiler): int {
-  return compiler.wasm == null ? 0 : compiler.wasm.handle();
+extern function Compiler_wasm(compiler: Compiler): ByteArray {
+  return compiler.wasm;
 }
 
 extern function Compiler_js(compiler: Compiler): String {

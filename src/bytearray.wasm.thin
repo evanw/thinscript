@@ -4,41 +4,33 @@ unsafe class UBytePtr {
 }
 
 class ByteArray {
-  unsafe _data: uint;
-  unsafe _length: uint;
-  unsafe _capacity: uint;
+  _data: uint;
+  _length: uint;
+  _capacity: uint;
 
   length(): int {
-    unsafe {
-      return this._length as int;
-    }
+    return this._length as int;
   }
 
   get(index: int): ubyte {
+    assert((index as uint) < this._length);
     unsafe {
-      assert((index as uint) < this._length);
       return ((this._data as int + index) as UBytePtr).value;
     }
   }
 
   set(index: int, value: ubyte): void {
+    assert((index as uint) < this._length);
     unsafe {
-      assert((index as uint) < this._length);
       ((this._data as int + index) as UBytePtr).value = value;
     }
   }
 
   append(value: ubyte): void {
+    var offset = this._length;
     unsafe {
-      var offset = this._length;
       this._resize(offset + 1);
       ((this._data + offset) as UBytePtr).value = value;
-    }
-  }
-
-  handle(): int {
-    unsafe {
-      return this as int;
     }
   }
 

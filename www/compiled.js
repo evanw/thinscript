@@ -1,3 +1,45 @@
+function ByteArray() {
+  this._data = null;
+  this._length = 0;
+}
+
+ByteArray.prototype.length = function() {
+  return this._length;
+};
+
+ByteArray.prototype.get = function(index) {
+  return this._data[index];
+};
+
+ByteArray.prototype.set = function(index, value) {
+  this._data[index] = value;
+};
+
+ByteArray.prototype.append = function(value) {
+  var index = this._length;
+  this._resize(index + 1 | 0);
+  this._data[index] = value;
+};
+
+ByteArray.prototype._resize = function(length) {
+  if (length > (this._data !== null ? this._data.length : 0)) {
+    var capacity = length << 1;
+    var data = globals.Uint8Array_new(capacity);
+    var source = this._data;
+    var limit = this._length;
+    var i = 0;
+
+    while (i < limit) {
+      data[i] = source[i];
+      i = i + 1 | 0;
+    }
+
+    this._data = data;
+  }
+
+  this._length = length;
+};
+
 function CheckContext() {
   this.log = null;
   this.isUnsafeAllowed = false;
@@ -1153,7 +1195,7 @@ var Compiler_finish = exports.Compiler_finish = function(compiler) {
 };
 
 var Compiler_wasm = exports.Compiler_wasm = function(compiler) {
-  return compiler.wasm === null ? 0 : compiler.wasm.handle();
+  return compiler.wasm;
 };
 
 var Compiler_js = exports.Compiler_js = function(compiler) {
@@ -1162,43 +1204,6 @@ var Compiler_js = exports.Compiler_js = function(compiler) {
 
 var Compiler_log = exports.Compiler_log = function(compiler) {
   return compiler.log.toString();
-};
-
-function ByteArray() {
-  this._handle = 0;
-}
-
-ByteArray.prototype.length = function() {
-  if (this._handle !== 0) {
-    return globals.ByteArray_length(this._handle);
-  }
-
-  return 0;
-};
-
-ByteArray.prototype.get = function(index) {
-  globals.assert(this._handle !== 0);
-  globals.assert(index >= 0 && index < this.length());
-
-  return globals.ByteArray_getByte(this._handle, index);
-};
-
-ByteArray.prototype.set = function(index, value) {
-  globals.assert(this._handle !== 0);
-  globals.assert(index >= 0 && index < this.length());
-  globals.ByteArray_setByte(this._handle, index, value);
-};
-
-ByteArray.prototype.append = function(value) {
-  if (this._handle === 0) {
-    this._handle = globals.ByteArray_new();
-  }
-
-  globals.ByteArray_appendByte(this._handle, value);
-};
-
-ByteArray.prototype.handle = function() {
-  return this._handle;
 };
 
 function String() {

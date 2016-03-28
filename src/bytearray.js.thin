@@ -1,0 +1,51 @@
+declare function Uint8Array_new(length: int): Uint8Array;
+
+declare class Uint8Array {
+  length: int;
+  operator [] (index: int): ubyte;
+  operator []= (index: int, value: ubyte): void;
+}
+
+class ByteArray {
+  _data: Uint8Array;
+  _length: int;
+
+  length(): int {
+    return this._length;
+  }
+
+  get(index: int): ubyte {
+    return this._data[index];
+  }
+
+  set(index: int, value: ubyte): void {
+    this._data[index] = value;
+  }
+
+  append(value: ubyte): void {
+    var index = this._length;
+    this._resize(index + 1);
+    this._data[index] = value;
+  }
+
+  _resize(length: int): void {
+    if (length > (this._data != null ? this._data.length : 0)) {
+      var capacity = length * 2;
+      var data = Uint8Array_new(capacity);
+      var source = this._data;
+      var limit = this._length;
+      var i = 0;
+
+      // Copy the old bytes over
+      while (i < limit) {
+        data[i] = source[i];
+        i = i + 1;
+      }
+
+      // Swap in the new bytes
+      this._data = data;
+    }
+
+    this._length = length;
+  }
+}
