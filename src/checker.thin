@@ -174,13 +174,14 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   symbol.state = SymbolState.INITIALIZING;
 
   // Most flags aren't supported yet
-  forbidFlag(context, symbol.node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
-  forbidFlag(context, symbol.node, NODE_FLAG_GET, "Unsupported flag 'get'");
-  forbidFlag(context, symbol.node, NODE_FLAG_PRIVATE, "Unsupported flag 'private'");
-  forbidFlag(context, symbol.node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
-  forbidFlag(context, symbol.node, NODE_FLAG_PUBLIC, "Unsupported flag 'public'");
-  forbidFlag(context, symbol.node, NODE_FLAG_SET, "Unsupported flag 'set'");
-  forbidFlag(context, symbol.node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
+  var node = symbol.node;
+  forbidFlag(context, node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
+  forbidFlag(context, node, NODE_FLAG_GET, "Unsupported flag 'get'");
+  forbidFlag(context, node, NODE_FLAG_PRIVATE, "Unsupported flag 'private'");
+  forbidFlag(context, node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
+  forbidFlag(context, node, NODE_FLAG_PUBLIC, "Unsupported flag 'public'");
+  forbidFlag(context, node, NODE_FLAG_SET, "Unsupported flag 'set'");
+  forbidFlag(context, node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class
   if (symbol.kind == SymbolKind.TYPE_CLASS) {
@@ -199,12 +200,12 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
   // Function
   else if (isFunction(symbol.kind)) {
-    var body = symbol.node.functionBody();
-    var returnType = symbol.node.functionReturnType();
+    var body = node.functionBody();
+    var returnType = node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
 
     var offset = 0;
-    var child = symbol.node.firstChild;
+    var child = node.firstChild;
     while (child != returnType) {
       assert(child.kind == NodeKind.VARIABLE);
       assert(child.symbol.kind == SymbolKind.VARIABLE_ARGUMENT);
@@ -218,35 +219,40 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     symbol.resolvedType.symbol = symbol;
 
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an instance function");
-      forbidFlag(context, symbol.node, NODE_FLAG_DECLARE, "Cannot use 'declare' on an instance function");
+      forbidFlag(context, node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an instance function");
+      forbidFlag(context, node, NODE_FLAG_DECLARE, "Cannot use 'declare' on an instance function");
 
       // Functions inside declared classes are automatically declared
       if (symbol.parent().node.isDeclare()) {
-        symbol.node.flags = symbol.node.flags | NODE_FLAG_DECLARE;
+        node.flags = node.flags | NODE_FLAG_DECLARE;
 
-        // Prevent functions on declared classes for simplicity
+        // Prevent declared functions on declared classes for simplicity
         if (body != null) {
           context.log.error(body.range, String_new("Cannot implement a function on a declared class"));
         }
+      }
+
+      // Require implementations for functions not on declared classes
+      else if (body == null) {
+        context.log.error(node.lastChild.range, String_new("Must implement this function"));
       }
     }
 
     // Imported functions require a modifier for consistency with TypeScript
     else if (body == null) {
-      forbidFlag(context, symbol.node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an unimplemented function");
-      requireFlag(context, symbol.node, NODE_FLAG_DECLARE, "Declared functions must be prefixed with 'declare'");
+      forbidFlag(context, node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an unimplemented function");
+      requireFlag(context, node, NODE_FLAG_DECLARE, "Declared functions must be prefixed with 'declare'");
     }
 
     else {
-      forbidFlag(context, symbol.node, NODE_FLAG_DECLARE, "Cannot use 'declare' on a function with an implementation");
+      forbidFlag(context, node, NODE_FLAG_DECLARE, "Cannot use 'declare' on a function with an implementation");
     }
   }
 
   // Variable
   else if (isVariable(symbol.kind)) {
-    var type = symbol.node.variableType();
-    var value = symbol.node.variableValue();
+    var type = node.variableType();
+    var value = node.variableValue();
 
     if (type != null) {
       resolveAsType(context, type, symbol.scope);
@@ -259,13 +265,13 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     }
 
     else {
-      context.log.error(symbol.node.internalRange, String_new("Cannot create untyped variables"));
+      context.log.error(node.internalRange, String_new("Cannot create untyped variables"));
       symbol.resolvedType = context.errorType;
     }
 
     // Validate the variable type
     if (symbol.resolvedType == context.voidType || symbol.resolvedType == context.nullType) {
-      context.log.error(symbol.node.internalRange, String_appendNew(String_append(
+      context.log.error(node.internalRange, String_appendNew(String_append(
         String_new("Cannot create a variable with type '"),
         symbol.resolvedType.toString()),
         "'"));
@@ -290,8 +296,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
       // Automatically initialize enum values using the previous enum
       else if (symbol.isEnumValue()) {
-        if (symbol.node.previousSibling != null) {
-          var previousSymbol = symbol.node.previousSibling.symbol;
+        if (node.previousSibling != null) {
+          var previousSymbol = node.previousSibling.symbol;
           initializeSymbol(context, previousSymbol);
           symbol.offset = previousSymbol.offset + 1;
         } else {
@@ -300,7 +306,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       }
 
       else {
-        context.log.error(symbol.node.internalRange, String_new("Constants must be initialized"));
+        context.log.error(node.internalRange, String_new("Constants must be initialized"));
       }
     }
 
@@ -310,7 +316,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       while (scope != null) {
         var shadowed = scope.findLocal(symbol.name);
         if (shadowed != null) {
-          context.log.error(symbol.node.internalRange, String_appendNew(String_append(
+          context.log.error(node.internalRange, String_appendNew(String_append(
             String_new("The symbol '"),
             symbol.name),
             "' shadows another symbol with the same name in a parent scope"));
@@ -338,6 +344,14 @@ function resolveChildren(context: CheckContext, node: Node, parentScope: Scope):
   var child = node.firstChild;
   while (child != null) {
     resolve(context, child, parentScope);
+    child = child.nextSibling;
+  }
+}
+
+function resolveChildrenAsExpressions(context: CheckContext, node: Node, parentScope: Scope): void {
+  var child = node.firstChild;
+  while (child != null) {
+    resolveAsExpression(context, child, parentScope);
     child = child.nextSibling;
   }
 }
@@ -420,7 +434,7 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
 function checkStorage(context: CheckContext, target: Node): void {
   assert(isExpression(target));
 
-  if (target.resolvedType != context.errorType && (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT ||
+  if (target.resolvedType != context.errorType && target.kind != NodeKind.INDEX && (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT ||
       target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == SymbolKind.VARIABLE_CONSTANT))) {
     context.log.error(target.range, String_new("Cannot store to this location"));
     target.resolvedType = context.errorType;
@@ -518,9 +532,9 @@ function binaryHasUnsignedArguments(node: Node): bool {
 function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Range): bool {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
     context.log.error(range, String_appendNew(String_append(
-      String_new("Cannot use unsafe symbol '"),
+      String_new("Cannot use symbol '"),
       symbol.name),
-      "' here"));
+      "' outside an unsafe block"));
     return false;
   }
 
@@ -633,6 +647,35 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   else if (node.kind == NodeKind.NULL) {
     node.resolvedType = context.nullType;
+  }
+
+  else if (node.kind == NodeKind.INDEX) {
+    resolveChildrenAsExpressions(context, node, parentScope);
+
+    var target = node.indexTarget();
+    var type = target.resolvedType;
+
+    if (type != context.errorType) {
+      var symbol = type.isClass() ? type.findMember(String_new("[]")) : null;
+
+      if (symbol == null) {
+        context.log.error(node.internalRange, String_appendNew(String_append(
+          String_new("Cannot index into type '"),
+          target.resolvedType.toString()),
+          "'"));
+      }
+
+      else {
+        assert(symbol.kind == SymbolKind.FUNCTION_INSTANCE);
+
+        // Convert to a regular function call and resolve that instead
+        node.kind = NodeKind.CALL;
+        target.remove();
+        node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
+        node.resolvedType = null;
+        resolveAsExpression(context, node, parentScope);
+      }
+    }
   }
 
   else if (node.kind == NodeKind.ALIGN_OF) {
@@ -909,6 +952,44 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else if (node.kind == NodeKind.ASSIGN) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
+
+    if (left.kind == NodeKind.INDEX) {
+      resolveChildrenAsExpressions(context, left, parentScope);
+
+      var target = left.indexTarget();
+      var type = target.resolvedType;
+
+      if (type != context.errorType) {
+        var symbol = type.isClass() ? type.findMember(String_new("[]=")) : null;
+
+        if (symbol == null) {
+          context.log.error(left.internalRange, String_appendNew(String_append(
+            String_new("Cannot index into type '"),
+            target.resolvedType.toString()),
+            "'"));
+        }
+
+        else {
+          assert(symbol.kind == SymbolKind.FUNCTION_INSTANCE);
+
+          // Convert to a regular function call and resolve that instead
+          node.kind = NodeKind.CALL;
+          target.remove();
+          left.remove();
+          while (left.lastChild != null) {
+            var value = left.lastChild;
+            value.remove();
+            node.insertChildBefore(node.firstChild, value);
+          }
+          node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
+          node.internalRange = spanRanges(left.internalRange, right.range);
+          node.resolvedType = null;
+          resolveAsExpression(context, node, parentScope);
+          return;
+        }
+      }
+    }
+
     resolveAsExpression(context, left, parentScope);
     resolveAsExpression(context, right, parentScope);
     checkConversion(context, right, left.resolvedType, ConversionKind.IMPLICIT);

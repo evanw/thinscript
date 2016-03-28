@@ -341,9 +341,10 @@ class ParserContext {
         return createCast(node, type).withRange(spanRanges(node.range, type.range)).withInternalRange(token);
       }
 
-      // Call
-      if (this.peek(TokenKind.LEFT_PARENTHESIS) && precedence < Precedence.UNARY_POSTFIX) {
-        return this.parseArgumentList(token, createCall(node));
+      // Call or index
+      var isIndex = this.peek(TokenKind.LEFT_BRACKET);
+      if ((isIndex || this.peek(TokenKind.LEFT_PARENTHESIS)) && precedence < Precedence.UNARY_POSTFIX) {
+        return this.parseArgumentList(token, isIndex ? createIndex(node) : createCall(node));
       }
 
       // Hook
@@ -369,11 +370,15 @@ class ParserContext {
 
   parseArgumentList(start: Range, node: Node): Node {
     var open = this.current.range;
-    if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
+    var isIndex = node.kind == NodeKind.INDEX;
+    var left = isIndex ? TokenKind.LEFT_BRACKET : TokenKind.LEFT_PARENTHESIS;
+    var right = isIndex ? TokenKind.RIGHT_BRACKET : TokenKind.RIGHT_PARENTHESIS;
+
+    if (!this.expect(left)) {
       return null;
     }
 
-    if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
+    if (!this.peek(right)) {
       while (true) {
         var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
         if (value == null) {
@@ -388,7 +393,7 @@ class ParserContext {
     }
 
     var close = this.current.range;
-    if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+    if (!this.expect(right)) {
       return null;
     }
 
@@ -636,29 +641,33 @@ class ParserContext {
       if (isKeyword(childName.kind)) {
         childName.kind = TokenKind.IDENTIFIER;
         this.advance();
-      } else if (!this.expect(TokenKind.IDENTIFIER)) {
+      }
+
+      // The identifier must come first without any keyword
+      if (!this.expect(TokenKind.IDENTIFIER)) {
         return null;
       }
 
-      if (this.peek(TokenKind.IDENTIFIER)) {
-        var text = childName.range.toString();
+      var text = childName.range.toString();
+
+      // Support operator definitions
+      if (String_equalNew(text, "operator") && this.peek(TokenKind.LEFT_BRACKET)) {
+        childName.kind = TokenKind.OPERATOR;
+        this.current = childName;
+        if (this.parseFunction(childFlags, node) == null) {
+          return null;
+        }
+        continue;
+      }
+
+      // Is there another identifier after the first one?
+      else if (this.peek(TokenKind.IDENTIFIER)) {
         var isGet = String_equalNew(text, "get");
         var isSet = String_equalNew(text, "set");
 
         // The "get" and "set" flags are contextual
         if (isGet || isSet) {
-          var flag = new NodeFlag();
-          flag.flag = isGet ? NODE_FLAG_GET : NODE_FLAG_SET;
-          flag.range = childName.range;
-
-          // Append the flag
-          if (childFlags != null) {
-            var link = childFlags;
-            while (link.next != null) link = link.next;
-            link.next = flag;
-          } else {
-            childFlags = flag;
-          }
+          childFlags = appendFlag(childFlags, isGet ? NODE_FLAG_GET : NODE_FLAG_SET, childName.range);
 
           // Get the real identifier
           childName = this.current;
@@ -687,6 +696,7 @@ class ParserContext {
         }
       }
 
+      // Function
       if (this.peek(TokenKind.LEFT_PARENTHESIS)) {
         this.current = childName;
         if (this.parseFunction(childFlags, node) == null) {
@@ -694,6 +704,7 @@ class ParserContext {
         }
       }
 
+      // Variable
       else {
         this.current = childName;
         if (this.parseVariables(childFlags, node) == null) {
@@ -712,19 +723,49 @@ class ParserContext {
 
   parseFunction(firstFlag: NodeFlag, parent: Node): Node {
     var token = this.current;
+    var nameRange: Range;
+    var name: String;
 
-    // Functions inside class declarations don't use "function"
-    if (parent == null) {
-      assert(token.kind == TokenKind.FUNCTION);
-      this.advance();
+    // Support index operators
+    if (parent != null && this.eat(TokenKind.OPERATOR)) {
+      var end = this.current;
+
+      if (!this.expect(TokenKind.LEFT_BRACKET) || !this.expect(TokenKind.RIGHT_BRACKET)) {
+        return null;
+      }
+
+      if (this.peek(TokenKind.ASSIGN)) {
+        nameRange = spanRanges(token.range, this.current.range);
+        name = String_new("[]=");
+        this.advance();
+      }
+
+      else {
+        nameRange = spanRanges(token.range, end.range);
+        name = String_new("[]");
+      }
     }
 
-    var name = this.current;
-    if (!this.expect(TokenKind.IDENTIFIER) || !this.expect(TokenKind.LEFT_PARENTHESIS)) {
+    else {
+      // Functions inside class declarations don't use "function"
+      if (parent == null) {
+        assert(token.kind == TokenKind.FUNCTION);
+        this.advance();
+      }
+
+      // Remember where the name is for the symbol later
+      nameRange = this.current.range;
+      if (!this.expect(TokenKind.IDENTIFIER)) {
+        return null;
+      }
+      name = nameRange.toString();
+    }
+
+    if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
       return null;
     }
 
-    var node = createFunction(name.range.toString());
+    var node = createFunction(name);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
 
@@ -826,7 +867,7 @@ class ParserContext {
     }
 
     node.appendChild(block);
-    return node.withRange(spanRanges(token.range, block.range)).withInternalRange(name.range);
+    return node.withRange(spanRanges(token.range, block.range)).withInternalRange(nameRange);
   }
 
   parseVariables(firstFlag: NodeFlag, parent: Node): Node {

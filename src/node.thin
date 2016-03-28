@@ -26,6 +26,7 @@ enum NodeKind {
   CAST,
   DOT,
   HOOK,
+  INDEX,
   INT,
   NAME,
   NEW,
@@ -100,6 +101,25 @@ class NodeFlag {
   flag: int;
   range: Range;
   next: NodeFlag;
+}
+
+function appendFlag(first: NodeFlag, flag: int, range: Range): NodeFlag {
+  var link = new NodeFlag();
+  link.flag = flag;
+  link.range = range;
+
+  // Is the list empty?
+  if (first == null) {
+    return link;
+  }
+
+  // Append the flag to the end of the list
+  var secondToLast = first;
+  while (secondToLast.next != null) {
+    secondToLast = secondToLast.next;
+  }
+  secondToLast.next = link;
+  return first;
 }
 
 function allFlags(link: NodeFlag): int {
@@ -177,14 +197,18 @@ class Node {
 
     if (this.firstChild == null) {
       this.firstChild = child;
-      this.lastChild = child;
     }
 
     else {
       child.previousSibling = this.lastChild;
       this.lastChild.nextSibling = child;
-      this.lastChild = child;
     }
+
+    this.lastChild = child;
+  }
+
+  prependChild(child: Node): void {
+    this.insertChildBefore(this.firstChild, child);
   }
 
   insertChildBefore(after: Node, before: Node): void {
@@ -472,6 +496,13 @@ class Node {
     return this.lastChild;
   }
 
+  indexTarget(): Node {
+    assert(this.kind == NodeKind.INDEX);
+    assert(this.childCount() >= 1);
+    assert(isExpression(this.firstChild));
+    return this.firstChild;
+  }
+
   ifValue(): Node {
     assert(this.kind == NodeKind.IF);
     assert(this.childCount() == 2 || this.childCount() == 3);
@@ -511,6 +542,14 @@ function createHook(test: Node, primary: Node, secondary: Node): Node {
   node.appendChild(test);
   node.appendChild(primary);
   node.appendChild(secondary);
+  return node;
+}
+
+function createIndex(target: Node): Node {
+  assert(isExpression(target));
+  var node = new Node();
+  node.kind = NodeKind.INDEX;
+  node.appendChild(target);
   return node;
 }
 
@@ -724,6 +763,17 @@ function createDot(value: Node, name: String): Node {
   var node = new Node();
   node.kind = NodeKind.DOT;
   node.stringValue = name;
+  node.appendChild(value);
+  return node;
+}
+
+function createMemberReference(value: Node, symbol: Symbol): Node {
+  assert(isExpression(value));
+  var node = new Node();
+  node.kind = NodeKind.DOT;
+  node.stringValue = symbol.name;
+  node.symbol = symbol;
+  node.resolvedType = symbol.resolvedType;
   node.appendChild(value);
   return node;
 }

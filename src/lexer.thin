@@ -65,6 +65,7 @@ enum TokenKind {
   LET,
   NEW,
   NULL,
+  OPERATOR,
   PRIVATE,
   PROTECTED,
   PUBLIC,
@@ -155,6 +156,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.LET) return "'let'";
   if (token == TokenKind.NEW) return "'new'";
   if (token == TokenKind.NULL) return "'null'";
+  if (token == TokenKind.OPERATOR) return "'operator'";
   if (token == TokenKind.PRIVATE) return "'private'";
   if (token == TokenKind.PROTECTED) return "'protected'";
   if (token == TokenKind.PUBLIC) return "'public'";

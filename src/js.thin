@@ -114,11 +114,26 @@ class JsResult {
     }
   }
 
+  emitCommaSeparatedExpressions(start: Node, stop: Node): void {
+    while (start != stop) {
+      this.emitExpression(start, Precedence.LOWEST);
+      start = start.nextSibling;
+
+      if (start != stop) {
+        this.emitText(", ");
+      }
+    }
+  }
+
   emitExpression(node: Node, parentPrecedence: Precedence): void {
     assert(node.resolvedType != null);
 
     if (node.kind == NodeKind.NAME) {
-      this.emitString(node.symbol.name);
+      var symbol = node.symbol;
+      if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
+        this.emitText("globals.");
+      }
+      this.emitString(symbol.name);
     }
 
     else if (node.kind == NodeKind.NULL) {
@@ -221,8 +236,7 @@ class JsResult {
 
     else if (node.kind == NodeKind.DOT) {
       this.emitExpression(node.dotTarget(), Precedence.MEMBER);
-      this.emitText(".");
-      this.emitString(node.symbol.name);
+      this.emitSymbolAccess(node.symbol);
     }
 
     else if (node.kind == NodeKind.HOOK) {
@@ -243,22 +257,37 @@ class JsResult {
 
     else if (node.kind == NodeKind.CALL) {
       var value = node.callValue();
-      if (value.symbol.node.functionBody() == null) {
-        this.emitText("globals.");
-      }
-      this.emitExpression(value, Precedence.UNARY_POSTFIX);
-      this.emitText("(");
+      var isDeclaredInstance = value.kind == NodeKind.DOT && value.symbol.node.isDeclare();
 
-      var child = value.nextSibling;
-      while (child != null) {
-        this.emitExpression(child, Precedence.LOWEST);
-        child = child.nextSibling;
-        if (child != null) {
-          this.emitText(", ");
+      if (isDeclaredInstance && String_equalNew(value.symbol.name, "[]")) {
+        this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
+        this.emitText("[");
+        this.emitCommaSeparatedExpressions(value.nextSibling, null);
+        this.emitText("]");
+      }
+
+      else if (isDeclaredInstance && String_equalNew(value.symbol.name, "[]=")) {
+        if (parentPrecedence > Precedence.ASSIGN) {
+          this.emitText("(");
+        }
+
+        this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
+        this.emitText("[");
+        this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
+        this.emitText("] = ");
+        this.emitExpression(node.lastChild, Precedence.ASSIGN);
+
+        if (parentPrecedence > Precedence.ASSIGN) {
+          this.emitText(")");
         }
       }
 
-      this.emitText(")");
+      else {
+        this.emitExpression(value, Precedence.UNARY_POSTFIX);
+        this.emitText("(");
+        this.emitCommaSeparatedExpressions(value.nextSibling, null);
+        this.emitText(")");
+      }
     }
 
     else if (node.kind == NodeKind.NEW) {
@@ -325,6 +354,21 @@ class JsResult {
     }
   }
 
+  emitSymbolAccess(symbol: Symbol): void {
+    var c = String_get(symbol.name, 0);
+
+    if (isAlpha(c)) {
+      this.emitText(".");
+      this.emitString(symbol.name);
+    }
+
+    else {
+      this.emitText("[");
+      this.emitString(String_quote(symbol.name));
+      this.emitText("]");
+    }
+  }
+
   emitStatement(node: Node): void {
     if (node.kind == NodeKind.FUNCTION) {
       var body = node.functionBody();
@@ -339,8 +383,8 @@ class JsResult {
 
       if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
         this.emitString(symbol.parent().name);
-        this.emitText(".prototype.");
-        this.emitString(symbol.name);
+        this.emitText(".prototype");
+        this.emitSymbolAccess(symbol);
         this.emitText(" = function");
         needsSemicolon = true;
       }
