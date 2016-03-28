@@ -512,16 +512,21 @@ class WasmModule {
     if (node.kind == NodeKind.STRING) {
       var text = node.stringValue;
       var length = String_length(text);
-      var offset = this.context.allocateGlobalVariableOffset(length + 1, 1);;
+      var offset = this.context.allocateGlobalVariableOffset(length + 4, 4);
+      node.intValue = offset;
       this.growMemoryInitializer();
       var memoryInitializer = this.memoryInitializer;
+
+      // Emit a length-prefixed string
+      ByteArray_set32(memoryInitializer, offset, length);
+      offset = offset + 4;
+
+      // Emit the string contents without a terminating null character
       var i = 0;
       while (i < length) {
         memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
         i = i + 1;
       }
-      memoryInitializer.set(offset + length, 0);
-      node.intValue = offset;
     }
 
     else if (node.kind == NodeKind.VARIABLE) {

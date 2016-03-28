@@ -12,10 +12,6 @@ function loadStdlibForJavaScript() {
       return value;
     },
 
-    String_newLength: function(value, length) {
-      return value;
-    },
-
     String_length: function(self) {
       return self.length;
     },
@@ -68,6 +64,7 @@ var CompileTarget = {
 };
 
 function compileAndRunJavaScript(code, sources, target) {
+  var before = Date.now();
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
   new Function('globals', 'exports', code)(stdlib, exports);
@@ -81,6 +78,8 @@ function compileAndRunJavaScript(code, sources, target) {
   });
   exports.Compiler_finish(compiler);
   var wasm = exports.Compiler_wasm(compiler);
+  var after = Date.now();
+  console.log('compile to', target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly', 'took ' + (after - before) + 'ms');
   return {
     wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
     log: exports.Compiler_log(compiler),

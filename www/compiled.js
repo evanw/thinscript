@@ -3754,7 +3754,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
       c = globals.String_get(text, end);
 
       if (c === 48) {
-        result = globals.String_append(result, globals.String_newLength("\u0000", 1));
+        result = globals.String_appendNew(result, "\u0000");
       }
 
       else if (c === 116) {
@@ -5455,18 +5455,18 @@ WasmModule.prototype.prepareToEmit = function(node) {
   if (node.kind === 29) {
     var text = node.stringValue;
     var length = globals.String_length(text);
-    var offset = this.context.allocateGlobalVariableOffset(length + 1 | 0, 1);
+    var offset = this.context.allocateGlobalVariableOffset(length + 4 | 0, 4);
+    node.intValue = offset;
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
+    ByteArray_set32(memoryInitializer, offset, length);
+    offset = offset + 4 | 0;
     var i = 0;
 
     while (i < length) {
       memoryInitializer.set(offset + i | 0, globals.String_get(text, i) & 255);
       i = i + 1 | 0;
     }
-
-    memoryInitializer.set(offset + length | 0, 0);
-    node.intValue = offset;
   }
 
   else if (node.kind === 1) {

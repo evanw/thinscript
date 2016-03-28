@@ -260,16 +260,9 @@
     });
   }
 
-  function parseString(bytes, index, length) {
-    var hasLength = length > 0;
-    var text = '';
-
-    while (hasLength ? length > 0 : bytes[index] !== 0) {
-      text += String.fromCharCode(bytes[index]);
-      index++;
-      length--;
-    }
-
+  function extractLengthPrefixedString(ints, bytes, index) {
+    var text = '', length = ints[index >> 2], i = index + 4;
+    while (length-- > 0) text += String.fromCharCode(bytes[i++]);
     return text;
   }
 
@@ -277,6 +270,7 @@
     var stdlib = {
       strings: [],
       bytes: null,
+      ints: null,
 
       assert: function(truth) {
         if (!truth) {
@@ -285,12 +279,7 @@
       },
 
       String_new: function(ptr) {
-        stdlib.strings.push(parseString(stdlib.bytes, ptr, 0));
-        return stdlib.strings.length;
-      },
-
-      String_newLength: function(ptr, length) {
-        stdlib.strings.push(parseString(stdlib.bytes, ptr, length));
+        stdlib.strings.push(extractLengthPrefixedString(stdlib.ints, stdlib.bytes, ptr));
         return stdlib.strings.length;
       },
 
@@ -308,7 +297,7 @@
       },
 
       String_appendNew: function(self, other) {
-        stdlib.strings.push(stdlib.strings[self - 1] + parseString(stdlib.bytes, other));
+        stdlib.strings.push(stdlib.strings[self - 1] + extractLengthPrefixedString(stdlib.ints, stdlib.bytes, other));
         return stdlib.strings.length;
       },
 
@@ -322,7 +311,7 @@
       },
 
       String_equalNew: function(self, other) {
-        return stdlib.strings[self - 1] === parseString(stdlib.bytes, other);
+        return stdlib.strings[self - 1] === extractLengthPrefixedString(stdlib.ints, stdlib.bytes, other);
       },
 
       String_toStringSigned: function(value) {
@@ -352,10 +341,6 @@
       },
 
       String_new: function(value) {
-        return value;
-      },
-
-      String_newLength: function(value, length) {
         return value;
       },
 
@@ -416,6 +401,7 @@
     var exports = module.exports;
     var memory = exports.memory;
     stdlib.bytes = new Uint8Array(memory);
+    stdlib.ints = new Int32Array(memory);
 
     return function(input, target) {
       stdlib.strings = [];
@@ -432,9 +418,8 @@
       exports.Compiler_finish(compiler);
 
       var wasm = exports.Compiler_wasm(compiler);
-      var ints = new Int32Array(memory);
-      var wasmData = wasm && ints[wasm >> 2];
-      var wasmLength = wasm && ints[(wasm + 4) >> 2];
+      var wasmData = wasm && stdlib.ints[wasm >> 2];
+      var wasmLength = wasm && stdlib.ints[(wasm + 4) >> 2];
 
       return {
         wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
@@ -561,20 +546,19 @@
 
     webAssemblyToRun = joinLines([
       'function compileAndRunWebAssembly(compiled) {',
-      '  var extractString = function(ptr) {',
-      '    var text = "";',
-      '    while (ptr && bytes[ptr]) {',
-      '      text += String.fromCharCode(bytes[ptr++]);',
-      '    }',
+      '  var extractLengthPrefixedString = function(ptr) {',
+      '    var text = "", length = ints[ptr >> 2], i = ptr + 4;',
+      '    while (length-- > 0) text += String.fromCharCode(bytes[i++]);',
       '    return text;',
       '  };',
       '  var globals = {',
       '    print: function(ptr) {',
-      '      console.log(extractString(ptr));',
+      '      console.log(extractLengthPrefixedString(ptr));',
       '    },',
       '  };',
       '  var exports = Wasm.instantiateModule(compiled, {globals: globals}).exports;',
       '  var bytes = new Uint8Array(exports.memory);',
+      '  var ints = new Int32Array(exports.memory);',
       '  var result = exports.main();',
       '  console.log("result:", result);',
       '}',

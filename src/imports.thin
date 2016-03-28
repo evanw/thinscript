@@ -4,7 +4,6 @@ declare function assert(truth: bool): void;
 class String {}
 
 declare function String_new(text: string): String;
-declare function String_newLength(text: string, length: int): String;
 declare function String_length(self: String): int;
 declare function String_get(self: String, index: int): int;
 declare function String_append(self: String, other: String): String;

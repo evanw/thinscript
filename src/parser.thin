@@ -143,7 +143,7 @@ class ParserContext {
         start = end + 1;
         c = String_get(text, end);
 
-        if (c == '0') result = String_append(result, String_newLength("\0", 1));
+        if (c == '0') result = String_appendNew(result, "\0");
         else if (c == 't') result = String_appendNew(result, "\t");
         else if (c == 'n') result = String_appendNew(result, "\n");
         else if (c == 'r') result = String_appendNew(result, "\r");
