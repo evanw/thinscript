@@ -12,7 +12,7 @@ class Compiler {
   target: CompileTarget;
   context: CheckContext;
   wasm: ByteArray;
-  js: String;
+  js: string;
 
   initialize(target: CompileTarget): void {
     assert(this.log == null);
@@ -112,7 +112,7 @@ extern function Compiler_wasm(compiler: Compiler): ByteArray {
 }
 
 extern function Compiler_js(compiler: Compiler): String {
-  return compiler.js;
+  return String_new(compiler.js);
 }
 
 extern function Compiler_log(compiler: Compiler): String {

@@ -1276,7 +1276,7 @@ var Compiler_wasm = exports.Compiler_wasm = function(compiler) {
 };
 
 var Compiler_js = exports.Compiler_js = function(compiler) {
-  return compiler.js;
+  return globals.String_new(compiler.js);
 };
 
 var Compiler_log = exports.Compiler_log = function(compiler) {
@@ -1308,22 +1308,61 @@ JsResult.prototype.emitIndent = function() {
   var i = this.indent;
 
   while (i > 0) {
-    this.code = globals.String_appendNew(this.code, "  ");
+    this.code.append("  ");
     i = i - 1 | 0;
   }
 };
 
-JsResult.prototype.emitText = function(text) {
-  this.code = globals.String_appendNew(this.code, text);
-};
+JsResult.prototype.emitQuoted = function(text) {
+  var code = this.code;
+  var end = 0;
+  var limit = globals.string_length(text);
+  var start = end;
+  code.appendChar(34);
 
-JsResult.prototype.emitString = function(text) {
-  this.code = globals.String_append(this.code, text);
+  while (end < limit) {
+    var c = globals.string_get(text, end);
+
+    if (c === 34) {
+      code.appendSlice(text, start, end).append("\\\"");
+    }
+
+    else if (c === 0) {
+      code.appendSlice(text, start, end).append("\\0");
+    }
+
+    else if (c === 9) {
+      code.appendSlice(text, start, end).append("\\t");
+    }
+
+    else if (c === 13) {
+      code.appendSlice(text, start, end).append("\\r");
+    }
+
+    else if (c === 10) {
+      code.appendSlice(text, start, end).append("\\n");
+    }
+
+    else if (c === 92) {
+      code.appendSlice(text, start, end).append("\\\\");
+    }
+
+    else {
+      end = end + 1 | 0;
+
+      continue;
+    }
+
+    end = end + 1 | 0;
+    start = end;
+  }
+
+  code.appendSlice(text, start, end).appendChar(34);
 };
 
 JsResult.prototype.emitNewlineBefore = function(node) {
   if (this.previousNode !== null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
-    this.emitText("\n");
+    this.code.appendChar(10);
   }
 
   this.previousNode = null;
@@ -1342,35 +1381,36 @@ JsResult.prototype.emitStatements = function(node) {
 
 JsResult.prototype.emitBlock = function(node) {
   this.previousNode = null;
-  this.emitText("{\n");
+  this.code.append("{\n");
   this.indent = this.indent + 1 | 0;
   this.emitStatements(node.firstChild);
   this.indent = this.indent - 1 | 0;
   this.emitIndent();
-  this.emitText("}");
+  this.code.appendChar(125);
   this.previousNode = null;
 };
 
 JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
   var isPostfix = isUnaryPostfix(node.kind);
   var operatorPrecedence = isPostfix ? 13 : 12;
+  var code = this.code;
 
   if (parentPrecedence > operatorPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   if (!isPostfix) {
-    this.emitText(operator);
+    code.append(operator);
   }
 
   this.emitExpression(node.unaryValue(), operatorPrecedence);
 
   if (isPostfix) {
-    this.emitText(operator);
+    code.append(operator);
   }
 
   if (parentPrecedence > operatorPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 };
 
@@ -1378,31 +1418,32 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
   var isRightAssociative = node.kind === 41;
   var parentKind = node.parent.kind;
   var isUnsigned = node.isUnsignedOperator();
+  var code = this.code;
   var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 56 && parentKind !== 57 && parentKind !== 43 && parentKind !== 42 && parentKind !== 44);
   var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
 
   if (parentPrecedence > selfPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   if (selfPrecedence > operatorPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 | 0 : operatorPrecedence);
-  this.emitText(operator);
+  code.append(operator);
   this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1 | 0);
 
   if (selfPrecedence > operatorPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 
   if (shouldCastToInt) {
-    this.emitText(isUnsigned ? " >>> 0" : " | 0");
+    code.append(isUnsigned ? " >>> 0" : " | 0");
   }
 
   if (parentPrecedence > selfPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 };
 
@@ -1412,38 +1453,39 @@ JsResult.prototype.emitCommaSeparatedExpressions = function(start, stop) {
     start = start.nextSibling;
 
     if (start !== stop) {
-      this.emitText(", ");
+      this.code.append(", ");
     }
   }
 };
 
 JsResult.prototype.emitExpression = function(node, parentPrecedence) {
+  var code = this.code;
   globals.assert(node.resolvedType !== null);
 
   if (node.kind === 24) {
     var symbol = node.symbol;
 
     if (symbol.kind === 5 && symbol.node.isDeclare()) {
-      this.emitText("globals.");
+      code.append("globals.");
     }
 
-    this.emitText(symbol.name);
+    code.append(symbol.name);
   }
 
   else if (node.kind === 26) {
-    this.emitText("null");
+    code.append("null");
   }
 
   else if (node.kind === 17) {
-    this.emitText(node.intValue !== 0 ? "true" : "false");
+    code.append(node.intValue !== 0 ? "true" : "false");
   }
 
   else if (node.kind === 23) {
-    this.emitString(node.resolvedType.isUnsigned() ? globals.String_toStringUnsigned(node.intValue >>> 0) : globals.String_toStringSigned(node.intValue));
+    code.append(node.resolvedType.isUnsigned() ? globals.string_uintToString(node.intValue >>> 0) : globals.string_intToString(node.intValue));
   }
 
   else if (node.kind === 29) {
-    this.emitString(globals.String_quote(globals.String_new(node.stringValue)));
+    this.emitQuoted(node.stringValue);
   }
 
   else if (node.kind === 19) {
@@ -1458,58 +1500,58 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
     else if (type === context.byteType || type === context.shortType) {
       if (parentPrecedence > 9) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
-      var shift = globals.String_toStringSigned(32 - (type.symbol.byteSize << 3) | 0);
+      var shift = globals.string_intToString(32 - (type.symbol.byteSize << 3) | 0);
       this.emitExpression(value, 9);
-      this.emitText(" << ");
-      this.emitString(shift);
-      this.emitText(" >> ");
-      this.emitString(shift);
+      code.append(" << ");
+      code.append(shift);
+      code.append(" >> ");
+      code.append(shift);
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.ubyteType || type === context.ushortType) {
       if (parentPrecedence > 6) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 6);
-      this.emitText(" & ");
-      this.emitString(globals.String_toStringUnsigned(type.integerBitMask()));
+      code.append(" & ");
+      code.append(globals.string_uintToString(type.integerBitMask()));
 
       if (parentPrecedence > 6) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.intType) {
       if (parentPrecedence > 4) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 4);
-      this.emitText(" | 0");
+      code.append(" | 0");
 
       if (parentPrecedence > 4) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.uintType) {
       if (parentPrecedence > 9) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 9);
-      this.emitText(" >>> 0");
+      code.append(" >>> 0");
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
@@ -1525,17 +1567,17 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
   else if (node.kind === 21) {
     if (parentPrecedence > 1) {
-      this.emitText("(");
+      code.appendChar(40);
     }
 
     this.emitExpression(node.hookValue(), 2);
-    this.emitText(" ? ");
+    code.append(" ? ");
     this.emitExpression(node.hookTrue(), 1);
-    this.emitText(" : ");
+    code.append(" : ");
     this.emitExpression(node.hookFalse(), 1);
 
     if (parentPrecedence > 1) {
-      this.emitText(")");
+      code.appendChar(41);
     }
   }
 
@@ -1545,39 +1587,39 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
     if (isDeclaredInstance && globals.string_equals(value.symbol.name, "[]")) {
       this.emitExpression(value.dotTarget(), 13);
-      this.emitText("[");
+      code.appendChar(91);
       this.emitCommaSeparatedExpressions(value.nextSibling, null);
-      this.emitText("]");
+      code.appendChar(93);
     }
 
     else if (isDeclaredInstance && globals.string_equals(value.symbol.name, "[]=")) {
       if (parentPrecedence > 1) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value.dotTarget(), 13);
-      this.emitText("[");
+      code.appendChar(91);
       this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
-      this.emitText("] = ");
+      code.append("] = ");
       this.emitExpression(node.lastChild, 1);
 
       if (parentPrecedence > 1) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else {
       this.emitExpression(value, 13);
-      this.emitText("(");
+      code.appendChar(40);
       this.emitCommaSeparatedExpressions(value.nextSibling, null);
-      this.emitText(")");
+      code.appendChar(41);
     }
   }
 
   else if (node.kind === 25) {
-    this.emitText("new ");
+    code.append("new ");
     this.emitExpression(node.newType(), 13);
-    this.emitText("()");
+    code.append("()");
   }
 
   else if (node.kind === 32) {
@@ -1690,21 +1732,21 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     var isUnsigned = node.isUnsignedOperator();
 
     if (isUnsigned && parentPrecedence > 9) {
-      this.emitText("(");
+      code.appendChar(40);
     }
 
-    this.emitText("__imul(");
+    code.append("__imul(");
     this.emitExpression(left, 0);
-    this.emitText(", ");
+    code.append(", ");
     this.emitExpression(right, 0);
-    this.emitText(")");
+    code.appendChar(41);
     this.foundMultiply = true;
 
     if (isUnsigned) {
-      this.emitText(" >>> 0");
+      code.append(" >>> 0");
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
   }
@@ -1716,20 +1758,23 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
 JsResult.prototype.emitSymbolAccess = function(symbol) {
   var c = globals.string_get(symbol.name, 0);
+  var code = this.code;
 
   if (isAlpha(c)) {
-    this.emitText(".");
-    this.emitText(symbol.name);
+    code.appendChar(46);
+    code.append(symbol.name);
   }
 
   else {
-    this.emitText("[");
-    this.emitString(globals.String_quote(globals.String_new(symbol.name)));
-    this.emitText("]");
+    code.appendChar(91);
+    this.emitQuoted(symbol.name);
+    code.appendChar(93);
   }
 };
 
 JsResult.prototype.emitStatement = function(node) {
+  var code = this.code;
+
   if (node.kind === 10) {
     var body = node.functionBody();
 
@@ -1743,44 +1788,44 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     if (symbol.kind === 4) {
-      this.emitText(symbol.parent().name);
-      this.emitText(".prototype");
+      code.append(symbol.parent().name);
+      code.append(".prototype");
       this.emitSymbolAccess(symbol);
-      this.emitText(" = function");
+      code.append(" = function");
       needsSemicolon = true;
     }
 
     else if (node.isExtern()) {
-      this.emitText("var ");
-      this.emitText(symbol.name);
-      this.emitText(" = exports.");
-      this.emitText(symbol.name);
-      this.emitText(" = function");
+      code.append("var ");
+      code.append(symbol.name);
+      code.append(" = exports.");
+      code.append(symbol.name);
+      code.append(" = function");
       needsSemicolon = true;
     }
 
     else {
-      this.emitText("function ");
-      this.emitText(symbol.name);
+      code.append("function ");
+      code.append(symbol.name);
     }
 
-    this.emitText("(");
+    code.appendChar(40);
     var returnType = node.functionReturnType();
     var child = node.functionFirstArgumentIgnoringThis();
 
     while (child !== returnType) {
       globals.assert(child.kind === 1);
-      this.emitText(child.symbol.name);
+      code.append(child.symbol.name);
       child = child.nextSibling;
 
       if (child !== returnType) {
-        this.emitText(", ");
+        code.append(", ");
       }
     }
 
-    this.emitText(") ");
+    code.append(") ");
     this.emitBlock(node.functionBody());
-    this.emitText(needsSemicolon ? ";\n" : "\n");
+    code.append(needsSemicolon ? ";\n" : "\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1789,25 +1834,25 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     while (true) {
-      this.emitText("if (");
+      code.append("if (");
       this.emitExpression(node.ifValue(), 0);
-      this.emitText(") ");
+      code.append(") ");
       this.emitBlock(node.ifTrue());
       var no = node.ifFalse();
 
       if (no === null) {
-        this.emitText("\n");
+        code.appendChar(10);
 
         break;
       }
 
-      this.emitText("\n\n");
+      code.append("\n\n");
       this.emitIndent();
-      this.emitText("else ");
+      code.append("else ");
 
       if (no.firstChild === null || no.firstChild !== no.lastChild || no.firstChild.kind !== 11) {
         this.emitBlock(no);
-        this.emitText("\n");
+        code.appendChar(10);
 
         break;
       }
@@ -1821,25 +1866,25 @@ JsResult.prototype.emitStatement = function(node) {
   else if (node.kind === 15) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("while (");
+    code.append("while (");
     this.emitExpression(node.whileValue(), 0);
-    this.emitText(") ");
+    code.append(") ");
     this.emitBlock(node.whileBody());
-    this.emitText("\n");
+    code.appendChar(10);
     this.emitNewlineAfter(node);
   }
 
   else if (node.kind === 3) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("break;\n");
+    code.append("break;\n");
     this.emitNewlineAfter(node);
   }
 
   else if (node.kind === 6) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("continue;\n");
+    code.append("continue;\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1847,7 +1892,7 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitNewlineBefore(node);
     this.emitIndent();
     this.emitExpression(node.expressionValue(), 0);
-    this.emitText(";\n");
+    code.append(";\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1860,13 +1905,13 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     if (value !== null) {
-      this.emitText("return ");
+      code.append("return ");
       this.emitExpression(value, 0);
-      this.emitText(";\n");
+      code.append(";\n");
     }
 
     else {
-      this.emitText("return;\n");
+      code.append("return;\n");
     }
 
     this.emitNewlineAfter(node);
@@ -1881,7 +1926,7 @@ JsResult.prototype.emitStatement = function(node) {
       this.emitNewlineBefore(node);
       this.emitIndent();
       this.emitBlock(node);
-      this.emitText("\n");
+      code.appendChar(10);
       this.emitNewlineAfter(node);
     }
   }
@@ -1889,24 +1934,24 @@ JsResult.prototype.emitStatement = function(node) {
   else if (node.kind === 14) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("var ");
+    code.append("var ");
     var child = node.firstChild;
 
     while (child !== null) {
       var value = child.variableValue();
-      this.emitText(child.symbol.name);
+      code.append(child.symbol.name);
       child = child.nextSibling;
 
       if (child !== null) {
-        this.emitText(", ");
+        code.append(", ");
       }
 
       globals.assert(value !== null);
-      this.emitText(" = ");
+      code.append(" = ");
       this.emitExpression(value, 0);
     }
 
-    this.emitText(";\n");
+    code.append(";\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1917,20 +1962,20 @@ JsResult.prototype.emitStatement = function(node) {
 
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("function ");
-    this.emitText(node.symbol.name);
-    this.emitText("() {\n");
+    code.append("function ");
+    code.append(node.symbol.name);
+    code.append("() {\n");
     this.indent = this.indent + 1 | 0;
     var child = node.firstChild;
 
     while (child !== null) {
       if (child.kind === 1) {
         this.emitIndent();
-        this.emitText("this.");
-        this.emitText(child.symbol.name);
-        this.emitText(" = ");
+        code.append("this.");
+        code.append(child.symbol.name);
+        code.append(" = ");
         this.emitExpression(child.variableValue(), 0);
-        this.emitText(";\n");
+        code.append(";\n");
       }
 
       child = child.nextSibling;
@@ -1938,7 +1983,7 @@ JsResult.prototype.emitStatement = function(node) {
 
     this.indent = this.indent - 1 | 0;
     this.emitIndent();
-    this.emitText("}\n");
+    code.append("}\n");
     this.emitNewlineAfter(node);
     child = node.firstChild;
 
@@ -1964,18 +2009,19 @@ function jsIsCompactNodeKind(kind) {
 }
 
 function jsEmit(global, context) {
+  var code = StringBuilder_new();
   var result = new JsResult();
   result.context = context;
-  result.code = globals.String_new("");
+  result.code = code;
   result.emitStatements(global.firstChild);
 
   if (result.foundMultiply) {
-    result.emitText("\nvar __imul = Math.imul || function(a, b) {\n");
-    result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
-    result.emitText("};\n");
+    code.append("\nvar __imul = Math.imul || function(a, b) {\n");
+    code.append("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    code.append("};\n");
   }
 
-  return result.code;
+  return code.finish();
 }
 
 function isKeyword(kind) {

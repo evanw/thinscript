@@ -5,7 +5,7 @@ enum EmitBinary {
 
 class JsResult {
   context: CheckContext;
-  code: String;
+  code: StringBuilder;
   indent: int;
   foundMultiply: bool;
   previousNode: Node;
@@ -13,22 +13,43 @@ class JsResult {
   emitIndent(): void {
     var i = this.indent;
     while (i > 0) {
-      this.code = String_appendNew(this.code, "  ");
+      this.code.append("  ");
       i = i - 1;
     }
   }
 
-  emitText(text: string): void {
-    this.code = String_appendNew(this.code, text);
-  }
+  emitQuoted(text: string): void {
+    var code = this.code;
+    var end = 0;
+    var limit = string_length(text);
+    var start = end;
 
-  emitString(text: String): void {
-    this.code = String_append(this.code, text);
+    code.appendChar('"');
+
+    while (end < limit) {
+      var c = string_get(text, end);
+
+      if (c == '"') code.appendSlice(text, start, end).append("\\\"");
+      else if (c == '\0') code.appendSlice(text, start, end).append("\\0");
+      else if (c == '\t') code.appendSlice(text, start, end).append("\\t");
+      else if (c == '\r') code.appendSlice(text, start, end).append("\\r");
+      else if (c == '\n') code.appendSlice(text, start, end).append("\\n");
+      else if (c == '\\') code.appendSlice(text, start, end).append("\\\\");
+      else {
+        end = end + 1;
+        continue;
+      }
+
+      end = end + 1;
+      start = end;
+    }
+
+    code.appendSlice(text, start, end).appendChar('"');
   }
 
   emitNewlineBefore(node: Node): void {
     if (this.previousNode != null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
-      this.emitText("\n");
+      this.code.appendChar('\n');
     }
     this.previousNode = null;
   }
@@ -46,35 +67,36 @@ class JsResult {
 
   emitBlock(node: Node): void {
     this.previousNode = null;
-    this.emitText("{\n");
+    this.code.append("{\n");
     this.indent = this.indent + 1;
     this.emitStatements(node.firstChild);
     this.indent = this.indent - 1;
     this.emitIndent();
-    this.emitText("}");
+    this.code.appendChar('}');
     this.previousNode = null;
   }
 
   emitUnary(node: Node, parentPrecedence: Precedence, operator: string): void {
     var isPostfix = isUnaryPostfix(node.kind);
     var operatorPrecedence = isPostfix ? Precedence.UNARY_POSTFIX : Precedence.UNARY_PREFIX;
+    var code = this.code;
 
     if (parentPrecedence > operatorPrecedence) {
-      this.emitText("(");
+      code.appendChar('(');
     }
 
     if (!isPostfix) {
-      this.emitText(operator);
+      code.append(operator);
     }
 
     this.emitExpression(node.unaryValue(), operatorPrecedence);
 
     if (isPostfix) {
-      this.emitText(operator);
+      code.append(operator);
     }
 
     if (parentPrecedence > operatorPrecedence) {
-      this.emitText(")");
+      code.appendChar(')');
     }
   }
 
@@ -82,6 +104,7 @@ class JsResult {
     var isRightAssociative = node.kind == NodeKind.ASSIGN;
     var parentKind = node.parent.kind;
     var isUnsigned = node.isUnsignedOperator();
+    var code = this.code;
 
     // Avoid casting when the parent operator already does a cast
     var shouldCastToInt = mode == EmitBinary.CAST_TO_INT && (isUnsigned ||
@@ -90,27 +113,27 @@ class JsResult {
     var selfPrecedence = shouldCastToInt ? isUnsigned ? Precedence.SHIFT : Precedence.BITWISE_OR : parentPrecedence;
 
     if (parentPrecedence > selfPrecedence) {
-      this.emitText("(");
+      code.appendChar('(');
     }
 
     if (selfPrecedence > operatorPrecedence) {
-      this.emitText("(");
+      code.appendChar('(');
     }
 
     this.emitExpression(node.binaryLeft(), isRightAssociative ? (operatorPrecedence as int + 1) as Precedence : operatorPrecedence);
-    this.emitText(operator);
+    code.append(operator);
     this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : (operatorPrecedence as int + 1) as Precedence);
 
     if (selfPrecedence > operatorPrecedence) {
-      this.emitText(")");
+      code.appendChar(')');
     }
 
     if (shouldCastToInt) {
-      this.emitText(isUnsigned ? " >>> 0" : " | 0");
+      code.append(isUnsigned ? " >>> 0" : " | 0");
     }
 
     if (parentPrecedence > selfPrecedence) {
-      this.emitText(")");
+      code.appendChar(')');
     }
   }
 
@@ -120,38 +143,40 @@ class JsResult {
       start = start.nextSibling;
 
       if (start != stop) {
-        this.emitText(", ");
+        this.code.append(", ");
       }
     }
   }
 
   emitExpression(node: Node, parentPrecedence: Precedence): void {
+    var code = this.code;
+
     assert(node.resolvedType != null);
 
     if (node.kind == NodeKind.NAME) {
       var symbol = node.symbol;
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
-        this.emitText("globals.");
+        code.append("globals.");
       }
-      this.emitText(symbol.name);
+      code.append(symbol.name);
     }
 
     else if (node.kind == NodeKind.NULL) {
-      this.emitText("null");
+      code.append("null");
     }
 
     else if (node.kind == NodeKind.BOOL) {
-      this.emitText(node.intValue != 0 ? "true" : "false");
+      code.append(node.intValue != 0 ? "true" : "false");
     }
 
     else if (node.kind == NodeKind.INT) {
-      this.emitString(node.resolvedType.isUnsigned()
-        ? String_toStringUnsigned(node.intValue as uint)
-        : String_toStringSigned(node.intValue));
+      code.append(node.resolvedType.isUnsigned()
+        ? string_uintToString(node.intValue as uint)
+        : string_intToString(node.intValue));
     }
 
     else if (node.kind == NodeKind.STRING) {
-      this.emitString(String_quote(String_new(node.stringValue)));
+      this.emitQuoted(node.stringValue);
     }
 
     else if (node.kind == NodeKind.CAST) {
@@ -169,61 +194,61 @@ class JsResult {
         // Sign-extend
         if (type == context.byteType || type == context.shortType) {
           if (parentPrecedence > Precedence.SHIFT) {
-            this.emitText("(");
+            code.appendChar('(');
           }
 
-          var shift = String_toStringSigned(32 - type.symbol.byteSize * 8);
+          var shift = string_intToString(32 - type.symbol.byteSize * 8);
           this.emitExpression(value, Precedence.SHIFT);
-          this.emitText(" << ");
-          this.emitString(shift);
-          this.emitText(" >> ");
-          this.emitString(shift);
+          code.append(" << ");
+          code.append(shift);
+          code.append(" >> ");
+          code.append(shift);
 
           if (parentPrecedence > Precedence.SHIFT) {
-            this.emitText(")");
+            code.appendChar(')');
           }
         }
 
         // Mask
         else if (type == context.ubyteType || type == context.ushortType) {
           if (parentPrecedence > Precedence.BITWISE_AND) {
-            this.emitText("(");
+            code.appendChar('(');
           }
 
           this.emitExpression(value, Precedence.BITWISE_AND);
-          this.emitText(" & ");
-          this.emitString(String_toStringUnsigned(type.integerBitMask()));
+          code.append(" & ");
+          code.append(string_uintToString(type.integerBitMask()));
 
           if (parentPrecedence > Precedence.BITWISE_AND) {
-            this.emitText(")");
+            code.appendChar(')');
           }
         }
 
         // Truncate signed
         else if (type == context.intType) {
           if (parentPrecedence > Precedence.BITWISE_OR) {
-            this.emitText("(");
+            code.appendChar('(');
           }
 
           this.emitExpression(value, Precedence.BITWISE_OR);
-          this.emitText(" | 0");
+          code.append(" | 0");
 
           if (parentPrecedence > Precedence.BITWISE_OR) {
-            this.emitText(")");
+            code.appendChar(')');
           }
         }
 
         // Truncate unsigned
         else if (type == context.uintType) {
           if (parentPrecedence > Precedence.SHIFT) {
-            this.emitText("(");
+            code.appendChar('(');
           }
 
           this.emitExpression(value, Precedence.SHIFT);
-          this.emitText(" >>> 0");
+          code.append(" >>> 0");
 
           if (parentPrecedence > Precedence.SHIFT) {
-            this.emitText(")");
+            code.appendChar(')');
           }
         }
 
@@ -241,17 +266,17 @@ class JsResult {
 
     else if (node.kind == NodeKind.HOOK) {
       if (parentPrecedence > Precedence.ASSIGN) {
-        this.emitText("(");
+        code.appendChar('(');
       }
 
       this.emitExpression(node.hookValue(), Precedence.LOGICAL_OR);
-      this.emitText(" ? ");
+      code.append(" ? ");
       this.emitExpression(node.hookTrue(), Precedence.ASSIGN);
-      this.emitText(" : ");
+      code.append(" : ");
       this.emitExpression(node.hookFalse(), Precedence.ASSIGN);
 
       if (parentPrecedence > Precedence.ASSIGN) {
-        this.emitText(")");
+        code.appendChar(')');
       }
     }
 
@@ -261,39 +286,39 @@ class JsResult {
 
       if (isDeclaredInstance && string_equals(value.symbol.name, "[]")) {
         this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
-        this.emitText("[");
+        code.appendChar('[');
         this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        this.emitText("]");
+        code.appendChar(']');
       }
 
       else if (isDeclaredInstance && string_equals(value.symbol.name, "[]=")) {
         if (parentPrecedence > Precedence.ASSIGN) {
-          this.emitText("(");
+          code.appendChar('(');
         }
 
         this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
-        this.emitText("[");
+        code.appendChar('[');
         this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
-        this.emitText("] = ");
+        code.append("] = ");
         this.emitExpression(node.lastChild, Precedence.ASSIGN);
 
         if (parentPrecedence > Precedence.ASSIGN) {
-          this.emitText(")");
+          code.appendChar(')');
         }
       }
 
       else {
         this.emitExpression(value, Precedence.UNARY_POSTFIX);
-        this.emitText("(");
+        code.appendChar('(');
         this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        this.emitText(")");
+        code.appendChar(')');
       }
     }
 
     else if (node.kind == NodeKind.NEW) {
-      this.emitText("new ");
+      code.append("new ");
       this.emitExpression(node.newType(), Precedence.UNARY_POSTFIX);
-      this.emitText("()");
+      code.append("()");
     }
 
     else if (node.kind == NodeKind.COMPLEMENT) this.emitUnary(node, parentPrecedence, "~");
@@ -330,21 +355,21 @@ class JsResult {
       var isUnsigned = node.isUnsignedOperator();
 
       if (isUnsigned && parentPrecedence > Precedence.SHIFT) {
-        this.emitText("(");
+        code.appendChar('(');
       }
 
-      this.emitText("__imul(");
+      code.append("__imul(");
       this.emitExpression(left, Precedence.LOWEST);
-      this.emitText(", ");
+      code.append(", ");
       this.emitExpression(right, Precedence.LOWEST);
-      this.emitText(")");
+      code.appendChar(')');
       this.foundMultiply = true;
 
       if (isUnsigned) {
-        this.emitText(" >>> 0");
+        code.append(" >>> 0");
 
         if (parentPrecedence > Precedence.SHIFT) {
-          this.emitText(")");
+          code.appendChar(')');
         }
       }
     }
@@ -356,20 +381,23 @@ class JsResult {
 
   emitSymbolAccess(symbol: Symbol): void {
     var c = string_get(symbol.name, 0);
+    var code = this.code;
 
     if (isAlpha(c)) {
-      this.emitText(".");
-      this.emitText(symbol.name);
+      code.appendChar('.');
+      code.append(symbol.name);
     }
 
     else {
-      this.emitText("[");
-      this.emitString(String_quote(String_new(symbol.name)));
-      this.emitText("]");
+      code.appendChar('[');
+      this.emitQuoted(symbol.name);
+      code.appendChar(']');
     }
   }
 
   emitStatement(node: Node): void {
+    var code = this.code;
+
     if (node.kind == NodeKind.FUNCTION) {
       var body = node.functionBody();
       if (body == null) {
@@ -382,44 +410,44 @@ class JsResult {
       this.emitIndent();
 
       if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-        this.emitText(symbol.parent().name);
-        this.emitText(".prototype");
+        code.append(symbol.parent().name);
+        code.append(".prototype");
         this.emitSymbolAccess(symbol);
-        this.emitText(" = function");
+        code.append(" = function");
         needsSemicolon = true;
       }
 
       else if (node.isExtern()) {
-        this.emitText("var ");
-        this.emitText(symbol.name);
-        this.emitText(" = exports.");
-        this.emitText(symbol.name);
-        this.emitText(" = function");
+        code.append("var ");
+        code.append(symbol.name);
+        code.append(" = exports.");
+        code.append(symbol.name);
+        code.append(" = function");
         needsSemicolon = true;
       }
 
       else {
-        this.emitText("function ");
-        this.emitText(symbol.name);
+        code.append("function ");
+        code.append(symbol.name);
       }
 
-      this.emitText("(");
+      code.appendChar('(');
 
       var returnType = node.functionReturnType();
       var child = node.functionFirstArgumentIgnoringThis();
 
       while (child != returnType) {
         assert(child.kind == NodeKind.VARIABLE);
-        this.emitText(child.symbol.name);
+        code.append(child.symbol.name);
         child = child.nextSibling;
         if (child != returnType) {
-          this.emitText(", ");
+          code.append(", ");
         }
       }
 
-      this.emitText(") ");
+      code.append(") ");
       this.emitBlock(node.functionBody());
-      this.emitText(needsSemicolon ? ";\n" : "\n");
+      code.append(needsSemicolon ? ";\n" : "\n");
       this.emitNewlineAfter(node);
     }
 
@@ -427,21 +455,21 @@ class JsResult {
       this.emitNewlineBefore(node);
       this.emitIndent();
       while (true) {
-        this.emitText("if (");
+        code.append("if (");
         this.emitExpression(node.ifValue(), Precedence.LOWEST);
-        this.emitText(") ");
+        code.append(") ");
         this.emitBlock(node.ifTrue());
         var no = node.ifFalse();
         if (no == null) {
-          this.emitText("\n");
+          code.appendChar('\n');
           break;
         }
-        this.emitText("\n\n");
+        code.append("\n\n");
         this.emitIndent();
-        this.emitText("else ");
+        code.append("else ");
         if (no.firstChild == null || no.firstChild != no.lastChild || no.firstChild.kind != NodeKind.IF) {
           this.emitBlock(no);
-          this.emitText("\n");
+          code.appendChar('\n');
           break;
         }
         node = no.firstChild;
@@ -452,25 +480,25 @@ class JsResult {
     else if (node.kind == NodeKind.WHILE) {
       this.emitNewlineBefore(node);
       this.emitIndent();
-      this.emitText("while (");
+      code.append("while (");
       this.emitExpression(node.whileValue(), Precedence.LOWEST);
-      this.emitText(") ");
+      code.append(") ");
       this.emitBlock(node.whileBody());
-      this.emitText("\n");
+      code.appendChar('\n');
       this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.BREAK) {
       this.emitNewlineBefore(node);
       this.emitIndent();
-      this.emitText("break;\n");
+      code.append("break;\n");
       this.emitNewlineAfter(node);
     }
 
     else if (node.kind == NodeKind.CONTINUE) {
       this.emitNewlineBefore(node);
       this.emitIndent();
-      this.emitText("continue;\n");
+      code.append("continue;\n");
       this.emitNewlineAfter(node);
     }
 
@@ -478,7 +506,7 @@ class JsResult {
       this.emitNewlineBefore(node);
       this.emitIndent();
       this.emitExpression(node.expressionValue(), Precedence.LOWEST);
-      this.emitText(";\n");
+      code.append(";\n");
       this.emitNewlineAfter(node);
     }
 
@@ -490,11 +518,11 @@ class JsResult {
       this.emitNewlineBefore(node);
       this.emitIndent();
       if (value != null) {
-        this.emitText("return ");
+        code.append("return ");
         this.emitExpression(value, Precedence.LOWEST);
-        this.emitText(";\n");
+        code.append(";\n");
       } else {
-        this.emitText("return;\n");
+        code.append("return;\n");
       }
       this.emitNewlineAfter(node);
     }
@@ -506,7 +534,7 @@ class JsResult {
         this.emitNewlineBefore(node);
         this.emitIndent();
         this.emitBlock(node);
-        this.emitText("\n");
+        code.appendChar('\n');
         this.emitNewlineAfter(node);
       }
     }
@@ -514,20 +542,20 @@ class JsResult {
     else if (node.kind == NodeKind.VARIABLES) {
       this.emitNewlineBefore(node);
       this.emitIndent();
-      this.emitText("var ");
+      code.append("var ");
       var child = node.firstChild;
       while (child != null) {
         var value = child.variableValue();
-        this.emitText(child.symbol.name);
+        code.append(child.symbol.name);
         child = child.nextSibling;
         if (child != null) {
-          this.emitText(", ");
+          code.append(", ");
         }
         assert(value != null);
-        this.emitText(" = ");
+        code.append(" = ");
         this.emitExpression(value, Precedence.LOWEST);
       }
-      this.emitText(";\n");
+      code.append(";\n");
       this.emitNewlineAfter(node);
     }
 
@@ -538,9 +566,9 @@ class JsResult {
 
       this.emitNewlineBefore(node);
       this.emitIndent();
-      this.emitText("function ");
-      this.emitText(node.symbol.name);
-      this.emitText("() {\n");
+      code.append("function ");
+      code.append(node.symbol.name);
+      code.append("() {\n");
       this.indent = this.indent + 1;
 
       // Emit constructor body
@@ -548,18 +576,18 @@ class JsResult {
       while (child != null) {
         if (child.kind == NodeKind.VARIABLE) {
           this.emitIndent();
-          this.emitText("this.");
-          this.emitText(child.symbol.name);
-          this.emitText(" = ");
+          code.append("this.");
+          code.append(child.symbol.name);
+          code.append(" = ");
           this.emitExpression(child.variableValue(), Precedence.LOWEST);
-          this.emitText(";\n");
+          code.append(";\n");
         }
         child = child.nextSibling;
       }
 
       this.indent = this.indent - 1;
       this.emitIndent();
-      this.emitText("}\n");
+      code.append("}\n");
       this.emitNewlineAfter(node);
 
       // Emit instance functions
@@ -588,17 +616,18 @@ function jsIsCompactNodeKind(kind: NodeKind): bool {
     kind == NodeKind.VARIABLES;
 }
 
-function jsEmit(global: Node, context: CheckContext): String {
+function jsEmit(global: Node, context: CheckContext): string {
+  var code = StringBuilder_new();
   var result = new JsResult();
   result.context = context;
-  result.code = String_new("");
+  result.code = code;
   result.emitStatements(global.firstChild);
 
   if (result.foundMultiply) {
-    result.emitText("\nvar __imul = Math.imul || function(a, b) {\n");
-    result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
-    result.emitText("};\n");
+    code.append("\nvar __imul = Math.imul || function(a, b) {\n");
+    code.append("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    code.append("};\n");
   }
 
-  return result.code;
+  return code.finish();
 }
