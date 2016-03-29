@@ -123,7 +123,7 @@ function initialize(context, node, parentScope) {
     var parentKind = node.parent.kind;
 
     if (kind !== 1 && kind !== 14 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
-      context.log.error(node.range, globals.String_new("This statement is not allowed here"));
+      context.log.error(node.range, "This statement is not allowed here");
     }
   }
 
@@ -211,7 +211,7 @@ function forbidFlag(context, node, flag, text) {
 
     if (range !== null) {
       node.flags = node.flags & ~flag;
-      context.log.error(range, globals.String_new(text));
+      context.log.error(range, text);
     }
   }
 }
@@ -219,7 +219,7 @@ function forbidFlag(context, node, flag, text) {
 function requireFlag(context, node, flag, text) {
   if ((node.flags & flag) === 0) {
     node.flags = node.flags | flag;
-    context.log.error(node.range, globals.String_new(text));
+    context.log.error(node.range, text);
   }
 }
 
@@ -282,12 +282,12 @@ function initializeSymbol(context, symbol) {
         node.flags = node.flags | 1;
 
         if (body !== null) {
-          context.log.error(body.range, globals.String_new("Cannot implement a function on a declared class"));
+          context.log.error(body.range, "Cannot implement a function on a declared class");
         }
       }
 
       else if (body === null) {
-        context.log.error(node.lastChild.range, globals.String_new("Must implement this function"));
+        context.log.error(node.lastChild.range, "Must implement this function");
       }
     }
 
@@ -316,12 +316,12 @@ function initializeSymbol(context, symbol) {
     }
 
     else {
-      context.log.error(node.internalRange, globals.String_new("Cannot create untyped variables"));
+      context.log.error(node.internalRange, "Cannot create untyped variables");
       symbol.resolvedType = context.errorType;
     }
 
     if (symbol.resolvedType === context.voidType || symbol.resolvedType === context.nullType) {
-      context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot create a variable with type '"), symbol.resolvedType.toString()), "'"));
+      context.log.error(node.internalRange, StringBuilder_new().append("Cannot create a variable with type '").append(symbol.resolvedType.toString()).appendChar(39).finish());
       symbol.resolvedType = context.errorType;
     }
 
@@ -335,7 +335,7 @@ function initializeSymbol(context, symbol) {
         }
 
         else if (value.resolvedType !== context.errorType) {
-          context.log.error(value.range, globals.String_new("Invalid constant initializer"));
+          context.log.error(value.range, "Invalid constant initializer");
           symbol.resolvedType = context.errorType;
         }
       }
@@ -353,7 +353,7 @@ function initializeSymbol(context, symbol) {
       }
 
       else {
-        context.log.error(node.internalRange, globals.String_new("Constants must be initialized"));
+        context.log.error(node.internalRange, "Constants must be initialized");
       }
     }
 
@@ -364,7 +364,7 @@ function initializeSymbol(context, symbol) {
         var shadowed = scope.findLocal(symbol.name);
 
         if (shadowed !== null) {
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
+          context.log.error(node.internalRange, StringBuilder_new().append("The symbol '").append(symbol.name).append("' shadows another symbol with the same name in a parent scope").finish());
 
           break;
         }
@@ -409,7 +409,7 @@ function resolveAsExpression(context, node, parentScope) {
   resolve(context, node, parentScope);
 
   if (node.resolvedType !== context.errorType && node.isType()) {
-    context.log.error(node.range, globals.String_new("Expected expression but found type"));
+    context.log.error(node.range, "Expected expression but found type");
     node.resolvedType = context.errorType;
   }
 }
@@ -419,7 +419,7 @@ function resolveAsType(context, node, parentScope) {
   resolve(context, node, parentScope);
 
   if (node.resolvedType !== context.errorType && !node.isType()) {
-    context.log.error(node.range, globals.String_new("Expected type but found expression"));
+    context.log.error(node.range, "Expected type but found expression");
     node.resolvedType = context.errorType;
   }
 }
@@ -457,8 +457,7 @@ function checkConversion(context, node, to, kind) {
     canCast = true;
   }
 
-  var message = globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot convert from type '"), from.toString()), "' to type '"), to.toString()), "'");
-  context.log.error(node.range, canCast ? globals.String_appendNew(message, " without a cast") : message);
+  context.log.error(node.range, StringBuilder_new().append("Cannot convert from type '").append(from.toString()).append("' to type '").append(to.toString()).append(canCast ? "' without a cast" : "'").finish());
   node.resolvedType = context.errorType;
 }
 
@@ -466,7 +465,7 @@ function checkStorage(context, target) {
   globals.assert(isExpression(target));
 
   if (target.resolvedType !== context.errorType && target.kind !== 22 && (target.kind !== 24 && target.kind !== 20 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
-    context.log.error(target.range, globals.String_new("Cannot store to this location"));
+    context.log.error(target.range, "Cannot store to this location");
     target.resolvedType = context.errorType;
   }
 }
@@ -549,7 +548,7 @@ function binaryHasUnsignedArguments(node) {
 
 function isSymbolAccessAllowed(context, symbol, range) {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-    context.log.error(range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot use symbol '"), symbol.name), "' outside an unsafe block"));
+    context.log.error(range, StringBuilder_new().append("Cannot use symbol '").append(symbol.name).append("' outside an unsafe block").finish());
 
     return false;
   }
@@ -606,7 +605,7 @@ function resolve(context, node, parentScope) {
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
 
       if (symbol.kind === 8 && value.kind !== 23 && value.kind !== 17 && value.kind !== 26) {
-        context.log.error(value.range, globals.String_new("Global initializers must be compile-time constants"));
+        context.log.error(value.range, "Global initializers must be compile-time constants");
       }
     }
 
@@ -636,7 +635,7 @@ function resolve(context, node, parentScope) {
     }
 
     if (!found) {
-      context.log.error(node.range, globals.String_new("Cannot use this statement outside of a loop"));
+      context.log.error(node.range, "Cannot use this statement outside of a loop");
     }
   }
 
@@ -680,7 +679,7 @@ function resolve(context, node, parentScope) {
       var symbol = type.isClass() ? type.findMember("[]") : null;
 
       if (symbol === null) {
-        context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+        context.log.error(node.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -718,7 +717,7 @@ function resolve(context, node, parentScope) {
     var symbol = parentScope.findNested("this", 0);
 
     if (symbol === null) {
-      context.log.error(node.range, globals.String_new("Cannot use 'this' here"));
+      context.log.error(node.range, "Cannot use 'this' here");
     }
 
     else {
@@ -735,30 +734,30 @@ function resolve(context, node, parentScope) {
     var symbol = parentScope.findNested(name, 0);
 
     if (symbol === null) {
-      var message = globals.String_appendNew(globals.String_appendNew(globals.String_new("No symbol named '"), name), "' here");
+      var builder = StringBuilder_new().append("No symbol named '").append(name).append("' here");
       symbol = parentScope.findNested(name, 1);
 
       if (symbol !== null) {
-        message = globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(message, ", did you mean 'this."), symbol.name), "'?");
+        builder.append(", did you mean 'this.").append(symbol.name).append("'?");
       }
 
       else if (globals.string_equals(name, "number")) {
-        message = globals.String_appendNew(message, ", did you mean 'int'?");
+        builder.append(", did you mean 'int'?");
       }
 
       else if (globals.string_equals(name, "boolean")) {
-        message = globals.String_appendNew(message, ", did you mean 'bool'?");
+        builder.append(", did you mean 'bool'?");
       }
 
-      context.log.error(node.range, message);
+      context.log.error(node.range, builder.finish());
     }
 
     else if (symbol.state === 1) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cyclic reference to symbol '"), name), "' here"));
+      context.log.error(node.range, StringBuilder_new().append("Cyclic reference to symbol '").append(name).append("' here").finish());
     }
 
     else if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
-      context.log.error(node.range, globals.String_new("Bare function references are not allowed"));
+      context.log.error(node.range, "Bare function references are not allowed");
     }
 
     else if (isSymbolAccessAllowed(context, symbol, node.range)) {
@@ -807,7 +806,7 @@ function resolve(context, node, parentScope) {
           var symbol = target.resolvedType.findMember(name);
 
           if (symbol === null) {
-            context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("No member named '"), name), "' on type '"), target.resolvedType.toString()), "'"));
+            context.log.error(node.internalRange, StringBuilder_new().append("No member named '").append(name).append("' on type '").append(target.resolvedType.toString()).appendChar(39).finish());
           }
 
           else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
@@ -823,7 +822,7 @@ function resolve(context, node, parentScope) {
       }
 
       else {
-        context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("The type '"), target.resolvedType.toString()), "' has no members"));
+        context.log.error(node.internalRange, StringBuilder_new().append("The type '").append(target.resolvedType.toString()).append("' has no members").finish());
       }
     }
   }
@@ -836,7 +835,7 @@ function resolve(context, node, parentScope) {
       var symbol = value.symbol;
 
       if (symbol === null || !isFunction(symbol.kind)) {
-        context.log.error(value.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot call value of type '"), value.resolvedType.toString()), "'"));
+        context.log.error(value.range, StringBuilder_new().append("Cannot call value of type '").append(value.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -853,7 +852,7 @@ function resolve(context, node, parentScope) {
         }
 
         if (argumentVariable !== returnType) {
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Not enough arguments for function '"), symbol.name), "'"));
+          context.log.error(node.internalRange, StringBuilder_new().append("Not enough arguments for function '").append(symbol.name).appendChar(39).finish());
         }
 
         else if (argumentValue !== null) {
@@ -862,7 +861,7 @@ function resolve(context, node, parentScope) {
             argumentValue = argumentValue.nextSibling;
           }
 
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Too many arguments for function '"), symbol.name), "'"));
+          context.log.error(node.internalRange, StringBuilder_new().append("Too many arguments for function '").append(symbol.name).appendChar(39).finish());
         }
 
         node.resolvedType = returnType.resolvedType;
@@ -882,13 +881,13 @@ function resolve(context, node, parentScope) {
         }
 
         else {
-          context.log.error(value.range, globals.String_new("Unexpected return value in function returning 'void'"));
+          context.log.error(value.range, "Unexpected return value in function returning 'void'");
         }
       }
     }
 
     else if (context.currentReturnType !== null && context.currentReturnType !== context.voidType) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Expected return value in function returning '"), context.currentReturnType.toString()), "'"));
+      context.log.error(node.range, StringBuilder_new().append("Expected return value in function returning '").append(context.currentReturnType.toString()).appendChar(39).finish());
     }
   }
 
@@ -931,7 +930,7 @@ function resolve(context, node, parentScope) {
     var commonType = (yes.resolvedType === context.nullType ? no : yes).resolvedType;
 
     if (yes.resolvedType !== commonType && (yes.resolvedType !== context.nullType || !commonType.isReference(context)) && no.resolvedType !== commonType && (no.resolvedType !== context.nullType || !commonType.isReference(context))) {
-      context.log.error(spanRanges(yes.range, no.range), globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Type '"), yes.resolvedType.toString()), "' is not the same as type '"), no.resolvedType.toString()), "'"));
+      context.log.error(spanRanges(yes.range, no.range), StringBuilder_new().append("Type '").append(yes.resolvedType.toString()).append("' is not the same as type '").append(no.resolvedType.toString()).appendChar(39).finish());
     }
 
     node.resolvedType = commonType;
@@ -950,7 +949,7 @@ function resolve(context, node, parentScope) {
         var symbol = type.isClass() ? type.findMember("[]=") : null;
 
         if (symbol === null) {
-          context.log.error(left.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+          context.log.error(left.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
         }
 
         else {
@@ -1092,7 +1091,7 @@ function resolve(context, node, parentScope) {
     var rightType = right.resolvedType;
 
     if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot compare type '"), leftType.toString()), "' with type '"), rightType.toString()), "'"));
+      context.log.error(node.range, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
     }
   }
 
@@ -1120,7 +1119,7 @@ function resolve(context, node, parentScope) {
   }
 
   else if (node.kind === 36 || node.kind === 37 || node.kind === 38 || node.kind === 39) {
-    context.log.error(node.range, globals.String_new("This operator is currently unsupported"));
+    context.log.error(node.range, "This operator is currently unsupported");
   }
 
   else if (node.kind === 34) {
@@ -1136,7 +1135,7 @@ function resolve(context, node, parentScope) {
 
     if (type.resolvedType !== context.errorType) {
       if (!type.resolvedType.isClass()) {
-        context.log.error(type.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot construct type '"), type.resolvedType.toString()), "'"));
+        context.log.error(type.range, StringBuilder_new().append("Cannot construct type '").append(type.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -1145,7 +1144,7 @@ function resolve(context, node, parentScope) {
     }
 
     if (type.nextSibling !== null) {
-      context.log.error(node.internalRange, globals.String_new("Constructors with arguments are not supported yet"));
+      context.log.error(node.internalRange, "Constructors with arguments are not supported yet");
     }
   }
 
@@ -1211,7 +1210,7 @@ Compiler.prototype.finish = function() {
     source = source.next;
   }
 
-  globals.Profiler_end(globals.String_new("lexing"));
+  globals.Profiler_end("lexing");
   globals.Profiler_begin();
   source = this.firstSource;
 
@@ -1231,11 +1230,11 @@ Compiler.prototype.finish = function() {
     source = source.next;
   }
 
-  globals.Profiler_end(globals.String_new("parsing"));
+  globals.Profiler_end("parsing");
   globals.Profiler_begin();
   globals.assert(this.context === null);
   this.context = check(this.global, this.log);
-  globals.Profiler_end(globals.String_new("checking"));
+  globals.Profiler_end("checking");
 
   if (this.log.first !== null) {
     return false;
@@ -1252,7 +1251,7 @@ Compiler.prototype.finish = function() {
     wasmEmit(this.global, this.context, this.wasm);
   }
 
-  globals.Profiler_end(globals.String_new("emitting"));
+  globals.Profiler_end("emitting");
 
   return true;
 };
@@ -1284,9 +1283,6 @@ var Compiler_log = exports.Compiler_log = function(compiler) {
   return compiler.log.toString();
 };
 
-function String() {
-}
-
 function isPositivePowerOf2(value) {
   return value > 0 && (value & value - 1) === 0;
 }
@@ -1309,22 +1305,61 @@ JsResult.prototype.emitIndent = function() {
   var i = this.indent;
 
   while (i > 0) {
-    this.code = globals.String_appendNew(this.code, "  ");
+    this.code.append("  ");
     i = i - 1 | 0;
   }
 };
 
-JsResult.prototype.emitText = function(text) {
-  this.code = globals.String_appendNew(this.code, text);
-};
+JsResult.prototype.emitQuoted = function(text) {
+  var code = this.code;
+  var end = 0;
+  var limit = globals.string_length(text);
+  var start = end;
+  code.appendChar(34);
 
-JsResult.prototype.emitString = function(text) {
-  this.code = globals.String_append(this.code, text);
+  while (end < limit) {
+    var c = globals.string_get(text, end);
+
+    if (c === 34) {
+      code.appendSlice(text, start, end).append("\\\"");
+    }
+
+    else if (c === 0) {
+      code.appendSlice(text, start, end).append("\\0");
+    }
+
+    else if (c === 9) {
+      code.appendSlice(text, start, end).append("\\t");
+    }
+
+    else if (c === 13) {
+      code.appendSlice(text, start, end).append("\\r");
+    }
+
+    else if (c === 10) {
+      code.appendSlice(text, start, end).append("\\n");
+    }
+
+    else if (c === 92) {
+      code.appendSlice(text, start, end).append("\\\\");
+    }
+
+    else {
+      end = end + 1 | 0;
+
+      continue;
+    }
+
+    end = end + 1 | 0;
+    start = end;
+  }
+
+  code.appendSlice(text, start, end).appendChar(34);
 };
 
 JsResult.prototype.emitNewlineBefore = function(node) {
   if (this.previousNode !== null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
-    this.emitText("\n");
+    this.code.appendChar(10);
   }
 
   this.previousNode = null;
@@ -1343,35 +1378,36 @@ JsResult.prototype.emitStatements = function(node) {
 
 JsResult.prototype.emitBlock = function(node) {
   this.previousNode = null;
-  this.emitText("{\n");
+  this.code.append("{\n");
   this.indent = this.indent + 1 | 0;
   this.emitStatements(node.firstChild);
   this.indent = this.indent - 1 | 0;
   this.emitIndent();
-  this.emitText("}");
+  this.code.appendChar(125);
   this.previousNode = null;
 };
 
 JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
   var isPostfix = isUnaryPostfix(node.kind);
   var operatorPrecedence = isPostfix ? 13 : 12;
+  var code = this.code;
 
   if (parentPrecedence > operatorPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   if (!isPostfix) {
-    this.emitText(operator);
+    code.append(operator);
   }
 
   this.emitExpression(node.unaryValue(), operatorPrecedence);
 
   if (isPostfix) {
-    this.emitText(operator);
+    code.append(operator);
   }
 
   if (parentPrecedence > operatorPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 };
 
@@ -1379,31 +1415,32 @@ JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, opera
   var isRightAssociative = node.kind === 41;
   var parentKind = node.parent.kind;
   var isUnsigned = node.isUnsignedOperator();
+  var code = this.code;
   var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 56 && parentKind !== 57 && parentKind !== 43 && parentKind !== 42 && parentKind !== 44);
   var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
 
   if (parentPrecedence > selfPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   if (selfPrecedence > operatorPrecedence) {
-    this.emitText("(");
+    code.appendChar(40);
   }
 
   this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 | 0 : operatorPrecedence);
-  this.emitText(operator);
+  code.append(operator);
   this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1 | 0);
 
   if (selfPrecedence > operatorPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 
   if (shouldCastToInt) {
-    this.emitText(isUnsigned ? " >>> 0" : " | 0");
+    code.append(isUnsigned ? " >>> 0" : " | 0");
   }
 
   if (parentPrecedence > selfPrecedence) {
-    this.emitText(")");
+    code.appendChar(41);
   }
 };
 
@@ -1413,38 +1450,39 @@ JsResult.prototype.emitCommaSeparatedExpressions = function(start, stop) {
     start = start.nextSibling;
 
     if (start !== stop) {
-      this.emitText(", ");
+      this.code.append(", ");
     }
   }
 };
 
 JsResult.prototype.emitExpression = function(node, parentPrecedence) {
+  var code = this.code;
   globals.assert(node.resolvedType !== null);
 
   if (node.kind === 24) {
     var symbol = node.symbol;
 
     if (symbol.kind === 5 && symbol.node.isDeclare()) {
-      this.emitText("globals.");
+      code.append("globals.");
     }
 
-    this.emitText(symbol.name);
+    code.append(symbol.name);
   }
 
   else if (node.kind === 26) {
-    this.emitText("null");
+    code.append("null");
   }
 
   else if (node.kind === 17) {
-    this.emitText(node.intValue !== 0 ? "true" : "false");
+    code.append(node.intValue !== 0 ? "true" : "false");
   }
 
   else if (node.kind === 23) {
-    this.emitString(node.resolvedType.isUnsigned() ? globals.String_toStringUnsigned(node.intValue >>> 0) : globals.String_toStringSigned(node.intValue));
+    code.append(node.resolvedType.isUnsigned() ? globals.string_uintToString(node.intValue >>> 0) : globals.string_intToString(node.intValue));
   }
 
   else if (node.kind === 29) {
-    this.emitString(globals.String_quote(globals.String_new(node.stringValue)));
+    this.emitQuoted(node.stringValue);
   }
 
   else if (node.kind === 19) {
@@ -1459,58 +1497,58 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
     else if (type === context.byteType || type === context.shortType) {
       if (parentPrecedence > 9) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
-      var shift = globals.String_toStringSigned(32 - (type.symbol.byteSize << 3) | 0);
+      var shift = globals.string_intToString(32 - (type.symbol.byteSize << 3) | 0);
       this.emitExpression(value, 9);
-      this.emitText(" << ");
-      this.emitString(shift);
-      this.emitText(" >> ");
-      this.emitString(shift);
+      code.append(" << ");
+      code.append(shift);
+      code.append(" >> ");
+      code.append(shift);
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.ubyteType || type === context.ushortType) {
       if (parentPrecedence > 6) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 6);
-      this.emitText(" & ");
-      this.emitString(globals.String_toStringUnsigned(type.integerBitMask()));
+      code.append(" & ");
+      code.append(globals.string_uintToString(type.integerBitMask()));
 
       if (parentPrecedence > 6) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.intType) {
       if (parentPrecedence > 4) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 4);
-      this.emitText(" | 0");
+      code.append(" | 0");
 
       if (parentPrecedence > 4) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else if (type === context.uintType) {
       if (parentPrecedence > 9) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value, 9);
-      this.emitText(" >>> 0");
+      code.append(" >>> 0");
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
@@ -1526,17 +1564,17 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
   else if (node.kind === 21) {
     if (parentPrecedence > 1) {
-      this.emitText("(");
+      code.appendChar(40);
     }
 
     this.emitExpression(node.hookValue(), 2);
-    this.emitText(" ? ");
+    code.append(" ? ");
     this.emitExpression(node.hookTrue(), 1);
-    this.emitText(" : ");
+    code.append(" : ");
     this.emitExpression(node.hookFalse(), 1);
 
     if (parentPrecedence > 1) {
-      this.emitText(")");
+      code.appendChar(41);
     }
   }
 
@@ -1546,39 +1584,39 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
     if (isDeclaredInstance && globals.string_equals(value.symbol.name, "[]")) {
       this.emitExpression(value.dotTarget(), 13);
-      this.emitText("[");
+      code.appendChar(91);
       this.emitCommaSeparatedExpressions(value.nextSibling, null);
-      this.emitText("]");
+      code.appendChar(93);
     }
 
     else if (isDeclaredInstance && globals.string_equals(value.symbol.name, "[]=")) {
       if (parentPrecedence > 1) {
-        this.emitText("(");
+        code.appendChar(40);
       }
 
       this.emitExpression(value.dotTarget(), 13);
-      this.emitText("[");
+      code.appendChar(91);
       this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
-      this.emitText("] = ");
+      code.append("] = ");
       this.emitExpression(node.lastChild, 1);
 
       if (parentPrecedence > 1) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
 
     else {
       this.emitExpression(value, 13);
-      this.emitText("(");
+      code.appendChar(40);
       this.emitCommaSeparatedExpressions(value.nextSibling, null);
-      this.emitText(")");
+      code.appendChar(41);
     }
   }
 
   else if (node.kind === 25) {
-    this.emitText("new ");
+    code.append("new ");
     this.emitExpression(node.newType(), 13);
-    this.emitText("()");
+    code.append("()");
   }
 
   else if (node.kind === 32) {
@@ -1691,21 +1729,21 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     var isUnsigned = node.isUnsignedOperator();
 
     if (isUnsigned && parentPrecedence > 9) {
-      this.emitText("(");
+      code.appendChar(40);
     }
 
-    this.emitText("__imul(");
+    code.append("__imul(");
     this.emitExpression(left, 0);
-    this.emitText(", ");
+    code.append(", ");
     this.emitExpression(right, 0);
-    this.emitText(")");
+    code.appendChar(41);
     this.foundMultiply = true;
 
     if (isUnsigned) {
-      this.emitText(" >>> 0");
+      code.append(" >>> 0");
 
       if (parentPrecedence > 9) {
-        this.emitText(")");
+        code.appendChar(41);
       }
     }
   }
@@ -1717,20 +1755,23 @@ JsResult.prototype.emitExpression = function(node, parentPrecedence) {
 
 JsResult.prototype.emitSymbolAccess = function(symbol) {
   var c = globals.string_get(symbol.name, 0);
+  var code = this.code;
 
   if (isAlpha(c)) {
-    this.emitText(".");
-    this.emitText(symbol.name);
+    code.appendChar(46);
+    code.append(symbol.name);
   }
 
   else {
-    this.emitText("[");
-    this.emitString(globals.String_quote(globals.String_new(symbol.name)));
-    this.emitText("]");
+    code.appendChar(91);
+    this.emitQuoted(symbol.name);
+    code.appendChar(93);
   }
 };
 
 JsResult.prototype.emitStatement = function(node) {
+  var code = this.code;
+
   if (node.kind === 10) {
     var body = node.functionBody();
 
@@ -1744,44 +1785,44 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     if (symbol.kind === 4) {
-      this.emitText(symbol.parent().name);
-      this.emitText(".prototype");
+      code.append(symbol.parent().name);
+      code.append(".prototype");
       this.emitSymbolAccess(symbol);
-      this.emitText(" = function");
+      code.append(" = function");
       needsSemicolon = true;
     }
 
     else if (node.isExtern()) {
-      this.emitText("var ");
-      this.emitText(symbol.name);
-      this.emitText(" = exports.");
-      this.emitText(symbol.name);
-      this.emitText(" = function");
+      code.append("var ");
+      code.append(symbol.name);
+      code.append(" = exports.");
+      code.append(symbol.name);
+      code.append(" = function");
       needsSemicolon = true;
     }
 
     else {
-      this.emitText("function ");
-      this.emitText(symbol.name);
+      code.append("function ");
+      code.append(symbol.name);
     }
 
-    this.emitText("(");
+    code.appendChar(40);
     var returnType = node.functionReturnType();
     var child = node.functionFirstArgumentIgnoringThis();
 
     while (child !== returnType) {
       globals.assert(child.kind === 1);
-      this.emitText(child.symbol.name);
+      code.append(child.symbol.name);
       child = child.nextSibling;
 
       if (child !== returnType) {
-        this.emitText(", ");
+        code.append(", ");
       }
     }
 
-    this.emitText(") ");
+    code.append(") ");
     this.emitBlock(node.functionBody());
-    this.emitText(needsSemicolon ? ";\n" : "\n");
+    code.append(needsSemicolon ? ";\n" : "\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1790,25 +1831,25 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     while (true) {
-      this.emitText("if (");
+      code.append("if (");
       this.emitExpression(node.ifValue(), 0);
-      this.emitText(") ");
+      code.append(") ");
       this.emitBlock(node.ifTrue());
       var no = node.ifFalse();
 
       if (no === null) {
-        this.emitText("\n");
+        code.appendChar(10);
 
         break;
       }
 
-      this.emitText("\n\n");
+      code.append("\n\n");
       this.emitIndent();
-      this.emitText("else ");
+      code.append("else ");
 
       if (no.firstChild === null || no.firstChild !== no.lastChild || no.firstChild.kind !== 11) {
         this.emitBlock(no);
-        this.emitText("\n");
+        code.appendChar(10);
 
         break;
       }
@@ -1822,25 +1863,25 @@ JsResult.prototype.emitStatement = function(node) {
   else if (node.kind === 15) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("while (");
+    code.append("while (");
     this.emitExpression(node.whileValue(), 0);
-    this.emitText(") ");
+    code.append(") ");
     this.emitBlock(node.whileBody());
-    this.emitText("\n");
+    code.appendChar(10);
     this.emitNewlineAfter(node);
   }
 
   else if (node.kind === 3) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("break;\n");
+    code.append("break;\n");
     this.emitNewlineAfter(node);
   }
 
   else if (node.kind === 6) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("continue;\n");
+    code.append("continue;\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1848,7 +1889,7 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitNewlineBefore(node);
     this.emitIndent();
     this.emitExpression(node.expressionValue(), 0);
-    this.emitText(";\n");
+    code.append(";\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1861,13 +1902,13 @@ JsResult.prototype.emitStatement = function(node) {
     this.emitIndent();
 
     if (value !== null) {
-      this.emitText("return ");
+      code.append("return ");
       this.emitExpression(value, 0);
-      this.emitText(";\n");
+      code.append(";\n");
     }
 
     else {
-      this.emitText("return;\n");
+      code.append("return;\n");
     }
 
     this.emitNewlineAfter(node);
@@ -1882,7 +1923,7 @@ JsResult.prototype.emitStatement = function(node) {
       this.emitNewlineBefore(node);
       this.emitIndent();
       this.emitBlock(node);
-      this.emitText("\n");
+      code.appendChar(10);
       this.emitNewlineAfter(node);
     }
   }
@@ -1890,24 +1931,24 @@ JsResult.prototype.emitStatement = function(node) {
   else if (node.kind === 14) {
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("var ");
+    code.append("var ");
     var child = node.firstChild;
 
     while (child !== null) {
       var value = child.variableValue();
-      this.emitText(child.symbol.name);
+      code.append(child.symbol.name);
       child = child.nextSibling;
 
       if (child !== null) {
-        this.emitText(", ");
+        code.append(", ");
       }
 
       globals.assert(value !== null);
-      this.emitText(" = ");
+      code.append(" = ");
       this.emitExpression(value, 0);
     }
 
-    this.emitText(";\n");
+    code.append(";\n");
     this.emitNewlineAfter(node);
   }
 
@@ -1918,20 +1959,20 @@ JsResult.prototype.emitStatement = function(node) {
 
     this.emitNewlineBefore(node);
     this.emitIndent();
-    this.emitText("function ");
-    this.emitText(node.symbol.name);
-    this.emitText("() {\n");
+    code.append("function ");
+    code.append(node.symbol.name);
+    code.append("() {\n");
     this.indent = this.indent + 1 | 0;
     var child = node.firstChild;
 
     while (child !== null) {
       if (child.kind === 1) {
         this.emitIndent();
-        this.emitText("this.");
-        this.emitText(child.symbol.name);
-        this.emitText(" = ");
+        code.append("this.");
+        code.append(child.symbol.name);
+        code.append(" = ");
         this.emitExpression(child.variableValue(), 0);
-        this.emitText(";\n");
+        code.append(";\n");
       }
 
       child = child.nextSibling;
@@ -1939,7 +1980,7 @@ JsResult.prototype.emitStatement = function(node) {
 
     this.indent = this.indent - 1 | 0;
     this.emitIndent();
-    this.emitText("}\n");
+    code.append("}\n");
     this.emitNewlineAfter(node);
     child = node.firstChild;
 
@@ -1965,18 +2006,19 @@ function jsIsCompactNodeKind(kind) {
 }
 
 function jsEmit(global, context) {
+  var code = StringBuilder_new();
   var result = new JsResult();
   result.context = context;
-  result.code = globals.String_new("");
+  result.code = code;
   result.emitStatements(global.firstChild);
 
   if (result.foundMultiply) {
-    result.emitText("\nvar __imul = Math.imul || function(a, b) {\n");
-    result.emitText("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
-    result.emitText("};\n");
+    code.append("\nvar __imul = Math.imul || function(a, b) {\n");
+    code.append("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    code.append("};\n");
   }
 
-  return result.code;
+  return code.finish();
 }
 
 function isKeyword(kind) {
@@ -2513,7 +2555,7 @@ function tokenize(source, log) {
             i = i + 1 | 0;
           }
 
-          log.error(createRange(source, start, i), globals.String_appendNew(globals.String_appendNew(globals.String_new("Invalid integer literal: '"), globals.string_slice(contents, start, i)), "'"));
+          log.error(createRange(source, start, i), StringBuilder_new().append("Invalid integer literal: '").appendSlice(contents, start, i).appendChar(39).finish());
 
           return null;
         }
@@ -2544,7 +2586,7 @@ function tokenize(source, log) {
       }
 
       if (kind === 0) {
-        log.error(createRange(source, start, i), globals.String_new(c === 39 ? "Unterminated character literal" : c === 96 ? "Unterminated template literal" : "Unterminated string literal"));
+        log.error(createRange(source, start, i), c === 39 ? "Unterminated character literal" : c === 96 ? "Unterminated template literal" : "Unterminated string literal");
 
         return null;
       }
@@ -2641,7 +2683,7 @@ function tokenize(source, log) {
         }
 
         if (!foundEnd) {
-          log.error(createRange(source, start, start + 2 | 0), globals.String_new("Unterminated multi-line comment"));
+          log.error(createRange(source, start, start + 2 | 0), "Unterminated multi-line comment");
 
           return null;
         }
@@ -2659,7 +2701,7 @@ function tokenize(source, log) {
 
         if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
-          log.error(createRange(source, start, i), globals.String_new("Use '!=' instead of '!=='"));
+          log.error(createRange(source, start, i), "Use '!=' instead of '!=='");
         }
       }
     }
@@ -2673,7 +2715,7 @@ function tokenize(source, log) {
 
         if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
-          log.error(createRange(source, start, i), globals.String_new("Use '==' instead of '==='"));
+          log.error(createRange(source, start, i), "Use '==' instead of '==='");
         }
       }
     }
@@ -2753,7 +2795,7 @@ function tokenize(source, log) {
     var range = createRange(source, start, i);
 
     if (kind === 0) {
-      log.error(range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Syntax error: '"), globals.string_slice(contents, start, start + 1 | 0)), "'"));
+      log.error(range, StringBuilder_new().append("Syntax error: '").appendSlice(contents, start, start + 1 | 0).appendChar(39).finish());
 
       return null;
     }
@@ -2881,7 +2923,7 @@ Log.prototype.append = function(diagnostic) {
 };
 
 Log.prototype.toString = function() {
-  var result = globals.String_new("");
+  var result = StringBuilder_new();
   var d = this.first;
 
   while (d !== null) {
@@ -2898,41 +2940,32 @@ Log.prototype.toString = function() {
       i = i + 1 | 0;
     }
 
-    result = globals.String_appendNew(result, d.range.source.name);
-    result = globals.String_appendNew(result, ":");
-    result = globals.String_append(result, globals.String_toStringSigned(line + 1 | 0));
-    result = globals.String_appendNew(result, ":");
-    result = globals.String_append(result, globals.String_toStringSigned(column + 1 | 0));
-    result = globals.String_appendNew(result, ": error: ");
-    result = globals.String_append(result, d.message);
-    result = globals.String_appendNew(result, "\n");
-    result = globals.String_appendNew(result, lineRange.toString());
-    result = globals.String_appendNew(result, "\n");
+    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(": error: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
     i = 0;
 
     while (i < column) {
-      result = globals.String_appendNew(result, " ");
+      result.appendChar(32);
       i = i + 1 | 0;
     }
 
     if ((d.range.end - d.range.start | 0) <= 1) {
-      result = globals.String_appendNew(result, "^");
+      result.appendChar(94);
     }
 
     else {
       i = d.range.start;
 
       while (i < d.range.end && i < lineRange.end) {
-        result = globals.String_appendNew(result, "~");
+        result.appendChar(126);
         i = i + 1 | 0;
       }
     }
 
-    result = globals.String_appendNew(result, "\n");
+    result.appendChar(10);
     d = d.next;
   }
 
-  return result;
+  return result.finish();
 };
 
 function isUnary(kind) {
@@ -3742,7 +3775,7 @@ ParserContext.prototype.advance = function() {
 };
 
 ParserContext.prototype.unexpectedToken = function() {
-  this.log.error(this.current.range, globals.String_appendNew(globals.String_new("Unexpected "), tokenToString(this.current.kind)));
+  this.log.error(this.current.range, StringBuilder_new().append("Unexpected ").append(tokenToString(this.current.kind)).finish());
 };
 
 ParserContext.prototype.expect = function(kind) {
@@ -3751,11 +3784,11 @@ ParserContext.prototype.expect = function(kind) {
     var currentLine = this.current.range.enclosingLine();
 
     if (kind !== 2 && !previousLine.equals(currentLine)) {
-      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)));
+      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
     }
 
     else {
-      this.log.error(this.current.range, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)), " but found "), tokenToString(this.current.kind)));
+      this.log.error(this.current.range, StringBuilder_new().append("Expected ").append(tokenToString(kind)).append(" but found ").append(tokenToString(this.current.kind)).finish());
     }
 
     return false;
@@ -3845,7 +3878,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
 
       else {
         var escape = createRange(range.source, (range.start + end | 0) - 1 | 0, (range.start + end | 0) + 1 | 0);
-        this.log.error(escape, globals.String_append(globals.String_appendNew(globals.String_new("Invalid escape code '"), escape.toString()), globals.String_new("'")));
+        this.log.error(escape, StringBuilder_new().append("Invalid escape code '").append(escape.toString()).appendChar(39).finish());
 
         return null;
       }
@@ -3885,7 +3918,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       this.advance();
 
       if (globals.string_length(text) !== 1) {
-        this.log.error(token.range, globals.String_new("Invalid character literal (strings use double quotes)"));
+        this.log.error(token.range, "Invalid character literal (strings use double quotes)");
 
         return createParseError().withRange(token.range);
       }
@@ -4476,13 +4509,13 @@ ParserContext.prototype.parseClass = function(firstFlag) {
       }
 
       else if (oldKind === 52) {
-        this.log.error(childName.range, globals.String_new("Instance functions don't need the 'function' keyword"));
+        this.log.error(childName.range, "Instance functions don't need the 'function' keyword");
         childName = this.current;
         this.advance();
       }
 
       else if (oldKind === 43 || oldKind === 57 || oldKind === 70) {
-        this.log.error(childName.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
+        this.log.error(childName.range, StringBuilder_new().append("Instance variables don't need the '").append(childName.range.toString()).append("' keyword").finish());
         childName = this.current;
         this.advance();
       }
@@ -4694,7 +4727,7 @@ ParserContext.prototype.parseVariables = function(firstFlag, parent) {
       }
 
       if (parent !== null) {
-        this.log.error(value.range, globals.String_new("Inline initialization of instance variables is not supported yet"));
+        this.log.error(value.range, "Inline initialization of instance variables is not supported yet");
       }
     }
 
@@ -4906,7 +4939,7 @@ ParserContext.prototype.parseInt = function(range, node) {
     }
 
     else {
-      this.log.error(range, globals.String_new("Use the '0o' prefix for octal integers"));
+      this.log.error(range, "Use the '0o' prefix for octal integers");
 
       return false;
     }
@@ -4922,7 +4955,7 @@ ParserContext.prototype.parseInt = function(range, node) {
     var baseValue = __imul(value, base) >>> 0;
 
     if (baseValue / base >>> 0 !== value || baseValue > 4294967295 - digit >>> 0) {
-      this.log.error(range, globals.String_new("Integer literal is too big to fit in 32 bits"));
+      this.log.error(range, "Integer literal is too big to fit in 32 bits");
 
       return false;
     }
@@ -4993,7 +5026,7 @@ Scope.prototype.define = function(log, symbol) {
   var existing = this.findLocal(symbol.name);
 
   if (existing !== null) {
-    log.error(symbol.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Duplicate symbol '"), symbol.name), "'"));
+    log.error(symbol.range, StringBuilder_new().append("Duplicate symbol '").append(symbol.name).append("'").finish());
 
     return false;
   }
