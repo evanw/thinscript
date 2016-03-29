@@ -45,7 +45,7 @@ class Compiler {
       source = source.next;
     }
 
-    Profiler_end(String_new("lexing"));
+    Profiler_end("lexing");
     Profiler_begin();
 
     source = this.firstSource;
@@ -64,13 +64,13 @@ class Compiler {
       source = source.next;
     }
 
-    Profiler_end(String_new("parsing"));
+    Profiler_end("parsing");
     Profiler_begin();
 
     assert(this.context == null);
     this.context = check(this.global, this.log);
 
-    Profiler_end(String_new("checking"));
+    Profiler_end("checking");
 
     if (this.log.first != null) {
       return false;
@@ -87,7 +87,7 @@ class Compiler {
       wasmEmit(this.global, this.context, this.wasm);
     }
 
-    Profiler_end(String_new("emitting"));
+    Profiler_end("emitting");
 
     return true;
   }
@@ -111,10 +111,10 @@ extern function Compiler_wasm(compiler: Compiler): ByteArray {
   return compiler.wasm;
 }
 
-extern function Compiler_js(compiler: Compiler): String {
-  return String_new(compiler.js);
+extern function Compiler_js(compiler: Compiler): string {
+  return compiler.js;
 }
 
-extern function Compiler_log(compiler: Compiler): String {
-  return String_new(compiler.log.toString());
+extern function Compiler_log(compiler: Compiler): string {
+  return compiler.log.toString();
 }

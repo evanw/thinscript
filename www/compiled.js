@@ -1210,7 +1210,7 @@ Compiler.prototype.finish = function() {
     source = source.next;
   }
 
-  globals.Profiler_end(globals.String_new("lexing"));
+  globals.Profiler_end("lexing");
   globals.Profiler_begin();
   source = this.firstSource;
 
@@ -1230,11 +1230,11 @@ Compiler.prototype.finish = function() {
     source = source.next;
   }
 
-  globals.Profiler_end(globals.String_new("parsing"));
+  globals.Profiler_end("parsing");
   globals.Profiler_begin();
   globals.assert(this.context === null);
   this.context = check(this.global, this.log);
-  globals.Profiler_end(globals.String_new("checking"));
+  globals.Profiler_end("checking");
 
   if (this.log.first !== null) {
     return false;
@@ -1251,7 +1251,7 @@ Compiler.prototype.finish = function() {
     wasmEmit(this.global, this.context, this.wasm);
   }
 
-  globals.Profiler_end(globals.String_new("emitting"));
+  globals.Profiler_end("emitting");
 
   return true;
 };
@@ -1276,15 +1276,12 @@ var Compiler_wasm = exports.Compiler_wasm = function(compiler) {
 };
 
 var Compiler_js = exports.Compiler_js = function(compiler) {
-  return globals.String_new(compiler.js);
+  return compiler.js;
 };
 
 var Compiler_log = exports.Compiler_log = function(compiler) {
-  return globals.String_new(compiler.log.toString());
+  return compiler.log.toString();
 };
-
-function String() {
-}
 
 function isPositivePowerOf2(value) {
   return value > 0 && (value & value - 1) === 0;

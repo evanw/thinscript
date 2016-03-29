@@ -1,5 +1,13 @@
 declare function Uint8Array_new(length: int): Uint8Array;
 
+declare class Uint8Array {
+  length: int;
+  set(source: Uint8Array): void;
+  subarray(start: int, end: int): Uint8Array;
+  operator [] (index: int): ubyte;
+  operator []= (index: int, value: ubyte): void;
+}
+
 function ByteArray_setString(array: ByteArray, index: int, text: string): void {
   var length = string_length(text);
   assert(index >= 0 && index + length <= array.length());
@@ -9,14 +17,6 @@ function ByteArray_setString(array: ByteArray, index: int, text: string): void {
     data[index + i] = string_get(text, i) as ubyte;
     i = i + 1;
   }
-}
-
-declare class Uint8Array {
-  length: int;
-  set(source: Uint8Array): void;
-  subarray(start: int, end: int): Uint8Array;
-  operator [] (index: int): ubyte;
-  operator []= (index: int, value: ubyte): void;
 }
 
 class ByteArray {

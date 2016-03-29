@@ -1,15 +1,15 @@
 function loadStdlibForWebAssembly() {
-  var extractLengthPrefixedString = function(index) {
-    var bytes = stdlib.bytes;
-    var text = '', length = stdlib.ints[index >> 2], i = index + 4;
-    while (length-- > 0) text += String.fromCharCode(bytes[i++]);
-    return text;
-  }
-
   var stdlib = {
     strings: [],
     bytes: null,
     ints: null,
+
+    extractLengthPrefixedString: function(index) {
+      var bytes = stdlib.bytes;
+      var text = '', length = stdlib.ints[index >> 2], i = index + 4;
+      while (length-- > 0) text += String.fromCharCode(bytes[i++]);
+      return text;
+    },
 
     assert: function(truth) {
       if (!truth) {
@@ -22,58 +22,7 @@ function loadStdlibForWebAssembly() {
     },
 
     Profiler_end: function(text) {
-      console.log(stdlib.strings[text - 1] + ': ' + Math.round(now() - time) + 'ms');
-    },
-
-    String_new: function(ptr) {
-      stdlib.strings.push(extractLengthPrefixedString(ptr));
-      return stdlib.strings.length;
-    },
-
-    String_length: function(self) {
-      return stdlib.strings[self - 1].length;
-    },
-
-    String_get: function(self, index) {
-      return stdlib.strings[self - 1].charCodeAt(index);
-    },
-
-    String_append: function(self, other) {
-      stdlib.strings.push(stdlib.strings[self - 1] + stdlib.strings[other - 1]);
-      return stdlib.strings.length;
-    },
-
-    String_appendNew: function(self, other) {
-      stdlib.strings.push(stdlib.strings[self - 1] + extractLengthPrefixedString(other));
-      return stdlib.strings.length;
-    },
-
-    String_slice: function(self, start, end) {
-      stdlib.strings.push(stdlib.strings[self - 1].slice(start, end));
-      return stdlib.strings.length;
-    },
-
-    String_equal: function(self, other) {
-      return stdlib.strings[self - 1] === stdlib.strings[other - 1];
-    },
-
-    String_equalNew: function(self, other) {
-      return stdlib.strings[self - 1] === extractLengthPrefixedString(other);
-    },
-
-    String_toStringSigned: function(value) {
-      stdlib.strings.push((value | 0).toString());
-      return stdlib.strings.length;
-    },
-
-    String_toStringUnsigned: function(value) {
-      stdlib.strings.push((value >>> 0).toString());
-      return stdlib.strings.length;
-    },
-
-    String_quote: function(self) {
-      stdlib.strings.push(JSON.stringify(stdlib.strings[self - 1]));
-      return stdlib.strings.length;
+      console.log(stdlib.extractLengthPrefixedString(text) + ': ' + Math.round(now() - time) + 'ms');
     },
   };
   return stdlib;
@@ -127,50 +76,6 @@ function loadStdlibForJavaScript() {
 
     StringBuilder_appendChar: function(a, b) {
       return a + String.fromCharCode(b);
-    },
-
-    String_new: function(value) {
-      return value;
-    },
-
-    String_length: function(self) {
-      return self.length;
-    },
-
-    String_get: function(self, index) {
-      return self.charCodeAt(index);
-    },
-
-    String_append: function(self, other) {
-      return self + other;
-    },
-
-    String_appendNew: function(self, other) {
-      return self + other;
-    },
-
-    String_slice: function(self, start, end) {
-      return self.slice(start, end);
-    },
-
-    String_equal: function(self, other) {
-      return self === other;
-    },
-
-    String_equalNew: function(self, other) {
-      return self === other;
-    },
-
-    String_toStringSigned: function(value) {
-      return (value | 0).toString();
-    },
-
-    String_toStringUnsigned: function(value) {
-      return (value >>> 0).toString();
-    },
-
-    String_quote: function(self) {
-      return JSON.stringify(self);
     },
 
     Uint8Array_new: function(length) {
@@ -261,8 +166,8 @@ function compileWebAssembly(code) {
 
     return {
       wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
-      log: stdlib.strings[exports.Compiler_log(compiler) - 1] || '',
-      js: stdlib.strings[exports.Compiler_js(compiler) - 1] || '',
+      log: stdlib.extractLengthPrefixedString(exports.Compiler_log(compiler)) || '',
+      js: stdlib.extractLengthPrefixedString(exports.Compiler_js(compiler)) || '',
       totalTime: totalTime,
     };
   };

@@ -83,7 +83,7 @@ function string_uintToString(value: uint): string {
 function _internalIntToString(value: uint, sign: bool): string {
   // Avoid allocation for common cases
   if (value == 0) return "0";
-  if (value == 1) return "1";
+  if (value == 1) return sign ? "-1" : "1";
 
   unsafe {
     // Determine how many digits we need
