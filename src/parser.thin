@@ -65,7 +65,7 @@ class ParserContext {
 
       // Show missing token errors on the previous line for clarity
       if (kind != TokenKind.IDENTIFIER && !previousLine.equals(currentLine)) {
-        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new()
+        this.log.error(previousLine.rangeAtEnd(), StringBuilder_new()
           .append("Expected ")
           .append(tokenToString(kind))
           .finish());

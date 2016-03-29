@@ -77,6 +77,15 @@ enum TokenKind {
   UNSAFE,
   VAR,
   WHILE,
+
+  // Preprocessor
+  PREPROCESSOR_DEFINE,
+  PREPROCESSOR_ELIF,
+  PREPROCESSOR_ELSE,
+  PREPROCESSOR_ENDIF,
+  PREPROCESSOR_IF,
+  PREPROCESSOR_NEEDED,
+  PREPROCESSOR_UNDEF,
 }
 
 function isKeyword(kind: TokenKind): bool {
@@ -169,6 +178,14 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.VAR) return "'var'";
   if (token == TokenKind.WHILE) return "'while'";
 
+  // Preprocessor
+  if (token == TokenKind.PREPROCESSOR_DEFINE) return "'#define'";
+  if (token == TokenKind.PREPROCESSOR_ELIF) return "'#elif'";
+  if (token == TokenKind.PREPROCESSOR_ELSE) return "'#else'";
+  if (token == TokenKind.PREPROCESSOR_ENDIF) return "'#endif'";
+  if (token == TokenKind.PREPROCESSOR_IF) return "'#if'";
+  if (token == TokenKind.PREPROCESSOR_UNDEF) return "'#undef'";
+
   assert(false);
   return null;
 }
@@ -196,6 +213,7 @@ function tokenize(source: Source, log: Log): Token {
   var last: Token = null;
   var contents = source.contents;
   var limit = string_length(contents);
+  var needsPreprocessor = false;
   var i = 0;
 
   while (i < limit) {
@@ -524,6 +542,37 @@ function tokenize(source: Source, log: Log): Token {
       }
     }
 
+    else if (c == '#') {
+      while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
+        i = i + 1;
+      }
+
+      var text = string_slice(contents, start, i);
+
+      if (string_equals(text, "#define")) kind = TokenKind.PREPROCESSOR_DEFINE;
+      else if (string_equals(text, "#elif")) kind = TokenKind.PREPROCESSOR_ELIF;
+      else if (string_equals(text, "#else")) kind = TokenKind.PREPROCESSOR_ELSE;
+      else if (string_equals(text, "#endif")) kind = TokenKind.PREPROCESSOR_ENDIF;
+      else if (string_equals(text, "#if")) kind = TokenKind.PREPROCESSOR_IF;
+      else if (string_equals(text, "#undef")) kind = TokenKind.PREPROCESSOR_UNDEF;
+      else {
+        var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
+
+        if (string_equals(text, "#elsif") || string_equals(text, "#elseif")) {
+          builder.append(", did you mean '#elif'?");
+        }
+
+        else if (string_equals(text, "#end")) {
+          builder.append(", did you mean '#endif'?");
+        }
+
+        log.error(createRange(source, start, i), builder.finish());
+        return null;
+      }
+
+      needsPreprocessor = true;
+    }
+
     var range = createRange(source, start, i);
 
     if (kind == TokenKind.END_OF_FILE) {
@@ -551,6 +600,14 @@ function tokenize(source: Source, log: Log): Token {
   if (first == null) first = eof;
   else last.next = eof;
   last = eof;
+
+  // Pass a "flag" for whether the preprocessor is needed back to the caller
+  if (needsPreprocessor) {
+    var token = new Token();
+    token.kind = TokenKind.PREPROCESSOR_NEEDED;
+    token.next = first;
+    return token;
+  }
 
   return first;
 }

@@ -9,6 +9,7 @@ class Compiler {
   global: Node;
   firstSource: Source;
   lastSource: Source;
+  preprocessor: Preprocessor;
   target: CompileTarget;
   context: CheckContext;
   wasm: ByteArray;
@@ -19,6 +20,7 @@ class Compiler {
     this.log = new Log();
     this.global = new Node();
     this.global.kind = NodeKind.GLOBAL;
+    this.preprocessor = new Preprocessor();
     this.target = target;
 
     if (target == CompileTarget.WEBASSEMBLY) {
@@ -46,6 +48,15 @@ class Compiler {
     }
 
     Profiler_end("lexing");
+    Profiler_begin();
+
+    source = this.firstSource;
+    while (source != null) {
+      this.preprocessor.run(source, this.log);
+      source = source.next;
+    }
+
+    Profiler_end("preprocessing");
     Profiler_begin();
 
     source = this.firstSource;

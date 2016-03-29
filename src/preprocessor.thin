@@ -1,0 +1,216 @@
+class PreprocessorFlag {
+  isDefined: bool;
+  name: string;
+  next: PreprocessorFlag;
+}
+
+// This preprocessor implements the flag-only conditional behavior from C#.
+// There are two scopes for flags: global-level and file-level. This is stored
+// using an ever-growing linked list of PreprocessorFlag objects that turn a
+// flag either on or off. That way file-level state can just reference the
+// memory of the global-level state and the global-level state can easily be
+// restored after parsing a file just by restoring the pointer.
+class Preprocessor {
+  firstFlag: PreprocessorFlag;
+  isDefineAndUndefAllowed: bool;
+
+  isDefined(name: string): bool {
+    var flag = this.firstFlag;
+    while (flag != null) {
+      if (string_equals(flag.name, name)) {
+        return flag.isDefined;
+      }
+      flag = flag.next;
+    }
+    return false;
+  }
+
+  define(name: string, isDefined: bool): void {
+    var flag = new PreprocessorFlag();
+    flag.isDefined = isDefined;
+    flag.name = name;
+    flag.next = this.firstFlag;
+    this.firstFlag = flag;
+  }
+
+  run(source: Source, log: Log): void {
+    if (source.firstToken != null && source.firstToken.kind == TokenKind.PREPROCESSOR_NEEDED) {
+      var firstFlag = this.firstFlag;
+
+      // Scan and process preprocessor if blocks
+      this.isDefineAndUndefAllowed = true;
+      var token = this.scan(source.firstToken, log, true);
+
+      // Don't parse this file if preprocessing failed
+      if (token == null) {
+        source.firstToken = null;
+        return;
+      }
+
+      // Make sure blocks are balanced
+      var next = token.next;
+      if (next.kind != TokenKind.END_OF_FILE) {
+        log.error(next.range, StringBuilder_new()
+          .append("Unexpected '")
+          .append(tokenToString(next.kind))
+          .appendChar('\'')
+          .finish());
+      }
+
+      // Restore the global-level state instead of letting the file-level state
+      // leak over into the next file that the preprocessor is run on
+      this.firstFlag = firstFlag;
+
+      // Skip over the PREPROCESSOR_NEEDED token so the parser doesn't see it
+      source.firstToken = source.firstToken.next;
+    }
+  }
+
+  // Given a token, scan over the next reachable tokens, evaluate #define/#undef
+  // directives, and fold #if/#else chains. Stop on #elif/#else/#endif. Return
+  // the token before the token that caused the stop on success, otherwise null.
+  scan(firstToken: Token, log: Log, isParentLive: bool): Token {
+    var previous = firstToken;
+    var token = firstToken.next;
+
+    // Stop when the current block ends
+    while (token.kind != TokenKind.END_OF_FILE &&
+        token.kind != TokenKind.PREPROCESSOR_ELIF &&
+        token.kind != TokenKind.PREPROCESSOR_ELSE &&
+        token.kind != TokenKind.PREPROCESSOR_ENDIF) {
+      var next = token.next;
+
+      // #define or #undef
+      if (token.kind == TokenKind.PREPROCESSOR_DEFINE ||
+          token.kind == TokenKind.PREPROCESSOR_UNDEF) {
+        // Recover from a missing identifier
+        if (next.kind != TokenKind.IDENTIFIER) {
+          log.error(token.range.rangeAtEnd(), token.kind == TokenKind.PREPROCESSOR_DEFINE
+            ? "Expected an identifier after '#define'"
+            : "Expected an identifier after '#undef'");
+          previous.next = next;
+          token = next;
+        }
+
+        else {
+          // These statements are only valid at the top of the file
+          if (!this.isDefineAndUndefAllowed) {
+            log.error(spanRanges(token.range, next.range), token.kind == TokenKind.PREPROCESSOR_DEFINE
+              ? "Cannot use '#define' after a non-preprocessor token"
+              : "Cannot use '#undef' after a non-preprocessor token");
+          }
+
+          // Only process the directive if control flow is live at this point
+          if (isParentLive) {
+            this.define(next.range.toString(), token.kind == TokenKind.PREPROCESSOR_DEFINE);
+          }
+
+          // Remove the two tokens
+          previous.next = next.next;
+          token = next.next;
+        }
+      }
+
+      // #if
+      else if (token.kind == TokenKind.PREPROCESSOR_IF) {
+        var isLive = isParentLive;
+
+        while (true) {
+          // Reject if the identifier is missing
+          if (next.kind != TokenKind.IDENTIFIER) {
+            log.error(token.range.rangeAtEnd(), token.kind == TokenKind.PREPROCESSOR_ELIF
+              ? "Expected an identifier after '#elif'"
+              : "Expected an identifier after '#if'");
+            return null;
+          }
+
+          // Remove the #if/#elif header
+          var name = next.range.toString();
+          previous.next = next.next;
+
+          // Evaluate the condition
+          var condition = this.isDefined(name);
+
+          // Scan to the next #elif, #else, or #endif
+          var last = this.scan(previous, log, isLive && condition);
+          if (last == null) {
+            return null;
+          }
+
+          // Remove these tokens?
+          if (!isLive || !condition) {
+            previous.next = last.next;
+          }
+
+          // Keep these tokens
+          else {
+            previous = last;
+
+            // Remove all subsequent branches
+            isLive = false;
+          }
+
+          // Advance to the next header
+          token = previous.next;
+          next = token.next;
+
+          // #elif
+          if (token.kind == TokenKind.PREPROCESSOR_ELIF) {
+            continue;
+          }
+
+          // #else
+          if (token.kind == TokenKind.PREPROCESSOR_ELSE) {
+            // Remove the #else
+            previous.next = next;
+
+            // Scan to the #endif
+            var end = this.scan(previous, log, isLive);
+            if (end == null) {
+              return null;
+            }
+
+            // Remove these tokens?
+            if (!isLive) {
+              previous.next = end.next;
+            }
+
+            // Keep these tokens
+            else {
+              previous = end;
+            }
+
+            // Advance to the #endif
+            token = previous.next;
+            next = token.next;
+          }
+
+          // #endif
+          break;
+        }
+
+        // All chains end with an #endif
+        if (token.kind != TokenKind.PREPROCESSOR_ENDIF) {
+          log.error(token.range, StringBuilder_new()
+            .append("Expected '#endif' but found ")
+            .append(tokenToString(token.kind))
+            .finish());
+          return null;
+        }
+
+        // Remove the #endif
+        previous.next = next;
+        token = previous.next;
+      }
+
+      // Skip normal tokens
+      else {
+        this.isDefineAndUndefAllowed = false;
+        previous = token;
+        token = next;
+      }
+    }
+
+    return previous;
+  }
+}

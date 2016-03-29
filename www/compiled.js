@@ -1167,6 +1167,7 @@ function Compiler() {
   this.global = null;
   this.firstSource = null;
   this.lastSource = null;
+  this.preprocessor = null;
   this.target = 0;
   this.context = null;
   this.wasm = null;
@@ -1178,6 +1179,7 @@ Compiler.prototype.initialize = function(target) {
   this.log = new Log();
   this.global = new Node();
   this.global.kind = 0;
+  this.preprocessor = new Preprocessor();
   this.target = target;
 
   if (target === 2) {
@@ -1211,6 +1213,15 @@ Compiler.prototype.finish = function() {
   }
 
   globals.Profiler_end("lexing");
+  globals.Profiler_begin();
+  source = this.firstSource;
+
+  while (source !== null) {
+    this.preprocessor.run(source, this.log);
+    source = source.next;
+  }
+
+  globals.Profiler_end("preprocessing");
   globals.Profiler_begin();
   source = this.firstSource;
 
@@ -2320,6 +2331,30 @@ function tokenToString(token) {
     return "'while'";
   }
 
+  if (token === 72) {
+    return "'#define'";
+  }
+
+  if (token === 73) {
+    return "'#elif'";
+  }
+
+  if (token === 74) {
+    return "'#else'";
+  }
+
+  if (token === 75) {
+    return "'#endif'";
+  }
+
+  if (token === 76) {
+    return "'#if'";
+  }
+
+  if (token === 78) {
+    return "'#undef'";
+  }
+
   globals.assert(false);
 
   return null;
@@ -2346,6 +2381,7 @@ function tokenize(source, log) {
   var last = null;
   var contents = source.contents;
   var limit = globals.string_length(contents);
+  var needsPreprocessor = false;
   var i = 0;
 
   while (i < limit) {
@@ -2792,6 +2828,56 @@ function tokenize(source, log) {
       }
     }
 
+    else if (c === 35) {
+      while (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
+        i = i + 1 | 0;
+      }
+
+      var text = globals.string_slice(contents, start, i);
+
+      if (globals.string_equals(text, "#define")) {
+        kind = 72;
+      }
+
+      else if (globals.string_equals(text, "#elif")) {
+        kind = 73;
+      }
+
+      else if (globals.string_equals(text, "#else")) {
+        kind = 74;
+      }
+
+      else if (globals.string_equals(text, "#endif")) {
+        kind = 75;
+      }
+
+      else if (globals.string_equals(text, "#if")) {
+        kind = 76;
+      }
+
+      else if (globals.string_equals(text, "#undef")) {
+        kind = 78;
+      }
+
+      else {
+        var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar(39);
+
+        if (globals.string_equals(text, "#elsif") || globals.string_equals(text, "#elseif")) {
+          builder.append(", did you mean '#elif'?");
+        }
+
+        else if (globals.string_equals(text, "#end")) {
+          builder.append(", did you mean '#endif'?");
+        }
+
+        log.error(createRange(source, start, i), builder.finish());
+
+        return null;
+      }
+
+      needsPreprocessor = true;
+    }
+
     var range = createRange(source, start, i);
 
     if (kind === 0) {
@@ -2828,6 +2914,14 @@ function tokenize(source, log) {
   }
 
   last = eof;
+
+  if (needsPreprocessor) {
+    var token = new Token();
+    token.kind = 77;
+    token.next = first;
+
+    return token;
+  }
 
   return first;
 }
@@ -2873,6 +2967,10 @@ Range.prototype.enclosingLine = function() {
   }
 
   return createRange(this.source, start, end);
+};
+
+Range.prototype.rangeAtEnd = function() {
+  return createRange(this.source, this.end, this.end);
 };
 
 function createRange(source, start, end) {
@@ -3784,7 +3882,7 @@ ParserContext.prototype.expect = function(kind) {
     var currentLine = this.current.range.enclosingLine();
 
     if (kind !== 2 && !previousLine.equals(currentLine)) {
-      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
+      this.log.error(previousLine.rangeAtEnd(), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
     }
 
     else {
@@ -4982,6 +5080,168 @@ function parse(firstToken, log) {
 
   return global;
 }
+
+function PreprocessorFlag() {
+  this.isDefined = false;
+  this.name = null;
+  this.next = null;
+}
+
+function Preprocessor() {
+  this.firstFlag = null;
+  this.isDefineAndUndefAllowed = false;
+}
+
+Preprocessor.prototype.isDefined = function(name) {
+  var flag = this.firstFlag;
+
+  while (flag !== null) {
+    if (globals.string_equals(flag.name, name)) {
+      return flag.isDefined;
+    }
+
+    flag = flag.next;
+  }
+
+  return false;
+};
+
+Preprocessor.prototype.define = function(name, isDefined) {
+  var flag = new PreprocessorFlag();
+  flag.isDefined = isDefined;
+  flag.name = name;
+  flag.next = this.firstFlag;
+  this.firstFlag = flag;
+};
+
+Preprocessor.prototype.run = function(source, log) {
+  if (source.firstToken !== null && source.firstToken.kind === 77) {
+    var firstFlag = this.firstFlag;
+    this.isDefineAndUndefAllowed = true;
+    var token = this.scan(source.firstToken, log, true);
+
+    if (token === null) {
+      source.firstToken = null;
+
+      return;
+    }
+
+    var next = token.next;
+
+    if (next.kind !== 0) {
+      log.error(next.range, StringBuilder_new().append("Unexpected '").append(tokenToString(next.kind)).appendChar(39).finish());
+    }
+
+    this.firstFlag = firstFlag;
+    source.firstToken = source.firstToken.next;
+  }
+};
+
+Preprocessor.prototype.scan = function(firstToken, log, isParentLive) {
+  var previous = firstToken;
+  var token = firstToken.next;
+
+  while (token.kind !== 0 && token.kind !== 73 && token.kind !== 74 && token.kind !== 75) {
+    var next = token.next;
+
+    if (token.kind === 72 || token.kind === 78) {
+      if (next.kind !== 2) {
+        log.error(token.range.rangeAtEnd(), token.kind === 72 ? "Expected an identifier after '#define'" : "Expected an identifier after '#undef'");
+        previous.next = next;
+        token = next;
+      }
+
+      else {
+        if (!this.isDefineAndUndefAllowed) {
+          log.error(spanRanges(token.range, next.range), token.kind === 72 ? "Can only use '#define' at the top of the file" : "Can only use '#undef' at the top of the file");
+        }
+
+        else if (isParentLive) {
+          this.define(next.range.toString(), token.kind === 72);
+        }
+
+        previous.next = next.next;
+        token = next.next;
+      }
+    }
+
+    else if (token.kind === 76) {
+      var isLive = isParentLive;
+
+      while (true) {
+        if (next.kind !== 2) {
+          log.error(token.range.rangeAtEnd(), token.kind === 73 ? "Expected an identifier after '#elif'" : "Expected an identifier after '#if'");
+
+          return null;
+        }
+
+        var name = next.range.toString();
+        previous.next = next.next;
+        var condition = this.isDefined(name);
+        var last = this.scan(previous, log, isLive && condition);
+
+        if (last === null) {
+          return null;
+        }
+
+        if (!isLive || !condition) {
+          previous.next = last.next;
+        }
+
+        else {
+          previous = last;
+          isLive = false;
+        }
+
+        token = previous.next;
+        next = token.next;
+
+        if (token.kind === 73) {
+          continue;
+        }
+
+        if (token.kind === 74) {
+          previous.next = next;
+          var end = this.scan(previous, log, isLive);
+
+          if (end === null) {
+            return null;
+          }
+
+          if (!isLive) {
+            previous.next = end.next;
+          }
+
+          else {
+            previous = end;
+          }
+
+          token = previous.next;
+          next = token.next;
+        }
+
+        break;
+      }
+
+      if (token.kind !== 75) {
+        log.error(token.range, StringBuilder_new().append("Expected '#endif' but found ").append(tokenToString(token.kind)).finish());
+
+        return null;
+      }
+
+      previous.next = next;
+      token = previous.next;
+    }
+
+    else {
+      this.isDefineAndUndefAllowed = false;
+      previous = token;
+      token = next;
+    }
+  }
+
+  return previous;
+};
 
 function Scope() {
   this.parent = null;

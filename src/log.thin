@@ -39,6 +39,10 @@ class Range {
 
     return createRange(this.source, start, end);
   }
+
+  rangeAtEnd(): Range {
+    return createRange(this.source, this.end, this.end);
+  }
 }
 
 function createRange(source: Source, start: int, end: int): Range {
