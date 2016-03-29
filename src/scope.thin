@@ -37,7 +37,11 @@ class Scope {
   define(log: Log, symbol: Symbol): bool {
     var existing = this.findLocal(symbol.name);
     if (existing != null) {
-      log.error(symbol.range, String_appendNew(String_appendNew(String_new("Duplicate symbol '"), symbol.name), "'"));
+      log.error(symbol.range, StringBuilder_new()
+        .append("Duplicate symbol '")
+        .append(symbol.name)
+        .append("'")
+        .finish());
       return false;
     }
 

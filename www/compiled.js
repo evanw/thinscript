@@ -123,7 +123,7 @@ function initialize(context, node, parentScope) {
     var parentKind = node.parent.kind;
 
     if (kind !== 1 && kind !== 14 && (kind !== 10 || parentKind !== 4) && parentKind === 0 !== (kind === 4 || kind === 8 || kind === 10 || kind === 5)) {
-      context.log.error(node.range, globals.String_new("This statement is not allowed here"));
+      context.log.error(node.range, "This statement is not allowed here");
     }
   }
 
@@ -211,7 +211,7 @@ function forbidFlag(context, node, flag, text) {
 
     if (range !== null) {
       node.flags = node.flags & ~flag;
-      context.log.error(range, globals.String_new(text));
+      context.log.error(range, text);
     }
   }
 }
@@ -219,7 +219,7 @@ function forbidFlag(context, node, flag, text) {
 function requireFlag(context, node, flag, text) {
   if ((node.flags & flag) === 0) {
     node.flags = node.flags | flag;
-    context.log.error(node.range, globals.String_new(text));
+    context.log.error(node.range, text);
   }
 }
 
@@ -282,12 +282,12 @@ function initializeSymbol(context, symbol) {
         node.flags = node.flags | 1;
 
         if (body !== null) {
-          context.log.error(body.range, globals.String_new("Cannot implement a function on a declared class"));
+          context.log.error(body.range, "Cannot implement a function on a declared class");
         }
       }
 
       else if (body === null) {
-        context.log.error(node.lastChild.range, globals.String_new("Must implement this function"));
+        context.log.error(node.lastChild.range, "Must implement this function");
       }
     }
 
@@ -316,12 +316,12 @@ function initializeSymbol(context, symbol) {
     }
 
     else {
-      context.log.error(node.internalRange, globals.String_new("Cannot create untyped variables"));
+      context.log.error(node.internalRange, "Cannot create untyped variables");
       symbol.resolvedType = context.errorType;
     }
 
     if (symbol.resolvedType === context.voidType || symbol.resolvedType === context.nullType) {
-      context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot create a variable with type '"), symbol.resolvedType.toString()), "'"));
+      context.log.error(node.internalRange, StringBuilder_new().append("Cannot create a variable with type '").append(symbol.resolvedType.toString()).appendChar(39).finish());
       symbol.resolvedType = context.errorType;
     }
 
@@ -335,7 +335,7 @@ function initializeSymbol(context, symbol) {
         }
 
         else if (value.resolvedType !== context.errorType) {
-          context.log.error(value.range, globals.String_new("Invalid constant initializer"));
+          context.log.error(value.range, "Invalid constant initializer");
           symbol.resolvedType = context.errorType;
         }
       }
@@ -353,7 +353,7 @@ function initializeSymbol(context, symbol) {
       }
 
       else {
-        context.log.error(node.internalRange, globals.String_new("Constants must be initialized"));
+        context.log.error(node.internalRange, "Constants must be initialized");
       }
     }
 
@@ -364,7 +364,7 @@ function initializeSymbol(context, symbol) {
         var shadowed = scope.findLocal(symbol.name);
 
         if (shadowed !== null) {
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("The symbol '"), symbol.name), "' shadows another symbol with the same name in a parent scope"));
+          context.log.error(node.internalRange, StringBuilder_new().append("The symbol '").append(symbol.name).append("' shadows another symbol with the same name in a parent scope").finish());
 
           break;
         }
@@ -409,7 +409,7 @@ function resolveAsExpression(context, node, parentScope) {
   resolve(context, node, parentScope);
 
   if (node.resolvedType !== context.errorType && node.isType()) {
-    context.log.error(node.range, globals.String_new("Expected expression but found type"));
+    context.log.error(node.range, "Expected expression but found type");
     node.resolvedType = context.errorType;
   }
 }
@@ -419,7 +419,7 @@ function resolveAsType(context, node, parentScope) {
   resolve(context, node, parentScope);
 
   if (node.resolvedType !== context.errorType && !node.isType()) {
-    context.log.error(node.range, globals.String_new("Expected type but found expression"));
+    context.log.error(node.range, "Expected type but found expression");
     node.resolvedType = context.errorType;
   }
 }
@@ -457,8 +457,7 @@ function checkConversion(context, node, to, kind) {
     canCast = true;
   }
 
-  var message = globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot convert from type '"), from.toString()), "' to type '"), to.toString()), "'");
-  context.log.error(node.range, canCast ? globals.String_appendNew(message, " without a cast") : message);
+  context.log.error(node.range, StringBuilder_new().append("Cannot convert from type '").append(from.toString()).append("' to type '").append(to.toString()).append(canCast ? "' without a cast" : "'").finish());
   node.resolvedType = context.errorType;
 }
 
@@ -466,7 +465,7 @@ function checkStorage(context, target) {
   globals.assert(isExpression(target));
 
   if (target.resolvedType !== context.errorType && target.kind !== 22 && (target.kind !== 24 && target.kind !== 20 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
-    context.log.error(target.range, globals.String_new("Cannot store to this location"));
+    context.log.error(target.range, "Cannot store to this location");
     target.resolvedType = context.errorType;
   }
 }
@@ -549,7 +548,7 @@ function binaryHasUnsignedArguments(node) {
 
 function isSymbolAccessAllowed(context, symbol, range) {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-    context.log.error(range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot use symbol '"), symbol.name), "' outside an unsafe block"));
+    context.log.error(range, StringBuilder_new().append("Cannot use symbol '").append(symbol.name).append("' outside an unsafe block").finish());
 
     return false;
   }
@@ -606,7 +605,7 @@ function resolve(context, node, parentScope) {
       checkConversion(context, value, symbol.resolvedTypeUnderlyingIfEnumValue(context), 0);
 
       if (symbol.kind === 8 && value.kind !== 23 && value.kind !== 17 && value.kind !== 26) {
-        context.log.error(value.range, globals.String_new("Global initializers must be compile-time constants"));
+        context.log.error(value.range, "Global initializers must be compile-time constants");
       }
     }
 
@@ -636,7 +635,7 @@ function resolve(context, node, parentScope) {
     }
 
     if (!found) {
-      context.log.error(node.range, globals.String_new("Cannot use this statement outside of a loop"));
+      context.log.error(node.range, "Cannot use this statement outside of a loop");
     }
   }
 
@@ -680,7 +679,7 @@ function resolve(context, node, parentScope) {
       var symbol = type.isClass() ? type.findMember("[]") : null;
 
       if (symbol === null) {
-        context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+        context.log.error(node.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -718,7 +717,7 @@ function resolve(context, node, parentScope) {
     var symbol = parentScope.findNested("this", 0);
 
     if (symbol === null) {
-      context.log.error(node.range, globals.String_new("Cannot use 'this' here"));
+      context.log.error(node.range, "Cannot use 'this' here");
     }
 
     else {
@@ -735,30 +734,30 @@ function resolve(context, node, parentScope) {
     var symbol = parentScope.findNested(name, 0);
 
     if (symbol === null) {
-      var message = globals.String_appendNew(globals.String_appendNew(globals.String_new("No symbol named '"), name), "' here");
+      var builder = StringBuilder_new().append("No symbol named '").append(name).append("' here");
       symbol = parentScope.findNested(name, 1);
 
       if (symbol !== null) {
-        message = globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(message, ", did you mean 'this."), symbol.name), "'?");
+        builder.append(", did you mean 'this.").append(symbol.name).append("'?");
       }
 
       else if (globals.string_equals(name, "number")) {
-        message = globals.String_appendNew(message, ", did you mean 'int'?");
+        builder.append(", did you mean 'int'?");
       }
 
       else if (globals.string_equals(name, "boolean")) {
-        message = globals.String_appendNew(message, ", did you mean 'bool'?");
+        builder.append(", did you mean 'bool'?");
       }
 
-      context.log.error(node.range, message);
+      context.log.error(node.range, builder.finish());
     }
 
     else if (symbol.state === 1) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cyclic reference to symbol '"), name), "' here"));
+      context.log.error(node.range, StringBuilder_new().append("Cyclic reference to symbol '").append(name).append("' here").finish());
     }
 
     else if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
-      context.log.error(node.range, globals.String_new("Bare function references are not allowed"));
+      context.log.error(node.range, "Bare function references are not allowed");
     }
 
     else if (isSymbolAccessAllowed(context, symbol, node.range)) {
@@ -807,7 +806,7 @@ function resolve(context, node, parentScope) {
           var symbol = target.resolvedType.findMember(name);
 
           if (symbol === null) {
-            context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("No member named '"), name), "' on type '"), target.resolvedType.toString()), "'"));
+            context.log.error(node.internalRange, StringBuilder_new().append("No member named '").append(name).append("' on type '").append(target.resolvedType.toString()).appendChar(39).finish());
           }
 
           else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
@@ -823,7 +822,7 @@ function resolve(context, node, parentScope) {
       }
 
       else {
-        context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("The type '"), target.resolvedType.toString()), "' has no members"));
+        context.log.error(node.internalRange, StringBuilder_new().append("The type '").append(target.resolvedType.toString()).append("' has no members").finish());
       }
     }
   }
@@ -836,7 +835,7 @@ function resolve(context, node, parentScope) {
       var symbol = value.symbol;
 
       if (symbol === null || !isFunction(symbol.kind)) {
-        context.log.error(value.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot call value of type '"), value.resolvedType.toString()), "'"));
+        context.log.error(value.range, StringBuilder_new().append("Cannot call value of type '").append(value.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -853,7 +852,7 @@ function resolve(context, node, parentScope) {
         }
 
         if (argumentVariable !== returnType) {
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Not enough arguments for function '"), symbol.name), "'"));
+          context.log.error(node.internalRange, StringBuilder_new().append("Not enough arguments for function '").append(symbol.name).appendChar(39).finish());
         }
 
         else if (argumentValue !== null) {
@@ -862,7 +861,7 @@ function resolve(context, node, parentScope) {
             argumentValue = argumentValue.nextSibling;
           }
 
-          context.log.error(node.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Too many arguments for function '"), symbol.name), "'"));
+          context.log.error(node.internalRange, StringBuilder_new().append("Too many arguments for function '").append(symbol.name).appendChar(39).finish());
         }
 
         node.resolvedType = returnType.resolvedType;
@@ -882,13 +881,13 @@ function resolve(context, node, parentScope) {
         }
 
         else {
-          context.log.error(value.range, globals.String_new("Unexpected return value in function returning 'void'"));
+          context.log.error(value.range, "Unexpected return value in function returning 'void'");
         }
       }
     }
 
     else if (context.currentReturnType !== null && context.currentReturnType !== context.voidType) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Expected return value in function returning '"), context.currentReturnType.toString()), "'"));
+      context.log.error(node.range, StringBuilder_new().append("Expected return value in function returning '").append(context.currentReturnType.toString()).appendChar(39).finish());
     }
   }
 
@@ -931,7 +930,7 @@ function resolve(context, node, parentScope) {
     var commonType = (yes.resolvedType === context.nullType ? no : yes).resolvedType;
 
     if (yes.resolvedType !== commonType && (yes.resolvedType !== context.nullType || !commonType.isReference(context)) && no.resolvedType !== commonType && (no.resolvedType !== context.nullType || !commonType.isReference(context))) {
-      context.log.error(spanRanges(yes.range, no.range), globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Type '"), yes.resolvedType.toString()), "' is not the same as type '"), no.resolvedType.toString()), "'"));
+      context.log.error(spanRanges(yes.range, no.range), StringBuilder_new().append("Type '").append(yes.resolvedType.toString()).append("' is not the same as type '").append(no.resolvedType.toString()).appendChar(39).finish());
     }
 
     node.resolvedType = commonType;
@@ -950,7 +949,7 @@ function resolve(context, node, parentScope) {
         var symbol = type.isClass() ? type.findMember("[]=") : null;
 
         if (symbol === null) {
-          context.log.error(left.internalRange, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot index into type '"), target.resolvedType.toString()), "'"));
+          context.log.error(left.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
         }
 
         else {
@@ -1092,7 +1091,7 @@ function resolve(context, node, parentScope) {
     var rightType = right.resolvedType;
 
     if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-      context.log.error(node.range, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot compare type '"), leftType.toString()), "' with type '"), rightType.toString()), "'"));
+      context.log.error(node.range, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
     }
   }
 
@@ -1120,7 +1119,7 @@ function resolve(context, node, parentScope) {
   }
 
   else if (node.kind === 36 || node.kind === 37 || node.kind === 38 || node.kind === 39) {
-    context.log.error(node.range, globals.String_new("This operator is currently unsupported"));
+    context.log.error(node.range, "This operator is currently unsupported");
   }
 
   else if (node.kind === 34) {
@@ -1136,7 +1135,7 @@ function resolve(context, node, parentScope) {
 
     if (type.resolvedType !== context.errorType) {
       if (!type.resolvedType.isClass()) {
-        context.log.error(type.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Cannot construct type '"), type.resolvedType.toString()), "'"));
+        context.log.error(type.range, StringBuilder_new().append("Cannot construct type '").append(type.resolvedType.toString()).appendChar(39).finish());
       }
 
       else {
@@ -1145,7 +1144,7 @@ function resolve(context, node, parentScope) {
     }
 
     if (type.nextSibling !== null) {
-      context.log.error(node.internalRange, globals.String_new("Constructors with arguments are not supported yet"));
+      context.log.error(node.internalRange, "Constructors with arguments are not supported yet");
     }
   }
 
@@ -1281,7 +1280,7 @@ var Compiler_js = exports.Compiler_js = function(compiler) {
 };
 
 var Compiler_log = exports.Compiler_log = function(compiler) {
-  return compiler.log.toString();
+  return globals.String_new(compiler.log.toString());
 };
 
 function String() {
@@ -2513,7 +2512,7 @@ function tokenize(source, log) {
             i = i + 1 | 0;
           }
 
-          log.error(createRange(source, start, i), globals.String_appendNew(globals.String_appendNew(globals.String_new("Invalid integer literal: '"), globals.string_slice(contents, start, i)), "'"));
+          log.error(createRange(source, start, i), StringBuilder_new().append("Invalid integer literal: '").appendSlice(contents, start, i).appendChar(39).finish());
 
           return null;
         }
@@ -2544,7 +2543,7 @@ function tokenize(source, log) {
       }
 
       if (kind === 0) {
-        log.error(createRange(source, start, i), globals.String_new(c === 39 ? "Unterminated character literal" : c === 96 ? "Unterminated template literal" : "Unterminated string literal"));
+        log.error(createRange(source, start, i), c === 39 ? "Unterminated character literal" : c === 96 ? "Unterminated template literal" : "Unterminated string literal");
 
         return null;
       }
@@ -2641,7 +2640,7 @@ function tokenize(source, log) {
         }
 
         if (!foundEnd) {
-          log.error(createRange(source, start, start + 2 | 0), globals.String_new("Unterminated multi-line comment"));
+          log.error(createRange(source, start, start + 2 | 0), "Unterminated multi-line comment");
 
           return null;
         }
@@ -2659,7 +2658,7 @@ function tokenize(source, log) {
 
         if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
-          log.error(createRange(source, start, i), globals.String_new("Use '!=' instead of '!=='"));
+          log.error(createRange(source, start, i), "Use '!=' instead of '!=='");
         }
       }
     }
@@ -2673,7 +2672,7 @@ function tokenize(source, log) {
 
         if (i < limit && globals.string_get(contents, i) === 61) {
           i = i + 1 | 0;
-          log.error(createRange(source, start, i), globals.String_new("Use '==' instead of '==='"));
+          log.error(createRange(source, start, i), "Use '==' instead of '==='");
         }
       }
     }
@@ -2753,7 +2752,7 @@ function tokenize(source, log) {
     var range = createRange(source, start, i);
 
     if (kind === 0) {
-      log.error(range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Syntax error: '"), globals.string_slice(contents, start, start + 1 | 0)), "'"));
+      log.error(range, StringBuilder_new().append("Syntax error: '").appendSlice(contents, start, start + 1 | 0).appendChar(39).finish());
 
       return null;
     }
@@ -2881,7 +2880,7 @@ Log.prototype.append = function(diagnostic) {
 };
 
 Log.prototype.toString = function() {
-  var result = globals.String_new("");
+  var result = StringBuilder_new();
   var d = this.first;
 
   while (d !== null) {
@@ -2898,41 +2897,32 @@ Log.prototype.toString = function() {
       i = i + 1 | 0;
     }
 
-    result = globals.String_appendNew(result, d.range.source.name);
-    result = globals.String_appendNew(result, ":");
-    result = globals.String_append(result, globals.String_toStringSigned(line + 1 | 0));
-    result = globals.String_appendNew(result, ":");
-    result = globals.String_append(result, globals.String_toStringSigned(column + 1 | 0));
-    result = globals.String_appendNew(result, ": error: ");
-    result = globals.String_append(result, d.message);
-    result = globals.String_appendNew(result, "\n");
-    result = globals.String_appendNew(result, lineRange.toString());
-    result = globals.String_appendNew(result, "\n");
+    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(": error: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
     i = 0;
 
     while (i < column) {
-      result = globals.String_appendNew(result, " ");
+      result.appendChar(32);
       i = i + 1 | 0;
     }
 
     if ((d.range.end - d.range.start | 0) <= 1) {
-      result = globals.String_appendNew(result, "^");
+      result.appendChar(94);
     }
 
     else {
       i = d.range.start;
 
       while (i < d.range.end && i < lineRange.end) {
-        result = globals.String_appendNew(result, "~");
+        result.appendChar(126);
         i = i + 1 | 0;
       }
     }
 
-    result = globals.String_appendNew(result, "\n");
+    result.appendChar(10);
     d = d.next;
   }
 
-  return result;
+  return result.finish();
 };
 
 function isUnary(kind) {
@@ -3742,7 +3732,7 @@ ParserContext.prototype.advance = function() {
 };
 
 ParserContext.prototype.unexpectedToken = function() {
-  this.log.error(this.current.range, globals.String_appendNew(globals.String_new("Unexpected "), tokenToString(this.current.kind)));
+  this.log.error(this.current.range, StringBuilder_new().append("Unexpected ").append(tokenToString(this.current.kind)).finish());
 };
 
 ParserContext.prototype.expect = function(kind) {
@@ -3751,11 +3741,11 @@ ParserContext.prototype.expect = function(kind) {
     var currentLine = this.current.range.enclosingLine();
 
     if (kind !== 2 && !previousLine.equals(currentLine)) {
-      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)));
+      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
     }
 
     else {
-      this.log.error(this.current.range, globals.String_appendNew(globals.String_appendNew(globals.String_appendNew(globals.String_new("Expected "), tokenToString(kind)), " but found "), tokenToString(this.current.kind)));
+      this.log.error(this.current.range, StringBuilder_new().append("Expected ").append(tokenToString(kind)).append(" but found ").append(tokenToString(this.current.kind)).finish());
     }
 
     return false;
@@ -3845,7 +3835,7 @@ ParserContext.prototype.parseQuotedString = function(range) {
 
       else {
         var escape = createRange(range.source, (range.start + end | 0) - 1 | 0, (range.start + end | 0) + 1 | 0);
-        this.log.error(escape, globals.String_append(globals.String_appendNew(globals.String_new("Invalid escape code '"), escape.toString()), globals.String_new("'")));
+        this.log.error(escape, StringBuilder_new().append("Invalid escape code '").append(escape.toString()).appendChar(39).finish());
 
         return null;
       }
@@ -3885,7 +3875,7 @@ ParserContext.prototype.parsePrefix = function(mode) {
       this.advance();
 
       if (globals.string_length(text) !== 1) {
-        this.log.error(token.range, globals.String_new("Invalid character literal (strings use double quotes)"));
+        this.log.error(token.range, "Invalid character literal (strings use double quotes)");
 
         return createParseError().withRange(token.range);
       }
@@ -4476,13 +4466,13 @@ ParserContext.prototype.parseClass = function(firstFlag) {
       }
 
       else if (oldKind === 52) {
-        this.log.error(childName.range, globals.String_new("Instance functions don't need the 'function' keyword"));
+        this.log.error(childName.range, "Instance functions don't need the 'function' keyword");
         childName = this.current;
         this.advance();
       }
 
       else if (oldKind === 43 || oldKind === 57 || oldKind === 70) {
-        this.log.error(childName.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Instance variables don't need the '"), childName.range.toString()), "' keyword"));
+        this.log.error(childName.range, StringBuilder_new().append("Instance variables don't need the '").append(childName.range.toString()).append("' keyword").finish());
         childName = this.current;
         this.advance();
       }
@@ -4694,7 +4684,7 @@ ParserContext.prototype.parseVariables = function(firstFlag, parent) {
       }
 
       if (parent !== null) {
-        this.log.error(value.range, globals.String_new("Inline initialization of instance variables is not supported yet"));
+        this.log.error(value.range, "Inline initialization of instance variables is not supported yet");
       }
     }
 
@@ -4906,7 +4896,7 @@ ParserContext.prototype.parseInt = function(range, node) {
     }
 
     else {
-      this.log.error(range, globals.String_new("Use the '0o' prefix for octal integers"));
+      this.log.error(range, "Use the '0o' prefix for octal integers");
 
       return false;
     }
@@ -4922,7 +4912,7 @@ ParserContext.prototype.parseInt = function(range, node) {
     var baseValue = __imul(value, base) >>> 0;
 
     if (baseValue / base >>> 0 !== value || baseValue > 4294967295 - digit >>> 0) {
-      this.log.error(range, globals.String_new("Integer literal is too big to fit in 32 bits"));
+      this.log.error(range, "Integer literal is too big to fit in 32 bits");
 
       return false;
     }
@@ -4993,7 +4983,7 @@ Scope.prototype.define = function(log, symbol) {
   var existing = this.findLocal(symbol.name);
 
   if (existing !== null) {
-    log.error(symbol.range, globals.String_appendNew(globals.String_appendNew(globals.String_new("Duplicate symbol '"), symbol.name), "'"));
+    log.error(symbol.range, StringBuilder_new().append("Duplicate symbol '").append(symbol.name).append("'").finish());
 
     return false;
   }

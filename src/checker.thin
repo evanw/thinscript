@@ -46,7 +46,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     // Validate node placement
     if (kind != NodeKind.VARIABLE && kind != NodeKind.VARIABLES && (kind != NodeKind.FUNCTION || parentKind != NodeKind.CLASS) &&
         (parentKind == NodeKind.GLOBAL) != (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
-      context.log.error(node.range, String_new("This statement is not allowed here"));
+      context.log.error(node.range, "This statement is not allowed here");
     }
   }
 
@@ -151,7 +151,7 @@ function forbidFlag(context: CheckContext, node: Node, flag: int, text: string):
 
     if (range != null) {
       node.flags = node.flags & ~flag;
-      context.log.error(range, String_new(text));
+      context.log.error(range, text);
     }
   }
 }
@@ -159,7 +159,7 @@ function forbidFlag(context: CheckContext, node: Node, flag: int, text: string):
 function requireFlag(context: CheckContext, node: Node, flag: int, text: string): void {
   if ((node.flags & flag) == 0) {
     node.flags = node.flags | flag;
-    context.log.error(node.range, String_new(text));
+    context.log.error(node.range, text);
   }
 }
 
@@ -228,13 +228,13 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
         // Prevent declared functions on declared classes for simplicity
         if (body != null) {
-          context.log.error(body.range, String_new("Cannot implement a function on a declared class"));
+          context.log.error(body.range, "Cannot implement a function on a declared class");
         }
       }
 
       // Require implementations for functions not on declared classes
       else if (body == null) {
-        context.log.error(node.lastChild.range, String_new("Must implement this function"));
+        context.log.error(node.lastChild.range, "Must implement this function");
       }
     }
 
@@ -265,16 +265,17 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     }
 
     else {
-      context.log.error(node.internalRange, String_new("Cannot create untyped variables"));
+      context.log.error(node.internalRange, "Cannot create untyped variables");
       symbol.resolvedType = context.errorType;
     }
 
     // Validate the variable type
     if (symbol.resolvedType == context.voidType || symbol.resolvedType == context.nullType) {
-      context.log.error(node.internalRange, String_appendNew(String_appendNew(
-        String_new("Cannot create a variable with type '"),
-        symbol.resolvedType.toString()),
-        "'"));
+      context.log.error(node.internalRange, StringBuilder_new()
+        .append("Cannot create a variable with type '")
+        .append(symbol.resolvedType.toString())
+        .appendChar('\'')
+        .finish());
       symbol.resolvedType = context.errorType;
     }
 
@@ -289,7 +290,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
         }
 
         else if (value.resolvedType != context.errorType) {
-          context.log.error(value.range, String_new("Invalid constant initializer"));
+          context.log.error(value.range, "Invalid constant initializer");
           symbol.resolvedType = context.errorType;
         }
       }
@@ -306,7 +307,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       }
 
       else {
-        context.log.error(node.internalRange, String_new("Constants must be initialized"));
+        context.log.error(node.internalRange, "Constants must be initialized");
       }
     }
 
@@ -316,10 +317,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       while (scope != null) {
         var shadowed = scope.findLocal(symbol.name);
         if (shadowed != null) {
-          context.log.error(node.internalRange, String_appendNew(String_appendNew(
-            String_new("The symbol '"),
-            symbol.name),
-            "' shadows another symbol with the same name in a parent scope"));
+          context.log.error(node.internalRange, StringBuilder_new()
+            .append("The symbol '")
+            .append(symbol.name)
+            .append("' shadows another symbol with the same name in a parent scope")
+            .finish());
           break;
         }
 
@@ -361,7 +363,7 @@ function resolveAsExpression(context: CheckContext, node: Node, parentScope: Sco
   resolve(context, node, parentScope);
 
   if (node.resolvedType != context.errorType && node.isType()) {
-    context.log.error(node.range, String_new("Expected expression but found type"));
+    context.log.error(node.range, "Expected expression but found type");
     node.resolvedType = context.errorType;
   }
 }
@@ -371,7 +373,7 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
   resolve(context, node, parentScope);
 
   if (node.resolvedType != context.errorType && !node.isType()) {
-    context.log.error(node.range, String_new("Expected type but found expression"));
+    context.log.error(node.range, "Expected type but found expression");
     node.resolvedType = context.errorType;
   }
 }
@@ -419,13 +421,13 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
   }
 
   // All other conversions are an error
-  var message = String_appendNew(String_appendNew(String_appendNew(String_appendNew(
-    String_new("Cannot convert from type '"),
-    from.toString()),
-    "' to type '"),
-    to.toString()),
-    "'");
-  context.log.error(node.range, canCast ? String_appendNew(message, " without a cast") : message);
+  context.log.error(node.range, StringBuilder_new()
+    .append("Cannot convert from type '")
+    .append(from.toString())
+    .append("' to type '")
+    .append(to.toString())
+    .append(canCast ? "' without a cast" : "'")
+    .finish());
 
   // Prevent further errors
   node.resolvedType = context.errorType;
@@ -436,7 +438,7 @@ function checkStorage(context: CheckContext, target: Node): void {
 
   if (target.resolvedType != context.errorType && target.kind != NodeKind.INDEX && (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT ||
       target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == SymbolKind.VARIABLE_CONSTANT))) {
-    context.log.error(target.range, String_new("Cannot store to this location"));
+    context.log.error(target.range, "Cannot store to this location");
     target.resolvedType = context.errorType;
   }
 }
@@ -531,10 +533,11 @@ function binaryHasUnsignedArguments(node: Node): bool {
 
 function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Range): bool {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-    context.log.error(range, String_appendNew(String_appendNew(
-      String_new("Cannot use symbol '"),
-      symbol.name),
-      "' outside an unsafe block"));
+    context.log.error(range, StringBuilder_new()
+      .append("Cannot use symbol '")
+      .append(symbol.name)
+      .append("' outside an unsafe block")
+      .finish());
     return false;
   }
 
@@ -591,7 +594,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       // Variable initializers must be compile-time constants
       if (symbol.kind == SymbolKind.VARIABLE_GLOBAL && value.kind != NodeKind.INT && value.kind != NodeKind.BOOL && value.kind != NodeKind.NULL) {
-        context.log.error(value.range, String_new("Global initializers must be compile-time constants"));
+        context.log.error(value.range, "Global initializers must be compile-time constants");
       }
     }
 
@@ -618,7 +621,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       n = n.parent;
     }
     if (!found) {
-      context.log.error(node.range, String_new("Cannot use this statement outside of a loop"));
+      context.log.error(node.range, "Cannot use this statement outside of a loop");
     }
   }
 
@@ -659,10 +662,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       var symbol = type.isClass() ? type.findMember("[]") : null;
 
       if (symbol == null) {
-        context.log.error(node.internalRange, String_appendNew(String_appendNew(
-          String_new("Cannot index into type '"),
-          target.resolvedType.toString()),
-          "'"));
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("Cannot index into type '")
+          .append(target.resolvedType.toString())
+          .appendChar('\'')
+          .finish());
       }
 
       else {
@@ -701,7 +705,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else if (node.kind == NodeKind.THIS) {
     var symbol = parentScope.findNested("this", FindNested.NORMAL);
     if (symbol == null) {
-      context.log.error(node.range, String_new("Cannot use 'this' here"));
+      context.log.error(node.range, "Cannot use 'this' here");
     } else {
       node.becomeSymbolReference(symbol);
     }
@@ -716,37 +720,37 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var symbol = parentScope.findNested(name, FindNested.NORMAL);
 
     if (symbol == null) {
-      var message = String_appendNew(String_appendNew(
-        String_new("No symbol named '"),
-        name),
-        "' here");
+      var builder = StringBuilder_new()
+        .append("No symbol named '")
+        .append(name)
+        .append("' here");
 
       // In JavaScript, "this." before instance symbols is required
       symbol = parentScope.findNested(name, FindNested.ALLOW_INSTANCE_ERRORS);
       if (symbol != null) {
-        message = String_appendNew(String_appendNew(String_appendNew(
-          message,
-          ", did you mean 'this."),
-          symbol.name),
-          "'?");
+        builder
+          .append(", did you mean 'this.")
+          .append(symbol.name)
+          .append("'?");
       }
 
       // People may try to use types from TypeScript
-      else if (string_equals(name, "number")) message = String_appendNew(message, ", did you mean 'int'?");
-      else if (string_equals(name, "boolean")) message = String_appendNew(message, ", did you mean 'bool'?");
+      else if (string_equals(name, "number")) builder.append(", did you mean 'int'?");
+      else if (string_equals(name, "boolean")) builder.append(", did you mean 'bool'?");
 
-      context.log.error(node.range, message);
+      context.log.error(node.range, builder.finish());
     }
 
     else if (symbol.state == SymbolState.INITIALIZING) {
-      context.log.error(node.range, String_appendNew(String_appendNew(
-        String_new("Cyclic reference to symbol '"),
-        name),
-        "' here"));
+      context.log.error(node.range, StringBuilder_new()
+        .append("Cyclic reference to symbol '")
+        .append(name)
+        .append("' here")
+        .finish());
     }
 
     else if (isFunction(symbol.kind) && (node.parent.kind != NodeKind.CALL || node != node.parent.callValue())) {
-      context.log.error(node.range, String_new("Bare function references are not allowed"));
+      context.log.error(node.range, "Bare function references are not allowed");
     }
 
     else if (isSymbolAccessAllowed(context, symbol, node.range)) {
@@ -799,12 +803,13 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           var symbol = target.resolvedType.findMember(name);
 
           if (symbol == null) {
-            context.log.error(node.internalRange, String_appendNew(String_appendNew(String_appendNew(String_appendNew(
-              String_new("No member named '"),
-              name),
-              "' on type '"),
-              target.resolvedType.toString()),
-              "'"));
+            context.log.error(node.internalRange, StringBuilder_new()
+              .append("No member named '")
+              .append(name)
+              .append("' on type '")
+              .append(target.resolvedType.toString())
+              .appendChar('\'')
+              .finish());
           }
 
           else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
@@ -821,10 +826,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       }
 
       else {
-        context.log.error(node.internalRange, String_appendNew(String_appendNew(
-          String_new("The type '"),
-          target.resolvedType.toString()),
-          "' has no members"));
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("The type '")
+          .append(target.resolvedType.toString())
+          .append("' has no members")
+          .finish());
       }
     }
   }
@@ -838,10 +844,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       // Only functions are callable
       if (symbol == null || !isFunction(symbol.kind)) {
-        context.log.error(value.range, String_appendNew(String_appendNew(
-          String_new("Cannot call value of type '"),
-          value.resolvedType.toString()),
-          "'"));
+        context.log.error(value.range, StringBuilder_new()
+          .append("Cannot call value of type '")
+          .append(value.resolvedType.toString())
+          .appendChar('\'')
+          .finish());
       }
 
       else {
@@ -861,10 +868,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
         // Not enough arguments?
         if (argumentVariable != returnType) {
-          context.log.error(node.internalRange, String_appendNew(String_appendNew(
-            String_new("Not enough arguments for function '"),
-            symbol.name),
-            "'"));
+          context.log.error(node.internalRange, StringBuilder_new()
+            .append("Not enough arguments for function '")
+            .append(symbol.name)
+            .appendChar('\'')
+            .finish());
         }
 
         // Too many arguments?
@@ -873,10 +881,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
             resolveAsExpression(context, argumentValue, parentScope);
             argumentValue = argumentValue.nextSibling;
           }
-          context.log.error(node.internalRange, String_appendNew(String_appendNew(
-            String_new("Too many arguments for function '"),
-            symbol.name),
-            "'"));
+          context.log.error(node.internalRange, StringBuilder_new()
+            .append("Too many arguments for function '")
+            .append(symbol.name)
+            .appendChar('\'')
+            .finish());
         }
 
         // Pass the return type along
@@ -897,16 +906,17 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         }
 
         else {
-          context.log.error(value.range, String_new("Unexpected return value in function returning 'void'"));
+          context.log.error(value.range, "Unexpected return value in function returning 'void'");
         }
       }
     }
 
     else if (context.currentReturnType != null && context.currentReturnType != context.voidType) {
-      context.log.error(node.range, String_appendNew(String_appendNew(
-        String_new("Expected return value in function returning '"),
-        context.currentReturnType.toString()),
-        "'"));
+      context.log.error(node.range, StringBuilder_new()
+        .append("Expected return value in function returning '")
+        .append(context.currentReturnType.toString())
+        .appendChar('\'')
+        .finish());
     }
   }
 
@@ -948,12 +958,13 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var commonType = (yes.resolvedType == context.nullType ? no : yes).resolvedType;
     if (yes.resolvedType != commonType && (yes.resolvedType != context.nullType || !commonType.isReference(context)) &&
         no.resolvedType != commonType && (no.resolvedType != context.nullType || !commonType.isReference(context))) {
-      context.log.error(spanRanges(yes.range, no.range), String_appendNew(String_appendNew(String_appendNew(String_appendNew(
-        String_new("Type '"),
-        yes.resolvedType.toString()),
-        "' is not the same as type '"),
-        no.resolvedType.toString()),
-        "'"));
+      context.log.error(spanRanges(yes.range, no.range), StringBuilder_new()
+        .append("Type '")
+        .append(yes.resolvedType.toString())
+        .append("' is not the same as type '")
+        .append(no.resolvedType.toString())
+        .appendChar('\'')
+        .finish());
     }
     node.resolvedType = commonType;
   }
@@ -972,10 +983,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         var symbol = type.isClass() ? type.findMember("[]=") : null;
 
         if (symbol == null) {
-          context.log.error(left.internalRange, String_appendNew(String_appendNew(
-            String_new("Cannot index into type '"),
-            target.resolvedType.toString()),
-            "'"));
+          context.log.error(left.internalRange, StringBuilder_new()
+            .append("Cannot index into type '")
+            .append(target.resolvedType.toString())
+            .appendChar('\'')
+            .finish());
         }
 
         else {
@@ -1094,12 +1106,13 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         (rightType != context.nullType || !leftType.isReference(context)) &&
         (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
         (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-      context.log.error(node.range, String_appendNew(String_appendNew(String_appendNew(String_appendNew(
-        String_new("Cannot compare type '"),
-        leftType.toString()),
-        "' with type '"),
-        rightType.toString()),
-        "'"));
+      context.log.error(node.range, StringBuilder_new()
+        .append("Cannot compare type '")
+        .append(leftType.toString())
+        .append("' with type '")
+        .append(rightType.toString())
+        .appendChar('\'')
+        .finish());
     }
   }
 
@@ -1122,7 +1135,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   else if (node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
       node.kind == NodeKind.PREFIX_DECREMENT || node.kind == NodeKind.PREFIX_INCREMENT) {
-    context.log.error(node.range, String_new("This operator is currently unsupported"));
+    context.log.error(node.range, "This operator is currently unsupported");
   }
 
   else if (node.kind == NodeKind.NOT) {
@@ -1138,10 +1151,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (type.resolvedType != context.errorType) {
       if (!type.resolvedType.isClass()) {
-        context.log.error(type.range, String_appendNew(String_appendNew(
-          String_new("Cannot construct type '"),
-          type.resolvedType.toString()),
-          "'"));
+        context.log.error(type.range, StringBuilder_new()
+          .append("Cannot construct type '")
+          .append(type.resolvedType.toString())
+          .appendChar('\'')
+          .finish());
       }
 
       else {
@@ -1151,7 +1165,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // TODO: Constructors
     if (type.nextSibling != null) {
-      context.log.error(node.internalRange, String_new("Constructors with arguments are not supported yet"));
+      context.log.error(node.internalRange, "Constructors with arguments are not supported yet");
     }
   }
 

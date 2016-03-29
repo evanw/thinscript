@@ -309,10 +309,11 @@ function tokenize(source: Source, log: Log): Token {
             i = i + 1;
           }
 
-          log.error(createRange(source, start, i), String_appendNew(String_appendNew(
-            String_new("Invalid integer literal: '"),
-            string_slice(contents, start, i)),
-            "'"));
+          log.error(createRange(source, start, i), StringBuilder_new()
+            .append("Invalid integer literal: '")
+            .appendSlice(contents, start, i)
+            .appendChar('\'')
+            .finish());
           return null;
         }
       }
@@ -347,10 +348,10 @@ function tokenize(source: Source, log: Log): Token {
 
       // It's an error if we didn't find a matching quote character
       if (kind == TokenKind.END_OF_FILE) {
-        log.error(createRange(source, start, i), String_new(
+        log.error(createRange(source, start, i),
           c == '\'' ? "Unterminated character literal" :
           c == '`' ? "Unterminated template literal" :
-          "Unterminated string literal"));
+          "Unterminated string literal");
         return null;
       }
     }
@@ -405,7 +406,7 @@ function tokenize(source: Source, log: Log): Token {
         }
 
         if (!foundEnd) {
-          log.error(createRange(source, start, start + 2), String_new("Unterminated multi-line comment"));
+          log.error(createRange(source, start, start + 2), "Unterminated multi-line comment");
           return null;
         }
 
@@ -424,7 +425,7 @@ function tokenize(source: Source, log: Log): Token {
         // Recover from !==
         if (i < limit && string_get(contents, i) == '=') {
           i = i + 1;
-          log.error(createRange(source, start, i), String_new("Use '!=' instead of '!=='"));
+          log.error(createRange(source, start, i), "Use '!=' instead of '!=='");
         }
       }
     }
@@ -440,7 +441,7 @@ function tokenize(source: Source, log: Log): Token {
         // Recover from ===
         if (i < limit && string_get(contents, i) == '=') {
           i = i + 1;
-          log.error(createRange(source, start, i), String_new("Use '==' instead of '==='"));
+          log.error(createRange(source, start, i), "Use '==' instead of '==='");
         }
       }
     }
@@ -526,10 +527,11 @@ function tokenize(source: Source, log: Log): Token {
     var range = createRange(source, start, i);
 
     if (kind == TokenKind.END_OF_FILE) {
-      log.error(range, String_appendNew(String_appendNew(
-        String_new("Syntax error: '"),
-        string_slice(contents, start, start + 1)),
-        "'"));
+      log.error(range, StringBuilder_new()
+        .append("Syntax error: '")
+        .appendSlice(contents, start, start + 1)
+        .appendChar('\'')
+        .finish());
       return null;
     }
 

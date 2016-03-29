@@ -116,5 +116,5 @@ extern function Compiler_js(compiler: Compiler): String {
 }
 
 extern function Compiler_log(compiler: Compiler): String {
-  return compiler.log.toString();
+  return String_new(compiler.log.toString());
 }

@@ -2,6 +2,8 @@ declare function string_length(text: string): int;
 declare function string_get(text: string, index: int): int;
 declare function string_equals(a: string, b: string): bool;
 declare function string_slice(text: string, start: int, end: int): string;
+declare function string_intToString(value: int): string;
+declare function string_uintToString(value: uint): string;
 
 declare function StringBuilder_appendChar(a: string, b: ubyte): string;
 declare function StringBuilder_append(a: string, b: string): string;

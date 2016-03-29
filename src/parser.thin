@@ -52,9 +52,10 @@ class ParserContext {
   }
 
   unexpectedToken(): void {
-    this.log.error(this.current.range, String_appendNew(
-      String_new("Unexpected "),
-      tokenToString(this.current.kind)));
+    this.log.error(this.current.range, StringBuilder_new()
+      .append("Unexpected ")
+      .append(tokenToString(this.current.kind))
+      .finish());
   }
 
   expect(kind: TokenKind): bool {
@@ -64,17 +65,19 @@ class ParserContext {
 
       // Show missing token errors on the previous line for clarity
       if (kind != TokenKind.IDENTIFIER && !previousLine.equals(currentLine)) {
-        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), String_appendNew(
-          String_new("Expected "),
-          tokenToString(kind)));
+        this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new()
+          .append("Expected ")
+          .append(tokenToString(kind))
+          .finish());
       }
 
       else {
-        this.log.error(this.current.range, String_appendNew(String_appendNew(String_appendNew(
-          String_new("Expected "),
-          tokenToString(kind)),
-          " but found "),
-          tokenToString(this.current.kind)));
+        this.log.error(this.current.range, StringBuilder_new()
+          .append("Expected ")
+          .append(tokenToString(kind))
+          .append(" but found ")
+          .append(tokenToString(this.current.kind))
+          .finish());
       }
 
       return false;
@@ -150,10 +153,11 @@ class ParserContext {
         else if (c == '"' || c == '\'' || c == '`' || c == '\n' || c == '\\') start = end;
         else {
           var escape = createRange(range.source, range.start + end - 1, range.start + end + 1);
-          this.log.error(escape, String_append(String_appendNew(
-            String_new("Invalid escape code '"),
-            escape.toString()),
-            String_new("'")));
+          this.log.error(escape, StringBuilder_new()
+            .append("Invalid escape code '")
+            .append(escape.toString())
+            .appendChar('\'')
+            .finish());
           return null;
         }
       }
@@ -188,7 +192,7 @@ class ParserContext {
         }
         this.advance();
         if (string_length(text) != 1) {
-          this.log.error(token.range, String_new("Invalid character literal (strings use double quotes)"));
+          this.log.error(token.range, "Invalid character literal (strings use double quotes)");
           return createParseError().withRange(token.range);
         }
         return createInt(string_get(text, 0)).withRange(token.range);
@@ -675,7 +679,7 @@ class ParserContext {
 
         // Recover from an extra "function" token
         else if (oldKind == TokenKind.FUNCTION) {
-          this.log.error(childName.range, String_new("Instance functions don't need the 'function' keyword"));
+          this.log.error(childName.range, "Instance functions don't need the 'function' keyword");
 
           // Get the real identifier
           childName = this.current;
@@ -684,10 +688,11 @@ class ParserContext {
 
         // Recover from an extra variable tokens
         else if (oldKind == TokenKind.CONST || oldKind == TokenKind.LET || oldKind == TokenKind.VAR) {
-          this.log.error(childName.range, String_appendNew(String_appendNew(
-            String_new("Instance variables don't need the '"),
-            childName.range.toString()),
-            "' keyword"));
+          this.log.error(childName.range, StringBuilder_new()
+            .append("Instance variables don't need the '")
+            .append(childName.range.toString())
+            .append("' keyword")
+            .finish());
 
           // Get the real identifier
           childName = this.current;
@@ -903,7 +908,7 @@ class ParserContext {
 
         // TODO: Implement constructors
         if (parent != null) {
-          this.log.error(value.range, String_new("Inline initialization of instance variables is not supported yet"));
+          this.log.error(value.range, "Inline initialization of instance variables is not supported yet");
         }
       }
 
@@ -1038,7 +1043,7 @@ class ParserContext {
       else if (c == 'o' || c == 'O') base = 8;
       else if (c == 'x' || c == 'X') base = 16;
       else {
-        this.log.error(range, String_new("Use the '0o' prefix for octal integers"));
+        this.log.error(range, "Use the '0o' prefix for octal integers");
         return false;
       }
       if (base != 10) i = i + 2;
@@ -1055,7 +1060,7 @@ class ParserContext {
 
       // Check for overflow (unsigned integer overflow supposedly doesn't result in undefined behavior)
       if (baseValue / base != value || baseValue > ~0 as uint - digit) {
-        this.log.error(range, String_new("Integer literal is too big to fit in 32 bits"));
+        this.log.error(range, "Integer literal is too big to fit in 32 bits");
         return false;
       }
 

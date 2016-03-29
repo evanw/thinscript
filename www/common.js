@@ -113,6 +113,14 @@ function loadStdlibForJavaScript() {
       return text.slice(start, end);
     },
 
+    string_intToString: function(value) {
+      return (value | 0).toString();
+    },
+
+    string_uintToString: function(value) {
+      return (value >>> 0).toString();
+    },
+
     StringBuilder_append: function(a, b) {
       return a + b;
     },

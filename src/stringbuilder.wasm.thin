@@ -66,6 +66,56 @@ function string_slice(text: string, start: int, end: int): string {
   }
 }
 
+function string_intToString(value: int): string {
+  // Special-case this to keep the rest of the code simple
+  if (value == -2147483648) {
+    return "-2147483648";
+  }
+
+  // Treat this like an unsigned integer prefixed by '-' if it's negative
+  return _internalIntToString((value < 0 ? -value : value) as uint, value < 0);
+}
+
+function string_uintToString(value: uint): string {
+  return _internalIntToString(value, false);
+}
+
+function _internalIntToString(value: uint, sign: bool): string {
+  // Avoid allocation for common cases
+  if (value == 0) return "0";
+  if (value == 1) return "1";
+
+  unsafe {
+    // Determine how many digits we need
+    var length = ((sign ? 1 : 0) + (
+      value >= 100000000 ?
+        value >= 1000000000 ? 10 : 9 :
+      value >= 10000 ?
+        value >= 1000000 ?
+          value >= 10000000 ? 8 : 7 :
+          value >= 100000 ? 6 : 5 :
+        value >= 100 ?
+          value >= 1000 ? 4 : 3 :
+          value >= 10 ? 2 : 1)) as uint;
+
+    var ptr = malloc(4 + length);
+    var end = ptr + 4 + length;
+    (ptr as UIntPtr).value = length;
+
+    if (sign) {
+      ((ptr + 4) as UBytePtr).value = '-';
+    }
+
+    while (value != 0) {
+      end = end - 1;
+      (end as UBytePtr).value = (value % 10 + '0') as ubyte;
+      value = value / 10;
+    }
+
+    return ptr as string;
+  }
+}
+
 class StringBuilder {
   next: StringBuilder;
   _bytes: ByteArray;

@@ -58,7 +58,7 @@ function spanRanges(left: Range, right: Range): Range {
 
 class Diagnostic {
   range: Range;
-  message: String;
+  message: string;
   next: Diagnostic;
 }
 
@@ -66,7 +66,7 @@ class Log {
   first: Diagnostic;
   last: Diagnostic;
 
-  error(range: Range, message: String): void {
+  error(range: Range, message: string): void {
     var diagnostic = new Diagnostic();
     diagnostic.range = range;
     diagnostic.message = message;
@@ -79,8 +79,8 @@ class Log {
     this.last = diagnostic;
   }
 
-  toString(): String {
-    var result = String_new("");
+  toString(): string {
+    var result = StringBuilder_new();
     var d = this.first;
 
     while (d != null) {
@@ -96,37 +96,38 @@ class Log {
         i = i + 1;
       }
 
-      result = String_appendNew(result, d.range.source.name);
-      result = String_appendNew(result, ":");
-      result = String_append(result, String_toStringSigned(line + 1));
-      result = String_appendNew(result, ":");
-      result = String_append(result, String_toStringSigned(column + 1));
-      result = String_appendNew(result, ": error: ");
-      result = String_append(result, d.message);
-      result = String_appendNew(result, "\n");
-      result = String_appendNew(result, lineRange.toString());
-      result = String_appendNew(result, "\n");
+      result
+        .append(d.range.source.name)
+        .appendChar(':')
+        .append(string_intToString(line + 1))
+        .appendChar(':')
+        .append(string_intToString(column + 1))
+        .append(": error: ")
+        .append(d.message)
+        .appendChar('\n')
+        .append(lineRange.toString())
+        .appendChar('\n');
 
       i = 0;
       while (i < column) {
-        result = String_appendNew(result, " ");
+        result.appendChar(' ');
         i = i + 1;
       }
 
       if (d.range.end - d.range.start <= 1) {
-        result = String_appendNew(result, "^");
+        result.appendChar('^');
       } else {
         i = d.range.start;
         while (i < d.range.end && i < lineRange.end) {
-          result = String_appendNew(result, "~");
+          result.appendChar('~');
           i = i + 1;
         }
       }
 
-      result = String_appendNew(result, "\n");
+      result.appendChar('\n');
       d = d.next;
     }
 
-    return result;
+    return result.finish();
   }
 }
