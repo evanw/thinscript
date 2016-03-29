@@ -79,6 +79,575 @@
     this._length = length;
   };
 
+  function CResult() {
+    this.context = null;
+    this.code = null;
+    this.indent = 0;
+    this.previousNode = null;
+  }
+
+  CResult.prototype.emitIndent = function() {
+    var i = this.indent;
+
+    while (i > 0) {
+      this.code.append("  ");
+      i = i - 1 | 0;
+    }
+  };
+
+  CResult.prototype.emitNewlineBefore = function(node) {
+    if (this.previousNode !== null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+      this.code.appendChar(10);
+    }
+
+    this.previousNode = null;
+  };
+
+  CResult.prototype.emitNewlineAfter = function(node) {
+    this.previousNode = node;
+  };
+
+  CResult.prototype.emitStatements = function(node) {
+    while (node !== null) {
+      this.emitStatement(node);
+      node = node.nextSibling;
+    }
+  };
+
+  CResult.prototype.emitBlock = function(node) {
+    this.previousNode = null;
+    this.code.append("{\n");
+    this.indent = this.indent + 1 | 0;
+    this.emitStatements(node.firstChild);
+    this.indent = this.indent - 1 | 0;
+    this.emitIndent();
+    this.code.appendChar(125);
+    this.previousNode = null;
+  };
+
+  CResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
+    var isPostfix = isUnaryPostfix(node.kind);
+    var operatorPrecedence = isPostfix ? 13 : 12;
+    var code = this.code;
+
+    if (parentPrecedence > operatorPrecedence) {
+      code.appendChar(40);
+    }
+
+    if (!isPostfix) {
+      code.append(operator);
+    }
+
+    this.emitExpression(node.unaryValue(), operatorPrecedence);
+
+    if (isPostfix) {
+      code.append(operator);
+    }
+
+    if (parentPrecedence > operatorPrecedence) {
+      code.appendChar(41);
+    }
+  };
+
+  CResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence) {
+    var isRightAssociative = node.kind === 41;
+    var code = this.code;
+
+    if (parentPrecedence > operatorPrecedence) {
+      code.appendChar(40);
+    }
+
+    this.emitExpression(node.binaryLeft(), isRightAssociative ? operatorPrecedence + 1 | 0 : operatorPrecedence);
+    code.append(operator);
+    this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1 | 0);
+
+    if (parentPrecedence > operatorPrecedence) {
+      code.appendChar(41);
+    }
+  };
+
+  CResult.prototype.emitCommaSeparatedExpressions = function(start, stop) {
+    while (start !== stop) {
+      this.emitExpression(start, 0);
+      start = start.nextSibling;
+
+      if (start !== stop) {
+        this.code.append(", ");
+      }
+    }
+  };
+
+  CResult.prototype.emitSymbolName = function(symbol) {
+    if (symbol.kind === 4) {
+      this.code.append(symbol.parent().name).appendChar(95);
+    }
+
+    this.code.append(symbol.name);
+  };
+
+  CResult.prototype.emitExpression = function(node, parentPrecedence) {
+    var code = this.code;
+    __declare.assert(node.resolvedType !== null);
+
+    if (node.kind === 24) {
+      this.emitSymbolName(node.symbol);
+    }
+
+    else if (node.kind === 26) {
+      code.append("NULL");
+    }
+
+    else if (node.kind === 17) {
+      code.appendChar(node.intValue !== 0 ? 49 : 48);
+    }
+
+    else if (node.kind === 23) {
+      code.append(node.resolvedType.isUnsigned() ? __declare.string_uintToString(node.intValue >>> 0) : __declare.string_intToString(node.intValue));
+    }
+
+    else if (node.kind === 29) {
+      StringBuilder_appendQuoted(code, node.stringValue);
+    }
+
+    else if (node.kind === 19) {
+      if (parentPrecedence > 12) {
+        code.appendChar(40);
+      }
+
+      code.appendChar(40);
+      this.emitType(node.resolvedType, 0);
+      code.appendChar(41);
+      this.emitExpression(node.castValue(), 12);
+
+      if (parentPrecedence > 12) {
+        code.appendChar(41);
+      }
+    }
+
+    else if (node.kind === 20) {
+      var target = node.dotTarget();
+      this.emitExpression(target, 14);
+      code.append(target.resolvedType.isReference(this.context) ? "->" : ".");
+      this.emitSymbolName(node.symbol);
+    }
+
+    else if (node.kind === 21) {
+      if (parentPrecedence > 1) {
+        code.appendChar(40);
+      }
+
+      this.emitExpression(node.hookValue(), 2);
+      code.append(" ? ");
+      this.emitExpression(node.hookTrue(), 1);
+      code.append(" : ");
+      this.emitExpression(node.hookFalse(), 1);
+
+      if (parentPrecedence > 1) {
+        code.appendChar(41);
+      }
+    }
+
+    else if (node.kind === 18) {
+      var value = node.callValue();
+      this.emitSymbolName(value.symbol);
+      code.appendChar(40);
+
+      if (value.kind === 20) {
+        this.emitExpression(value.dotTarget(), 0);
+
+        if (value.nextSibling !== null) {
+          code.append(", ");
+        }
+      }
+
+      this.emitCommaSeparatedExpressions(value.nextSibling, null);
+      code.appendChar(41);
+    }
+
+    else if (node.kind === 25) {
+      code.append("calloc(1, sizeof(");
+      this.emitType(node.resolvedType, 2);
+      code.append("))");
+    }
+
+    else if (node.kind === 32) {
+      this.emitUnary(node, parentPrecedence, "~");
+    }
+
+    else if (node.kind === 33) {
+      this.emitUnary(node, parentPrecedence, "-");
+    }
+
+    else if (node.kind === 34) {
+      this.emitUnary(node, parentPrecedence, "!");
+    }
+
+    else if (node.kind === 35) {
+      this.emitUnary(node, parentPrecedence, "+");
+    }
+
+    else if (node.kind === 39) {
+      this.emitUnary(node, parentPrecedence, "++");
+    }
+
+    else if (node.kind === 38) {
+      this.emitUnary(node, parentPrecedence, "--");
+    }
+
+    else if (node.kind === 37) {
+      this.emitUnary(node, parentPrecedence, "++");
+    }
+
+    else if (node.kind === 36) {
+      this.emitUnary(node, parentPrecedence, "--");
+    }
+
+    else if (node.kind === 40) {
+      this.emitBinary(node, parentPrecedence, " + ", 10);
+    }
+
+    else if (node.kind === 41) {
+      this.emitBinary(node, parentPrecedence, " = ", 1);
+    }
+
+    else if (node.kind === 42) {
+      this.emitBinary(node, parentPrecedence, " & ", 6);
+    }
+
+    else if (node.kind === 43) {
+      this.emitBinary(node, parentPrecedence, " | ", 4);
+    }
+
+    else if (node.kind === 44) {
+      this.emitBinary(node, parentPrecedence, " ^ ", 5);
+    }
+
+    else if (node.kind === 45) {
+      this.emitBinary(node, parentPrecedence, " / ", 11);
+    }
+
+    else if (node.kind === 46) {
+      this.emitBinary(node, parentPrecedence, " == ", 7);
+    }
+
+    else if (node.kind === 47) {
+      this.emitBinary(node, parentPrecedence, " > ", 8);
+    }
+
+    else if (node.kind === 48) {
+      this.emitBinary(node, parentPrecedence, " >= ", 8);
+    }
+
+    else if (node.kind === 49) {
+      this.emitBinary(node, parentPrecedence, " < ", 8);
+    }
+
+    else if (node.kind === 50) {
+      this.emitBinary(node, parentPrecedence, " <= ", 8);
+    }
+
+    else if (node.kind === 51) {
+      this.emitBinary(node, parentPrecedence, " && ", 3);
+    }
+
+    else if (node.kind === 52) {
+      this.emitBinary(node, parentPrecedence, " || ", 2);
+    }
+
+    else if (node.kind === 53) {
+      this.emitBinary(node, parentPrecedence, " * ", 11);
+    }
+
+    else if (node.kind === 54) {
+      this.emitBinary(node, parentPrecedence, " != ", 7);
+    }
+
+    else if (node.kind === 55) {
+      this.emitBinary(node, parentPrecedence, " % ", 11);
+    }
+
+    else if (node.kind === 56) {
+      this.emitBinary(node, parentPrecedence, " << ", 9);
+    }
+
+    else if (node.kind === 57) {
+      this.emitBinary(node, parentPrecedence, " >> ", 9);
+    }
+
+    else if (node.kind === 58) {
+      this.emitBinary(node, parentPrecedence, " - ", 10);
+    }
+
+    else {
+      __declare.assert(false);
+    }
+  };
+
+  CResult.prototype.emitType = function(type, mode) {
+    var context = this.context;
+    var code = this.code;
+
+    if (type.isClass()) {
+      code.append("struct ");
+    }
+
+    if (type === context.boolType || type === context.ubyteType) {
+      code.append("uint8_t");
+    }
+
+    else if (type === context.byteType) {
+      code.append("int8_t");
+    }
+
+    else if (type === context.intType) {
+      code.append("int32_t");
+    }
+
+    else if (type === context.shortType) {
+      code.append("int16_t");
+    }
+
+    else if (type === context.stringType) {
+      code.append("const char");
+    }
+
+    else if (type === context.uintType) {
+      code.append("uint32_t");
+    }
+
+    else if (type === context.ushortType) {
+      code.append("uint16_t");
+    }
+
+    else {
+      this.emitSymbolName(type.symbol);
+    }
+
+    if (mode !== 2) {
+      if (type.isReference(this.context)) {
+        code.append(" *");
+      }
+
+      else if (mode === 1) {
+        code.appendChar(32);
+      }
+    }
+  };
+
+  CResult.prototype.emitStatement = function(node) {
+    var code = this.code;
+
+    if (node.kind === 10) {
+      var body = node.functionBody();
+
+      if (body === null) {
+        return;
+      }
+
+      var symbol = node.symbol;
+      var returnType = node.functionReturnType();
+      var child = node.firstChild;
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      this.emitType(returnType.resolvedType, 1);
+      this.emitSymbolName(symbol);
+      code.appendChar(40);
+
+      while (child !== returnType) {
+        __declare.assert(child.kind === 1);
+        this.emitType(child.symbol.resolvedType, 1);
+        this.emitSymbolName(child.symbol);
+        child = child.nextSibling;
+
+        if (child !== returnType) {
+          code.append(", ");
+        }
+      }
+
+      code.append(") ");
+      this.emitBlock(node.functionBody());
+      code.appendChar(10);
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 11) {
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+
+      while (true) {
+        code.append("if (");
+        this.emitExpression(node.ifValue(), 0);
+        code.append(") ");
+        this.emitBlock(node.ifTrue());
+        var no = node.ifFalse();
+
+        if (no === null) {
+          code.appendChar(10);
+
+          break;
+        }
+
+        code.append("\n\n");
+        this.emitIndent();
+        code.append("else ");
+
+        if (no.firstChild === null || no.firstChild !== no.lastChild || no.firstChild.kind !== 11) {
+          this.emitBlock(no);
+          code.appendChar(10);
+
+          break;
+        }
+
+        node = no.firstChild;
+      }
+
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 15) {
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      code.append("while (");
+      this.emitExpression(node.whileValue(), 0);
+      code.append(") ");
+      this.emitBlock(node.whileBody());
+      code.appendChar(10);
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 3) {
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      code.append("break;\n");
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 6) {
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      code.append("continue;\n");
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 9) {
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      this.emitExpression(node.expressionValue(), 0);
+      code.append(";\n");
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 7) {
+    }
+
+    else if (node.kind === 12) {
+      var value = node.returnValue();
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+
+      if (value !== null) {
+        code.append("return ");
+        this.emitExpression(value, 0);
+        code.append(";\n");
+      }
+
+      else {
+        code.append("return;\n");
+      }
+
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 2) {
+      if (node.parent.kind === 2) {
+        this.emitStatements(node.firstChild);
+      }
+
+      else {
+        this.emitNewlineBefore(node);
+        this.emitIndent();
+        this.emitBlock(node);
+        code.appendChar(10);
+        this.emitNewlineAfter(node);
+      }
+    }
+
+    else if (node.kind === 14) {
+      this.emitNewlineBefore(node);
+      var child = node.firstChild;
+
+      while (child !== null) {
+        var value = child.variableValue();
+        this.emitIndent();
+        this.emitType(child.symbol.resolvedType, 1);
+        this.emitSymbolName(child.symbol);
+        __declare.assert(value !== null);
+        code.append(" = ");
+        this.emitExpression(value, 0);
+        code.append(";\n");
+        child = child.nextSibling;
+      }
+
+      this.emitNewlineAfter(node);
+    }
+
+    else if (node.kind === 4) {
+      if (node.isDeclare()) {
+        return;
+      }
+
+      this.emitNewlineBefore(node);
+      this.emitIndent();
+      code.append("struct ");
+      this.emitSymbolName(node.symbol);
+      code.append(" {\n");
+      this.indent = this.indent + 1 | 0;
+      var child = node.firstChild;
+
+      while (child !== null) {
+        if (child.kind === 1) {
+          this.emitIndent();
+          this.emitType(child.symbol.resolvedType, 1);
+          this.emitSymbolName(child.symbol);
+          code.append(";\n");
+        }
+
+        child = child.nextSibling;
+      }
+
+      this.indent = this.indent - 1 | 0;
+      this.emitIndent();
+      code.append("};\n");
+      this.emitNewlineAfter(node);
+      child = node.firstChild;
+
+      while (child !== null) {
+        if (child.kind === 10) {
+          this.emitStatement(child);
+        }
+
+        child = child.nextSibling;
+      }
+    }
+
+    else if (node.kind === 5 || node.kind === 8) {
+    }
+
+    else {
+      __declare.assert(false);
+    }
+  };
+
+  function cEmit(global, context) {
+    var code = StringBuilder_new();
+    var result = new CResult();
+    result.context = context;
+    result.code = code;
+    result.emitStatements(global.firstChild);
+
+    return code.finish();
+  }
+
   function CheckContext() {
     this.log = null;
     this.isUnsafeAllowed = false;
@@ -1165,8 +1734,9 @@
 
   __extern.CompileTarget = {
     NONE: 0,
-    JAVASCRIPT: 1,
-    WEBASSEMBLY: 2
+    C: 1,
+    JAVASCRIPT: 2,
+    WEBASSEMBLY: 3
   };
 
   function Compiler() {
@@ -1179,6 +1749,7 @@
     this.context = null;
     this.wasm = null;
     this.js = null;
+    this.c = null;
   }
 
   Compiler.prototype.initialize = function(target) {
@@ -1191,10 +1762,14 @@
     this.addInput("<native>", library());
 
     if (target === 1) {
-      this.preprocessor.define("JS", true);
+      this.preprocessor.define("C", true);
     }
 
     else if (target === 2) {
+      this.preprocessor.define("JS", true);
+    }
+
+    else if (target === 3) {
       this.preprocessor.define("WASM", true);
     }
   };
@@ -1266,10 +1841,14 @@
     __declare.Profiler_begin();
 
     if (this.target === 1) {
-      this.js = jsEmit(this.global, this.context);
+      this.c = cEmit(this.global, this.context);
     }
 
     else if (this.target === 2) {
+      this.js = jsEmit(this.global, this.context);
+    }
+
+    else if (this.target === 3) {
       this.wasm = new ByteArray();
       wasmEmit(this.global, this.context, this.wasm);
     }
@@ -1308,6 +1887,10 @@
     return compiler.js;
   };
 
+  var Compiler_c = __extern.Compiler_c = function(compiler) {
+    return compiler.c;
+  };
+
   var Compiler_log = __extern.Compiler_log = function(compiler) {
     return compiler.log.toString();
   };
@@ -1337,53 +1920,6 @@
       this.code.append("  ");
       i = i - 1 | 0;
     }
-  };
-
-  JsResult.prototype.emitQuoted = function(text) {
-    var code = this.code;
-    var end = 0;
-    var limit = __declare.string_length(text);
-    var start = end;
-    code.appendChar(34);
-
-    while (end < limit) {
-      var c = __declare.string_get(text, end);
-
-      if (c === 34) {
-        code.appendSlice(text, start, end).append("\\\"");
-      }
-
-      else if (c === 0) {
-        code.appendSlice(text, start, end).append("\\0");
-      }
-
-      else if (c === 9) {
-        code.appendSlice(text, start, end).append("\\t");
-      }
-
-      else if (c === 13) {
-        code.appendSlice(text, start, end).append("\\r");
-      }
-
-      else if (c === 10) {
-        code.appendSlice(text, start, end).append("\\n");
-      }
-
-      else if (c === 92) {
-        code.appendSlice(text, start, end).append("\\\\");
-      }
-
-      else {
-        end = end + 1 | 0;
-
-        continue;
-      }
-
-      end = end + 1 | 0;
-      start = end;
-    }
-
-    code.appendSlice(text, start, end).appendChar(34);
   };
 
   JsResult.prototype.emitNewlineBefore = function(node) {
@@ -1511,7 +2047,7 @@
     }
 
     else if (node.kind === 29) {
-      this.emitQuoted(node.stringValue);
+      StringBuilder_appendQuoted(code, node.stringValue);
     }
 
     else if (node.kind === 19) {
@@ -1793,7 +2329,7 @@
 
     else {
       code.appendChar(91);
-      this.emitQuoted(symbol.name);
+      StringBuilder_appendQuoted(code, symbol.name);
       code.appendChar(93);
     }
   };
@@ -5730,6 +6266,52 @@
     sb.clear();
 
     return sb;
+  }
+
+  function StringBuilder_appendQuoted(sb, text) {
+    var end = 0;
+    var limit = __declare.string_length(text);
+    var start = end;
+    sb.appendChar(34);
+
+    while (end < limit) {
+      var c = __declare.string_get(text, end);
+
+      if (c === 34) {
+        sb.appendSlice(text, start, end).append("\\\"");
+      }
+
+      else if (c === 0) {
+        sb.appendSlice(text, start, end).append("\\0");
+      }
+
+      else if (c === 9) {
+        sb.appendSlice(text, start, end).append("\\t");
+      }
+
+      else if (c === 13) {
+        sb.appendSlice(text, start, end).append("\\r");
+      }
+
+      else if (c === 10) {
+        sb.appendSlice(text, start, end).append("\\n");
+      }
+
+      else if (c === 92) {
+        sb.appendSlice(text, start, end).append("\\\\");
+      }
+
+      else {
+        end = end + 1 | 0;
+
+        continue;
+      }
+
+      end = end + 1 | 0;
+      start = end;
+    }
+
+    sb.appendSlice(text, start, end).appendChar(34);
   }
 
   function StringBuilder() {

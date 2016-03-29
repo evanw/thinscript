@@ -18,35 +18,6 @@ class JsResult {
     }
   }
 
-  emitQuoted(text: string): void {
-    var code = this.code;
-    var end = 0;
-    var limit = string_length(text);
-    var start = end;
-
-    code.appendChar('"');
-
-    while (end < limit) {
-      var c = string_get(text, end);
-
-      if (c == '"') code.appendSlice(text, start, end).append("\\\"");
-      else if (c == '\0') code.appendSlice(text, start, end).append("\\0");
-      else if (c == '\t') code.appendSlice(text, start, end).append("\\t");
-      else if (c == '\r') code.appendSlice(text, start, end).append("\\r");
-      else if (c == '\n') code.appendSlice(text, start, end).append("\\n");
-      else if (c == '\\') code.appendSlice(text, start, end).append("\\\\");
-      else {
-        end = end + 1;
-        continue;
-      }
-
-      end = end + 1;
-      start = end;
-    }
-
-    code.appendSlice(text, start, end).appendChar('"');
-  }
-
   emitNewlineBefore(node: Node): void {
     if (this.previousNode != null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
       this.code.appendChar('\n');
@@ -176,7 +147,7 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.STRING) {
-      this.emitQuoted(node.stringValue);
+      StringBuilder_appendQuoted(code, node.stringValue);
     }
 
     else if (node.kind == NodeKind.CAST) {
@@ -390,7 +361,7 @@ class JsResult {
 
     else {
       code.appendChar('[');
-      this.emitQuoted(symbol.name);
+      StringBuilder_appendQuoted(code, symbol.name);
       code.appendChar(']');
     }
   }

@@ -9,6 +9,34 @@ function StringBuilder_new(): StringBuilder {
   return sb;
 }
 
+function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
+  var end = 0;
+  var limit = string_length(text);
+  var start = end;
+
+  sb.appendChar('"');
+
+  while (end < limit) {
+    var c = string_get(text, end);
+
+    if (c == '"') sb.appendSlice(text, start, end).append("\\\"");
+    else if (c == '\0') sb.appendSlice(text, start, end).append("\\0");
+    else if (c == '\t') sb.appendSlice(text, start, end).append("\\t");
+    else if (c == '\r') sb.appendSlice(text, start, end).append("\\r");
+    else if (c == '\n') sb.appendSlice(text, start, end).append("\\n");
+    else if (c == '\\') sb.appendSlice(text, start, end).append("\\\\");
+    else {
+      end = end + 1;
+      continue;
+    }
+
+    end = end + 1;
+    start = end;
+  }
+
+  sb.appendSlice(text, start, end).appendChar('"');
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #if JS

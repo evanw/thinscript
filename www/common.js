@@ -105,8 +105,15 @@ function loadWebAssembly(callback) {
 }
 
 var CompileTarget = {
-  JAVASCRIPT: 1,
-  WEBASSEMBLY: 2,
+  C: 1,
+  JAVASCRIPT: 2,
+  WEBASSEMBLY: 3,
+
+  toString: function(target) {
+    if (target === CompileTarget.C) return 'C';
+    if (target === CompileTarget.JAVASCRIPT) return 'JavaScript';
+    if (target === CompileTarget.WEBASSEMBLY) return 'WebAssembly';
+  },
 };
 
 function compileWebAssembly(code) {
@@ -118,7 +125,7 @@ function compileWebAssembly(code) {
   stdlib.ints = new Int32Array(memory);
 
   return function(sources, target) {
-    console.log('compiling to ' + (target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly') + ' using WebAssembly');
+    console.log('compiling to ' + CompileTarget.toString(target) + ' using WebAssembly');
     var before = now();
 
     stdlib.strings = [];
@@ -158,6 +165,7 @@ function compileWebAssembly(code) {
       wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
       log: stdlib.extractLengthPrefixedString(exports.Compiler_log(compiler)) || '',
       js: stdlib.extractLengthPrefixedString(exports.Compiler_js(compiler)) || '',
+      c: stdlib.extractLengthPrefixedString(exports.Compiler_c(compiler)) || '',
       totalTime: totalTime,
     };
   };
@@ -168,8 +176,9 @@ function compileJavaScript(code) {
   var exports = {};
   new Function('global', 'exports', code)(stdlib, exports);
 
+
   return function(sources, target, defines) {
-    console.log('compiling to ' + (target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly') + ' using JavaScript');
+    console.log('compiling to ' + CompileTarget.toString(target) + ' using JavaScript');
     var before = now();
 
     var compiler = exports.Compiler_new(target);
@@ -195,6 +204,7 @@ function compileJavaScript(code) {
       wasm: wasm ? wasm.bytes() : null,
       log: exports.Compiler_log(compiler),
       js: exports.Compiler_js(compiler),
+      c: exports.Compiler_c(compiler),
       totalTime: totalTime,
     };
   };
