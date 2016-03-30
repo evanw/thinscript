@@ -117,8 +117,8 @@ class Preprocessor {
 
   // Scan over the next reachable tokens, evaluate #define/#undef directives,
   // and fold #if/#else chains. Stop on #elif/#else/#endif. Return false on
-  // failure. Takes a boolean flag for whether control flow is live in this
-  // block or not.
+  // failure. Takes a boolean flag for whether or not control flow is live in
+  // this block.
   scan(isParentLive: bool): bool {
     while (!this.peek(TokenKind.END_OF_FILE) &&
         !this.peek(TokenKind.PREPROCESSOR_ELIF) &&

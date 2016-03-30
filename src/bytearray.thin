@@ -16,3 +16,134 @@ function ByteArray_append32(array: ByteArray, value: int): void {
   array.append((value >> 16) as ubyte);
   array.append((value >> 24) as ubyte);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if JS
+  declare function Uint8Array_new(length: int): Uint8Array;
+
+  declare class Uint8Array {
+    length: int;
+    set(source: Uint8Array): void;
+    subarray(start: int, end: int): Uint8Array;
+    operator [] (index: int): ubyte;
+    operator []= (index: int, value: ubyte): void;
+  }
+
+  function ByteArray_setString(array: ByteArray, index: int, text: string): void {
+    var length = string_length(text);
+    assert(index >= 0 && index + length <= array.length());
+    var data = array._data;
+    var i = 0;
+    while (i < length) {
+      data[index + i] = string_get(text, i) as ubyte;
+      i = i + 1;
+    }
+  }
+
+  class ByteArray {
+    _data: Uint8Array;
+    _length: int;
+
+    length(): int {
+      return this._length;
+    }
+
+    clear(): void {
+      this._length = 0;
+    }
+
+    get(index: int): ubyte {
+      assert((index as uint) < (this._length as uint));
+      return this._data[index];
+    }
+
+    set(index: int, value: ubyte): void {
+      assert((index as uint) < (this._length as uint));
+      this._data[index] = value;
+    }
+
+    append(value: ubyte): void {
+      var index = this._length;
+      this.resize(index + 1);
+      this._data[index] = value;
+    }
+
+    bytes(): Uint8Array {
+      return this._data.subarray(0, this._length);
+    }
+
+    resize(length: int): void {
+      if (length > (this._data != null ? this._data.length : 0)) {
+        var capacity = length * 2;
+        var data = Uint8Array_new(capacity);
+        if (this._data != null) data.set(this._data);
+        this._data = data;
+      }
+
+      this._length = length;
+    }
+  }
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if WASM
+  function ByteArray_setString(array: ByteArray, index: int, text: string): void {
+    unsafe {
+      var length = (text as UIntPtr).value;
+      assert(index >= 0 && index + length as int <= array.length());
+      memcpy(array._data + index as uint, text as uint + 4, length);
+    }
+  }
+
+  class ByteArray {
+    _data: uint;
+    _length: uint;
+    _capacity: uint;
+
+    length(): int {
+      return this._length as int;
+    }
+
+    clear(): void {
+      this._length = 0;
+    }
+
+    get(index: int): ubyte {
+      assert((index as uint) < this._length);
+      unsafe {
+        return ((this._data as int + index) as UBytePtr).value;
+      }
+    }
+
+    set(index: int, value: ubyte): void {
+      assert((index as uint) < this._length);
+      unsafe {
+        ((this._data as int + index) as UBytePtr).value = value;
+      }
+    }
+
+    append(value: ubyte): void {
+      var offset = this._length;
+      unsafe {
+        this.resize(offset as int + 1);
+        ((this._data + offset) as UBytePtr).value = value;
+      }
+    }
+
+    resize(length: int): void {
+      if (length as uint > this._capacity) {
+        unsafe {
+          var capacity = length as uint * 2;
+          var data = malloc(capacity);
+          memcpy(data, this._data, this._length);
+          this._capacity = capacity;
+          this._data = data;
+        }
+      }
+
+      this._length = length as uint;
+    }
+  }
+#endif

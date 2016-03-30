@@ -8,3 +8,219 @@ function StringBuilder_new(): StringBuilder {
   sb.clear();
   return sb;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if JS
+  declare function string_length(text: string): int;
+  declare function string_get(text: string, index: int): int;
+  declare function string_equals(a: string, b: string): bool;
+  declare function string_slice(text: string, start: int, end: int): string;
+  declare function string_intToString(value: int): string;
+  declare function string_uintToString(value: uint): string;
+
+  declare function StringBuilder_appendChar(a: string, b: ubyte): string;
+  declare function StringBuilder_append(a: string, b: string): string;
+
+  class StringBuilder {
+    next: StringBuilder;
+    _text: string;
+
+    clear(): void {
+      this._text = "";
+    }
+
+    appendChar(c: ubyte): StringBuilder {
+      this._text = StringBuilder_appendChar(this._text, c);
+      return this;
+    }
+
+    appendSlice(text: string, start: int, end: int): StringBuilder {
+      this._text = StringBuilder_append(this._text, string_slice(text, start, end));
+      return this;
+    }
+
+    append(text: string): StringBuilder {
+      this._text = StringBuilder_append(this._text, text);
+      return this;
+    }
+
+    // This also "frees" this object (puts it back in the pool)
+    finish(): string {
+      this.next = stringBuilderPool;
+      stringBuilderPool = this;
+      return this._text;
+    }
+  }
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if WASM
+  extern function string_new(length: uint): string {
+    unsafe {
+      var ptr = malloc(4 + length);
+      (ptr as UIntPtr).value = length;
+      return ptr as string;
+    }
+  }
+
+  function string_length(text: string): int {
+    unsafe {
+      return (text as UIntPtr).value as int;
+    }
+  }
+
+  function string_get(text: string, index: int): int {
+    assert(index as uint < string_length(text) as uint);
+    unsafe {
+      return ((text as int + index + 4) as UBytePtr).value;
+    }
+  }
+
+  function string_equals(a: string, b: string): bool {
+    unsafe {
+      var length = (a as UIntPtr).value;
+
+      // Check the length first
+      if (length != (b as UIntPtr).value) {
+        return false;
+      }
+
+      // Check the content next
+      var ai = a as uint + 4;
+      var bi = b as uint + 4;
+      var an = ai + (length & ~3 as uint);
+
+      // Compare 32-bit values for speed
+      while (ai < an) {
+        if ((ai as UIntPtr).value != (bi as UIntPtr).value) {
+          return false;
+        }
+        ai = ai + 4;
+        bi = bi + 4;
+      }
+
+      // Compare trailing 8-bit values
+      an = ai + length % 4;
+      while (ai < an) {
+        if ((ai as UBytePtr).value != (bi as UBytePtr).value) {
+          return false;
+        }
+        ai = ai + 1;
+        bi = bi + 1;
+      }
+
+      return true;
+    }
+  }
+
+  function string_slice(text: string, start: int, end: int): string {
+    assert(start >= 0 && start <= end && end <= string_length(text));
+    unsafe {
+      var length = (end - start) as uint;
+      var ptr = string_new(length);
+      memcpy(ptr as uint + 4, text as uint + 4 + start as uint, length);
+      return ptr;
+    }
+  }
+
+  function string_intToString(value: int): string {
+    // Special-case this to keep the rest of the code simple
+    if (value == -2147483648) {
+      return "-2147483648";
+    }
+
+    // Treat this like an unsigned integer prefixed by '-' if it's negative
+    return _internalIntToString((value < 0 ? -value : value) as uint, value < 0);
+  }
+
+  function string_uintToString(value: uint): string {
+    return _internalIntToString(value, false);
+  }
+
+  function _internalIntToString(value: uint, sign: bool): string {
+    // Avoid allocation for common cases
+    if (value == 0) return "0";
+    if (value == 1) return sign ? "-1" : "1";
+
+    unsafe {
+      // Determine how many digits we need
+      var length = ((sign ? 1 : 0) + (
+        value >= 100000000 ?
+          value >= 1000000000 ? 10 : 9 :
+        value >= 10000 ?
+          value >= 1000000 ?
+            value >= 10000000 ? 8 : 7 :
+            value >= 100000 ? 6 : 5 :
+          value >= 100 ?
+            value >= 1000 ? 4 : 3 :
+            value >= 10 ? 2 : 1)) as uint;
+
+      var ptr = malloc(4 + length);
+      var end = ptr + 4 + length;
+      (ptr as UIntPtr).value = length;
+
+      if (sign) {
+        ((ptr + 4) as UBytePtr).value = '-';
+      }
+
+      while (value != 0) {
+        end = end - 1;
+        (end as UBytePtr).value = (value % 10 + '0') as ubyte;
+        value = value / 10;
+      }
+
+      return ptr as string;
+    }
+  }
+
+  class StringBuilder {
+    next: StringBuilder;
+    _bytes: ByteArray;
+
+    clear(): void {
+      var bytes = this._bytes;
+      if (bytes == null) {
+        bytes = new ByteArray();
+        this._bytes = bytes;
+      } else {
+        bytes.clear();
+      }
+    }
+
+    appendChar(c: ubyte): StringBuilder {
+      this._bytes.append(c);
+      return this;
+    }
+
+    // TODO: Make this more efficient
+    appendSlice(text: string, start: int, end: int): StringBuilder {
+      return this.append(string_slice(text, start, end));
+    }
+
+    append(text: string): StringBuilder {
+      var bytes = this._bytes;
+      var index = bytes._length;
+      unsafe {
+        var length = (text as UIntPtr).value;
+        bytes.resize((index + length) as int);
+        memcpy(bytes._data + index, text as uint + 4, length);
+      }
+      return this;
+    }
+
+    // This also "frees" this object (puts it back in the pool)
+    finish(): string {
+      this.next = stringBuilderPool;
+      stringBuilderPool = this;
+      unsafe {
+        var bytes = this._bytes;
+        var length = bytes._length;
+        var ptr = string_new(length);
+        memcpy(ptr as uint + 4, bytes._data, length);
+        return ptr;
+      }
+    }
+  }
+#endif

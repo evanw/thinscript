@@ -109,16 +109,6 @@ var CompileTarget = {
   WEBASSEMBLY: 2,
 };
 
-function filterSources(sources, target, callback) {
-  sources.forEach(function(source) {
-    if (/\.js\./.test(source.name) && target !== CompileTarget.JAVASCRIPT ||
-        /\.wasm\./.test(source.name) && target !== CompileTarget.WEBASSEMBLY) {
-      return;
-    }
-    callback(source);
-  });
-}
-
 function compileWebAssembly(code) {
   var stdlib = loadStdlibForWebAssembly();
   var module = Wasm.instantiateModule(code, {globals: stdlib});
@@ -136,7 +126,7 @@ function compileWebAssembly(code) {
     exports.Compiler_resetHeapPointer();
     var compiler = exports.Compiler_new(target);
 
-    filterSources(sources, target, function(source) {
+    sources.forEach(function(source) {
       var name = source.name;
       var contents = source.contents;
       var nameString = exports.string_new(name.length);
@@ -184,7 +174,7 @@ function compileJavaScript(code) {
 
     var compiler = exports.Compiler_new(target);
 
-    filterSources(sources, target, function(source) {
+    sources.forEach(function(source) {
       exports.Compiler_addInput(compiler, source.name, source.contents);
     });
 

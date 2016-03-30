@@ -1,3 +1,22 @@
+function ByteArray_set16(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+}
+
+function ByteArray_set32(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+  array.set(index + 2 | 0, value >> 16 & 255);
+  array.set(index + 3 | 0, value >> 24 & 255);
+}
+
+function ByteArray_append32(array, value) {
+  array.append(value & 255);
+  array.append(value >> 8 & 255);
+  array.append(value >> 16 & 255);
+  array.append(value >> 24 & 255);
+}
+
 function ByteArray_setString(array, index, text) {
   var length = globals.string_length(text);
   globals.assert(index >= 0 && (index + length | 0) <= array.length());
@@ -58,25 +77,6 @@ ByteArray.prototype.resize = function(length) {
 
   this._length = length;
 };
-
-function ByteArray_set16(array, index, value) {
-  array.set(index, value & 255);
-  array.set(index + 1 | 0, value >> 8 & 255);
-}
-
-function ByteArray_set32(array, index, value) {
-  array.set(index, value & 255);
-  array.set(index + 1 | 0, value >> 8 & 255);
-  array.set(index + 2 | 0, value >> 16 & 255);
-  array.set(index + 3 | 0, value >> 24 & 255);
-}
-
-function ByteArray_append32(array, value) {
-  array.append(value & 255);
-  array.append(value >> 8 & 255);
-  array.append(value >> 16 & 255);
-  array.append(value >> 24 & 255);
-}
 
 function CheckContext() {
   this.log = null;
@@ -1181,9 +1181,14 @@ Compiler.prototype.initialize = function(target) {
   this.global.kind = 0;
   this.preprocessor = new Preprocessor();
   this.target = target;
+  this.addInput("<native>", library());
 
-  if (target === 2) {
-    this.addInput("<native>", libraryForWebAssembly());
+  if (target === 1) {
+    this.preprocessor.define("JS", true);
+  }
+
+  else if (target === 2) {
+    this.preprocessor.define("WASM", true);
   }
 };
 
@@ -2958,8 +2963,8 @@ function tokenize(source, log) {
   return first;
 }
 
-function libraryForWebAssembly() {
-  return "\n// Cast to these to read from and write to arbitrary locations in memory\nunsafe class UBytePtr { value: ubyte; }\nunsafe class UShortPtr { value: ushort; }\nunsafe class UIntPtr { value: uint; }\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n  sizeOf = (sizeOf + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  var limit = offset + sizeOf;\n  currentHeapPointer = limit;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (ptr < limit) {\n    (ptr as UIntPtr).value = 0;\n    ptr = ptr + 4;\n  }\n\n  return offset;\n}\n";
+function library() {
+  return "\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class UBytePtr { value: ubyte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
 }
 
 function Source() {
@@ -5390,6 +5395,24 @@ Scope.prototype.defineNativeIntegerType = function(log, name, byteSizeAndMaxAlig
   return type;
 };
 
+var stringBuilderPool = null;
+
+function StringBuilder_new() {
+  var sb = stringBuilderPool;
+
+  if (sb !== null) {
+    stringBuilderPool = sb.next;
+  }
+
+  else {
+    sb = new StringBuilder();
+  }
+
+  sb.clear();
+
+  return sb;
+}
+
 function StringBuilder() {
   this.next = null;
   this._text = null;
@@ -5423,24 +5446,6 @@ StringBuilder.prototype.finish = function() {
 
   return this._text;
 };
-
-var stringBuilderPool = null;
-
-function StringBuilder_new() {
-  var sb = stringBuilderPool;
-
-  if (sb !== null) {
-    stringBuilderPool = sb.next;
-  }
-
-  else {
-    sb = new StringBuilder();
-  }
-
-  sb.clear();
-
-  return sb;
-}
 
 function isType(kind) {
   return kind >= 0 && kind <= 3;
