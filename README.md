@@ -51,7 +51,14 @@ extern function main(): int {
     link = link.next;
   }
 
-  print("hello, world");
+  #if JS
+    print("Hello from JavaScript");
+  #elif WASM
+    print("Hello from WebAssembly");
+  #else
+    print("Unknown target");
+  #endif
+
   return total;
 }
 ```

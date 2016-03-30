@@ -83,10 +83,12 @@ enum TokenKind {
   PREPROCESSOR_ELIF,
   PREPROCESSOR_ELSE,
   PREPROCESSOR_ENDIF,
+  PREPROCESSOR_ERROR,
   PREPROCESSOR_IF,
   PREPROCESSOR_NEEDED,
   PREPROCESSOR_NEWLINE,
   PREPROCESSOR_UNDEF,
+  PREPROCESSOR_WARNING,
 }
 
 function isKeyword(kind: TokenKind): bool {
@@ -184,9 +186,11 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.PREPROCESSOR_ELIF) return "'#elif'";
   if (token == TokenKind.PREPROCESSOR_ELSE) return "'#else'";
   if (token == TokenKind.PREPROCESSOR_ENDIF) return "'#endif'";
+  if (token == TokenKind.PREPROCESSOR_ERROR) return "'#error'";
   if (token == TokenKind.PREPROCESSOR_IF) return "'#if'";
   if (token == TokenKind.PREPROCESSOR_NEWLINE) return "newline";
   if (token == TokenKind.PREPROCESSOR_UNDEF) return "'#undef'";
+  if (token == TokenKind.PREPROCESSOR_WARNING) return "'#warning'";
 
   assert(false);
   return null;
@@ -567,8 +571,10 @@ function tokenize(source: Source, log: Log): Token {
       else if (string_equals(text, "#elif")) kind = TokenKind.PREPROCESSOR_ELIF;
       else if (string_equals(text, "#else")) kind = TokenKind.PREPROCESSOR_ELSE;
       else if (string_equals(text, "#endif")) kind = TokenKind.PREPROCESSOR_ENDIF;
+      else if (string_equals(text, "#error")) kind = TokenKind.PREPROCESSOR_ERROR;
       else if (string_equals(text, "#if")) kind = TokenKind.PREPROCESSOR_IF;
       else if (string_equals(text, "#undef")) kind = TokenKind.PREPROCESSOR_UNDEF;
+      else if (string_equals(text, "#warning")) kind = TokenKind.PREPROCESSOR_WARNING;
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
 

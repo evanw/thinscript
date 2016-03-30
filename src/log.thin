@@ -61,9 +61,15 @@ function spanRanges(left: Range, right: Range): Range {
   return createRange(left.source, left.start, right.end);
 }
 
+enum DiagnosticKind {
+  ERROR,
+  WARNING,
+}
+
 class Diagnostic {
   range: Range;
   message: string;
+  kind: DiagnosticKind;
   next: Diagnostic;
 }
 
@@ -72,13 +78,19 @@ class Log {
   last: Diagnostic;
 
   error(range: Range, message: string): void {
+    this.append(range, message, DiagnosticKind.ERROR);
+  }
+
+  warning(range: Range, message: string): void {
+    this.append(range, message, DiagnosticKind.WARNING);
+  }
+
+  append(range: Range, message: string, kind: DiagnosticKind): void {
     var diagnostic = new Diagnostic();
     diagnostic.range = range;
     diagnostic.message = message;
-    this.append(diagnostic);
-  }
+    diagnostic.kind = kind;
 
-  append(diagnostic: Diagnostic): void {
     if (this.first == null) this.first = diagnostic;
     else this.last.next = diagnostic;
     this.last = diagnostic;
@@ -107,7 +119,7 @@ class Log {
         .append(string_intToString(line + 1))
         .appendChar(':')
         .append(string_intToString(column + 1))
-        .append(": error: ")
+        .append(d.kind == DiagnosticKind.ERROR ? ": error: " : ": warning: ")
         .append(d.message)
         .appendChar('\n')
         .append(lineRange.toString())

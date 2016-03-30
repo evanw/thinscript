@@ -134,6 +134,12 @@ class Preprocessor {
           this.define(this.previous.range.toString(), current.kind == TokenKind.PREPROCESSOR_DEFINE);
         }
 
+        // Help out people trying to use this like C
+        if (this.peek(TokenKind.FALSE) || this.peek(TokenKind.INT) && string_equals(this.current.range.toString(), "0")) {
+          this.advance();
+          this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
+        }
+
         // Scan up to the next newline
         if (!this.peek(TokenKind.END_OF_FILE) && !this.expect(TokenKind.PREPROCESSOR_NEWLINE)) {
           while (!this.eat(TokenKind.PREPROCESSOR_NEWLINE) && !this.eat(TokenKind.END_OF_FILE)) {
@@ -148,6 +154,26 @@ class Preprocessor {
         }
 
         // Remove all of these tokens
+        this.removeTokensFrom(previous);
+      }
+
+      // #warning or #error
+      else if (this.eat(TokenKind.PREPROCESSOR_WARNING) || this.eat(TokenKind.PREPROCESSOR_ERROR)) {
+        var next = this.current;
+
+        // Scan up to the next newline
+        while (!this.peek(TokenKind.PREPROCESSOR_NEWLINE) && !this.peek(TokenKind.END_OF_FILE)) {
+          this.advance();
+        }
+
+        // Only process the directive if control flow is live at this point
+        if (isParentLive) {
+          var range = this.current == next ? current.range : spanRanges(next.range, this.previous.range);
+          this.log.append(range, range.toString(), current.kind == TokenKind.PREPROCESSOR_WARNING ? DiagnosticKind.WARNING : DiagnosticKind.ERROR);
+        }
+
+        // Remove all of these tokens
+        this.eat(TokenKind.PREPROCESSOR_NEWLINE);
         this.removeTokensFrom(previous);
       }
 

@@ -2353,15 +2353,23 @@ function tokenToString(token) {
   }
 
   if (token === 76) {
+    return "'#error'";
+  }
+
+  if (token === 77) {
     return "'#if'";
   }
 
-  if (token === 78) {
+  if (token === 79) {
     return "newline";
   }
 
-  if (token === 79) {
+  if (token === 80) {
     return "'#undef'";
+  }
+
+  if (token === 81) {
+    return "'#warning'";
   }
 
   globals.assert(false);
@@ -2410,7 +2418,7 @@ function tokenize(source, log) {
         continue;
       }
 
-      kind = 78;
+      kind = 79;
       wantNewline = false;
     }
 
@@ -2870,12 +2878,20 @@ function tokenize(source, log) {
         kind = 75;
       }
 
-      else if (globals.string_equals(text, "#if")) {
+      else if (globals.string_equals(text, "#error")) {
         kind = 76;
       }
 
+      else if (globals.string_equals(text, "#if")) {
+        kind = 77;
+      }
+
       else if (globals.string_equals(text, "#undef")) {
-        kind = 79;
+        kind = 80;
+      }
+
+      else if (globals.string_equals(text, "#warning")) {
+        kind = 81;
       }
 
       else {
@@ -2894,7 +2910,7 @@ function tokenize(source, log) {
         return null;
       }
 
-      if (last !== null && last.kind !== 78) {
+      if (last !== null && last.kind !== 79) {
         var end = last.range.end;
         var j = i - 1 | 0;
 
@@ -2954,7 +2970,7 @@ function tokenize(source, log) {
 
   if (needsPreprocessor) {
     var token = new Token();
-    token.kind = 77;
+    token.kind = 78;
     token.next = first;
 
     return token;
@@ -3031,6 +3047,7 @@ function spanRanges(left, right) {
 function Diagnostic() {
   this.range = null;
   this.message = null;
+  this.kind = 0;
   this.next = null;
 }
 
@@ -3040,13 +3057,19 @@ function Log() {
 }
 
 Log.prototype.error = function(range, message) {
+  this.append(range, message, 0);
+};
+
+Log.prototype.warning = function(range, message) {
+  this.append(range, message, 1);
+};
+
+Log.prototype.append = function(range, message, kind) {
   var diagnostic = new Diagnostic();
   diagnostic.range = range;
   diagnostic.message = message;
-  this.append(diagnostic);
-};
+  diagnostic.kind = kind;
 
-Log.prototype.append = function(diagnostic) {
   if (this.first === null) {
     this.first = diagnostic;
   }
@@ -3076,7 +3099,7 @@ Log.prototype.toString = function() {
       i = i + 1 | 0;
     }
 
-    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(": error: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
+    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(d.kind === 0 ? ": error: " : ": warning: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
     i = 0;
 
     while (i < column) {
@@ -5200,7 +5223,7 @@ Preprocessor.prototype.define = function(name, isDefined) {
 Preprocessor.prototype.run = function(source, log) {
   var firstToken = source.firstToken;
 
-  if (firstToken !== null && firstToken.kind === 77) {
+  if (firstToken !== null && firstToken.kind === 78) {
     var firstFlag = this.firstFlag;
     this.isDefineAndUndefAllowed = true;
     this.previous = firstToken;
@@ -5227,13 +5250,18 @@ Preprocessor.prototype.scan = function(isParentLive) {
     var previous = this.previous;
     var current = this.current;
 
-    if (this.eat(72) || this.eat(79)) {
+    if (this.eat(72) || this.eat(80)) {
       if (this.expect(2) && isParentLive) {
         this.define(this.previous.range.toString(), current.kind === 72);
       }
 
-      if (!this.peek(0) && !this.expect(78)) {
-        while (!this.eat(78) && !this.eat(0)) {
+      if (this.peek(51) || this.peek(3) && globals.string_equals(this.current.range.toString(), "0")) {
+        this.advance();
+        this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
+      }
+
+      if (!this.peek(0) && !this.expect(79)) {
+        while (!this.eat(79) && !this.eat(0)) {
           this.advance();
         }
       }
@@ -5245,13 +5273,29 @@ Preprocessor.prototype.scan = function(isParentLive) {
       this.removeTokensFrom(previous);
     }
 
-    else if (this.eat(76)) {
+    else if (this.eat(81) || this.eat(76)) {
+      var next = this.current;
+
+      while (!this.peek(79) && !this.peek(0)) {
+        this.advance();
+      }
+
+      if (isParentLive) {
+        var range = this.current === next ? current.range : spanRanges(next.range, this.previous.range);
+        this.log.append(range, range.toString(), current.kind === 81 ? 1 : 0);
+      }
+
+      this.eat(79);
+      this.removeTokensFrom(previous);
+    }
+
+    else if (this.eat(77)) {
       var isLive = isParentLive;
 
       while (true) {
         var name = this.current;
 
-        if (!this.expect(2) || !this.expect(78)) {
+        if (!this.expect(2) || !this.expect(79)) {
           return false;
         }
 
@@ -5277,7 +5321,7 @@ Preprocessor.prototype.scan = function(isParentLive) {
         }
 
         if (this.eat(74)) {
-          if (!this.expect(78)) {
+          if (!this.expect(79)) {
             return false;
           }
 
@@ -5297,7 +5341,7 @@ Preprocessor.prototype.scan = function(isParentLive) {
 
       previous = this.previous;
 
-      if (!this.expect(75) || !this.peek(0) && !this.expect(78)) {
+      if (!this.expect(75) || !this.peek(0) && !this.expect(79)) {
         return false;
       }
 
