@@ -1,3 +1,22 @@
+function ByteArray_set16(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+}
+
+function ByteArray_set32(array, index, value) {
+  array.set(index, value & 255);
+  array.set(index + 1 | 0, value >> 8 & 255);
+  array.set(index + 2 | 0, value >> 16 & 255);
+  array.set(index + 3 | 0, value >> 24 & 255);
+}
+
+function ByteArray_append32(array, value) {
+  array.append(value & 255);
+  array.append(value >> 8 & 255);
+  array.append(value >> 16 & 255);
+  array.append(value >> 24 & 255);
+}
+
 function ByteArray_setString(array, index, text) {
   var length = globals.string_length(text);
   globals.assert(index >= 0 && (index + length | 0) <= array.length());
@@ -58,25 +77,6 @@ ByteArray.prototype.resize = function(length) {
 
   this._length = length;
 };
-
-function ByteArray_set16(array, index, value) {
-  array.set(index, value & 255);
-  array.set(index + 1 | 0, value >> 8 & 255);
-}
-
-function ByteArray_set32(array, index, value) {
-  array.set(index, value & 255);
-  array.set(index + 1 | 0, value >> 8 & 255);
-  array.set(index + 2 | 0, value >> 16 & 255);
-  array.set(index + 3 | 0, value >> 24 & 255);
-}
-
-function ByteArray_append32(array, value) {
-  array.append(value & 255);
-  array.append(value >> 8 & 255);
-  array.append(value >> 16 & 255);
-  array.append(value >> 24 & 255);
-}
 
 function CheckContext() {
   this.log = null;
@@ -1167,6 +1167,7 @@ function Compiler() {
   this.global = null;
   this.firstSource = null;
   this.lastSource = null;
+  this.preprocessor = null;
   this.target = 0;
   this.context = null;
   this.wasm = null;
@@ -1178,10 +1179,16 @@ Compiler.prototype.initialize = function(target) {
   this.log = new Log();
   this.global = new Node();
   this.global.kind = 0;
+  this.preprocessor = new Preprocessor();
   this.target = target;
+  this.addInput("<native>", library());
 
-  if (target === 2) {
-    this.addInput("<native>", libraryForWebAssembly());
+  if (target === 1) {
+    this.preprocessor.define("JS", true);
+  }
+
+  else if (target === 2) {
+    this.preprocessor.define("WASM", true);
   }
 };
 
@@ -1211,6 +1218,15 @@ Compiler.prototype.finish = function() {
   }
 
   globals.Profiler_end("lexing");
+  globals.Profiler_begin();
+  source = this.firstSource;
+
+  while (source !== null) {
+    this.preprocessor.run(source, this.log);
+    source = source.next;
+  }
+
+  globals.Profiler_end("preprocessing");
   globals.Profiler_begin();
   source = this.firstSource;
 
@@ -2320,6 +2336,42 @@ function tokenToString(token) {
     return "'while'";
   }
 
+  if (token === 72) {
+    return "'#define'";
+  }
+
+  if (token === 73) {
+    return "'#elif'";
+  }
+
+  if (token === 74) {
+    return "'#else'";
+  }
+
+  if (token === 75) {
+    return "'#endif'";
+  }
+
+  if (token === 76) {
+    return "'#error'";
+  }
+
+  if (token === 77) {
+    return "'#if'";
+  }
+
+  if (token === 79) {
+    return "newline";
+  }
+
+  if (token === 80) {
+    return "'#undef'";
+  }
+
+  if (token === 81) {
+    return "'#warning'";
+  }
+
   globals.assert(false);
 
   return null;
@@ -2346,6 +2398,8 @@ function tokenize(source, log) {
   var last = null;
   var contents = source.contents;
   var limit = globals.string_length(contents);
+  var needsPreprocessor = false;
+  var wantNewline = false;
   var i = 0;
 
   while (i < limit) {
@@ -2353,13 +2407,22 @@ function tokenize(source, log) {
     var c = globals.string_get(contents, i);
     i = i + 1 | 0;
 
-    if (c === 32 || c === 9 || c === 13 || c === 10) {
+    if (c === 32 || c === 9 || c === 13) {
       continue;
     }
 
     var kind = 0;
 
-    if (isAlpha(c)) {
+    if (c === 10) {
+      if (!wantNewline) {
+        continue;
+      }
+
+      kind = 79;
+      wantNewline = false;
+    }
+
+    else if (isAlpha(c)) {
       kind = 2;
 
       while (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
@@ -2792,6 +2855,87 @@ function tokenize(source, log) {
       }
     }
 
+    else if (c === 35) {
+      while (i < limit && (isAlpha(globals.string_get(contents, i)) || isNumber(globals.string_get(contents, i)))) {
+        i = i + 1 | 0;
+      }
+
+      var text = globals.string_slice(contents, start, i);
+
+      if (globals.string_equals(text, "#define")) {
+        kind = 72;
+      }
+
+      else if (globals.string_equals(text, "#elif")) {
+        kind = 73;
+      }
+
+      else if (globals.string_equals(text, "#else")) {
+        kind = 74;
+      }
+
+      else if (globals.string_equals(text, "#endif")) {
+        kind = 75;
+      }
+
+      else if (globals.string_equals(text, "#error")) {
+        kind = 76;
+      }
+
+      else if (globals.string_equals(text, "#if")) {
+        kind = 77;
+      }
+
+      else if (globals.string_equals(text, "#undef")) {
+        kind = 80;
+      }
+
+      else if (globals.string_equals(text, "#warning")) {
+        kind = 81;
+      }
+
+      else {
+        var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar(39);
+
+        if (globals.string_equals(text, "#ifdef")) {
+          builder.append(", did you mean '#if'?");
+          kind = 77;
+        }
+
+        else if (globals.string_equals(text, "#elsif") || globals.string_equals(text, "#elseif")) {
+          builder.append(", did you mean '#elif'?");
+          kind = 73;
+        }
+
+        else if (globals.string_equals(text, "#end")) {
+          builder.append(", did you mean '#endif'?");
+          kind = 75;
+        }
+
+        log.error(createRange(source, start, i), builder.finish());
+      }
+
+      if (last !== null && last.kind !== 79) {
+        var end = last.range.end;
+        var j = i - 1 | 0;
+
+        while (j >= end) {
+          if (globals.string_get(contents, j) === 10) {
+            break;
+          }
+
+          j = j - 1 | 0;
+        }
+
+        if (j < end) {
+          log.error(createRange(source, start, i), StringBuilder_new().append("Expected newline before ").append(tokenToString(kind)).finish());
+        }
+      }
+
+      needsPreprocessor = true;
+      wantNewline = true;
+    }
+
     var range = createRange(source, start, i);
 
     if (kind === 0) {
@@ -2829,11 +2973,19 @@ function tokenize(source, log) {
 
   last = eof;
 
+  if (needsPreprocessor) {
+    var token = new Token();
+    token.kind = 78;
+    token.next = first;
+
+    return token;
+  }
+
   return first;
 }
 
-function libraryForWebAssembly() {
-  return "\n// Cast to these to read from and write to arbitrary locations in memory\nunsafe class UBytePtr { value: ubyte; }\nunsafe class UShortPtr { value: ushort; }\nunsafe class UIntPtr { value: uint; }\n\n// These will be filled in by the WebAssembly code generator\nunsafe var currentHeapPointer: uint = 0;\nunsafe var originalHeapPointer: uint = 0;\n\nunsafe function malloc(sizeOf: uint): uint {\n  // Align all allocations to 8 bytes\n  var offset = (currentHeapPointer + 7) & ~7 as uint;\n  sizeOf = (sizeOf + 7) & ~7 as uint;\n\n  // Use a simple bump allocator for now\n  var limit = offset + sizeOf;\n  currentHeapPointer = limit;\n\n  // Make sure the memory starts off at zero\n  var ptr = offset;\n  while (ptr < limit) {\n    (ptr as UIntPtr).value = 0;\n    ptr = ptr + 4;\n  }\n\n  return offset;\n}\n";
+function library() {
+  return "\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class UBytePtr { value: ubyte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
 }
 
 function Source() {
@@ -2868,11 +3020,15 @@ Range.prototype.enclosingLine = function() {
 
   var length = globals.string_length(contents);
 
-  while ((end + 1 | 0) < length && globals.string_get(contents, end) !== 10) {
+  while (end < length && globals.string_get(contents, end) !== 10) {
     end = end + 1 | 0;
   }
 
   return createRange(this.source, start, end);
+};
+
+Range.prototype.rangeAtEnd = function() {
+  return createRange(this.source, this.end, this.end);
 };
 
 function createRange(source, start, end) {
@@ -2887,7 +3043,8 @@ function createRange(source, start, end) {
 
 function spanRanges(left, right) {
   globals.assert(left.source === right.source);
-  globals.assert(left.end <= right.start);
+  globals.assert(left.start <= right.start);
+  globals.assert(left.end <= right.end);
 
   return createRange(left.source, left.start, right.end);
 }
@@ -2895,6 +3052,7 @@ function spanRanges(left, right) {
 function Diagnostic() {
   this.range = null;
   this.message = null;
+  this.kind = 0;
   this.next = null;
 }
 
@@ -2904,13 +3062,19 @@ function Log() {
 }
 
 Log.prototype.error = function(range, message) {
+  this.append(range, message, 0);
+};
+
+Log.prototype.warning = function(range, message) {
+  this.append(range, message, 1);
+};
+
+Log.prototype.append = function(range, message, kind) {
   var diagnostic = new Diagnostic();
   diagnostic.range = range;
   diagnostic.message = message;
-  this.append(diagnostic);
-};
+  diagnostic.kind = kind;
 
-Log.prototype.append = function(diagnostic) {
   if (this.first === null) {
     this.first = diagnostic;
   }
@@ -2940,7 +3104,7 @@ Log.prototype.toString = function() {
       i = i + 1 | 0;
     }
 
-    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(": error: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
+    result.append(d.range.source.name).appendChar(58).append(globals.string_intToString(line + 1 | 0)).appendChar(58).append(globals.string_intToString(column + 1 | 0)).append(d.kind === 0 ? ": error: " : ": warning: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
     i = 0;
 
     while (i < column) {
@@ -3784,7 +3948,7 @@ ParserContext.prototype.expect = function(kind) {
     var currentLine = this.current.range.enclosingLine();
 
     if (kind !== 2 && !previousLine.equals(currentLine)) {
-      this.log.error(createRange(previousLine.source, previousLine.end, previousLine.end), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
+      this.log.error(previousLine.rangeAtEnd(), StringBuilder_new().append("Expected ").append(tokenToString(kind)).finish());
     }
 
     else {
@@ -4983,6 +5147,363 @@ function parse(firstToken, log) {
   return global;
 }
 
+function PreprocessorFlag() {
+  this.isDefined = false;
+  this.name = null;
+  this.next = null;
+}
+
+function Preprocessor() {
+  this.firstFlag = null;
+  this.isDefineAndUndefAllowed = false;
+  this.previous = null;
+  this.current = null;
+  this.log = null;
+}
+
+Preprocessor.prototype.peek = function(kind) {
+  return this.current.kind === kind;
+};
+
+Preprocessor.prototype.eat = function(kind) {
+  if (this.peek(kind)) {
+    this.advance();
+
+    return true;
+  }
+
+  return false;
+};
+
+Preprocessor.prototype.advance = function() {
+  if (!this.peek(0)) {
+    this.previous = this.current;
+    this.current = this.current.next;
+  }
+};
+
+Preprocessor.prototype.unexpectedToken = function() {
+  this.log.error(this.current.range, StringBuilder_new().append("Unexpected ").append(tokenToString(this.current.kind)).finish());
+};
+
+Preprocessor.prototype.expect = function(kind) {
+  if (!this.peek(kind)) {
+    this.log.error(this.current.range, StringBuilder_new().append("Expected ").append(tokenToString(kind)).append(" but found ").append(tokenToString(this.current.kind)).finish());
+
+    return false;
+  }
+
+  this.advance();
+
+  return true;
+};
+
+Preprocessor.prototype.removeTokensFrom = function(before) {
+  before.next = this.current;
+  this.previous = before;
+};
+
+Preprocessor.prototype.isDefined = function(name) {
+  var flag = this.firstFlag;
+
+  while (flag !== null) {
+    if (globals.string_equals(flag.name, name)) {
+      return flag.isDefined;
+    }
+
+    flag = flag.next;
+  }
+
+  return false;
+};
+
+Preprocessor.prototype.define = function(name, isDefined) {
+  var flag = new PreprocessorFlag();
+  flag.isDefined = isDefined;
+  flag.name = name;
+  flag.next = this.firstFlag;
+  this.firstFlag = flag;
+};
+
+Preprocessor.prototype.run = function(source, log) {
+  var firstToken = source.firstToken;
+
+  if (firstToken !== null && firstToken.kind === 78) {
+    var firstFlag = this.firstFlag;
+    this.isDefineAndUndefAllowed = true;
+    this.previous = firstToken;
+    this.current = firstToken.next;
+    this.log = log;
+
+    if (!this.scan(true)) {
+      source.firstToken = null;
+
+      return;
+    }
+
+    if (!this.peek(0)) {
+      this.unexpectedToken();
+    }
+
+    this.firstFlag = firstFlag;
+    source.firstToken = source.firstToken.next;
+  }
+};
+
+Preprocessor.prototype.scan = function(isParentLive) {
+  while (!this.peek(0) && !this.peek(73) && !this.peek(74) && !this.peek(75)) {
+    var previous = this.previous;
+    var current = this.current;
+
+    if (this.eat(72) || this.eat(80)) {
+      if (this.expect(2) && isParentLive) {
+        this.define(this.previous.range.toString(), current.kind === 72);
+      }
+
+      if (this.eat(51) || this.eat(3) && globals.string_equals(this.previous.range.toString(), "0")) {
+        this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
+      }
+
+      if (!this.peek(0) && !this.expect(79)) {
+        while (!this.eat(79) && !this.eat(0)) {
+          this.advance();
+        }
+      }
+
+      if (!this.isDefineAndUndefAllowed) {
+        this.log.error(spanRanges(current.range, this.previous.range), "All '#define' and '#undef' directives must be at the top of the file");
+      }
+
+      this.removeTokensFrom(previous);
+    }
+
+    else if (this.eat(81) || this.eat(76)) {
+      var next = this.current;
+
+      while (!this.peek(79) && !this.peek(0)) {
+        this.advance();
+      }
+
+      if (isParentLive) {
+        var range = this.current === next ? current.range : spanRanges(next.range, this.previous.range);
+        this.log.append(range, range.toString(), current.kind === 81 ? 1 : 0);
+      }
+
+      this.eat(79);
+      this.removeTokensFrom(previous);
+    }
+
+    else if (this.eat(77)) {
+      var isLive = isParentLive;
+
+      while (true) {
+        var condition = this.parseExpression(0);
+
+        if (condition === 2 || !this.expect(79)) {
+          return false;
+        }
+
+        this.removeTokensFrom(previous);
+
+        if (!this.scan(isLive && condition === 1)) {
+          return false;
+        }
+
+        if (!isLive || condition === 0) {
+          this.removeTokensFrom(previous);
+        }
+
+        else {
+          isLive = false;
+        }
+
+        previous = this.previous;
+
+        if (this.eat(73)) {
+          continue;
+        }
+
+        if (this.eat(74)) {
+          if (!this.expect(79)) {
+            return false;
+          }
+
+          this.removeTokensFrom(previous);
+
+          if (!this.scan(isLive)) {
+            return false;
+          }
+
+          if (!isLive) {
+            this.removeTokensFrom(previous);
+          }
+        }
+
+        break;
+      }
+
+      previous = this.previous;
+
+      if (!this.expect(75) || !this.peek(0) && !this.expect(79)) {
+        return false;
+      }
+
+      this.removeTokensFrom(previous);
+    }
+
+    else {
+      this.isDefineAndUndefAllowed = false;
+      this.advance();
+    }
+  }
+
+  return true;
+};
+
+Preprocessor.prototype.parsePrefix = function() {
+  var isDefinedOperator = false;
+  var start = this.current;
+
+  if (this.eat(68)) {
+    return 1;
+  }
+
+  if (this.eat(51)) {
+    return 0;
+  }
+
+  if (this.eat(2)) {
+    var name = this.previous.range.toString();
+
+    if (this.peek(19) && globals.string_equals(name, "defined")) {
+      isDefinedOperator = true;
+    }
+
+    else {
+      var isTrue = this.isDefined(name);
+
+      return isTrue ? 1 : 0;
+    }
+  }
+
+  if (this.eat(27)) {
+    var value = this.parseExpression(12);
+
+    if (value === 2) {
+      return 2;
+    }
+
+    return value === 1 ? 0 : 1;
+  }
+
+  if (this.eat(19)) {
+    var first = this.current;
+    var value = this.parseExpression(0);
+
+    if (value === 2 || !this.expect(35)) {
+      return 2;
+    }
+
+    if (isDefinedOperator) {
+      var builder = StringBuilder_new().append("There is no 'defined' operator");
+
+      if (first.kind === 2 && this.previous === first.next) {
+        builder.append(" (just use '").append(first.range.toString()).append("' instead)");
+      }
+
+      this.log.error(spanRanges(start.range, this.previous.range), builder.finish());
+    }
+
+    return value;
+  }
+
+  if (this.eat(3)) {
+    var isTrue = !globals.string_equals(this.previous.range.toString(), "0");
+    this.log.error(this.previous.range, StringBuilder_new().append("Unexpected integer (did you mean '").append(isTrue ? "true" : "false").append("')?").finish());
+
+    return isTrue ? 1 : 0;
+  }
+
+  this.unexpectedToken();
+
+  return 2;
+};
+
+Preprocessor.prototype.parseInfix = function(precedence, left) {
+  var operator = this.current.kind;
+
+  if (precedence < 7 && (this.eat(14) || this.eat(28))) {
+    var right = this.parseExpression(7);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return operator === 14 === (left === right) ? 1 : 0;
+  }
+
+  if (precedence < 3 && this.eat(22)) {
+    var right = this.parseExpression(3);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 && right === 1 ? 1 : 0;
+  }
+
+  if (precedence < 2 && this.eat(23)) {
+    var right = this.parseExpression(2);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 || right === 1 ? 1 : 0;
+  }
+
+  if (precedence === 0 && this.eat(31)) {
+    var middle = this.parseExpression(0);
+
+    if (middle === 2 || !this.expect(9)) {
+      return 2;
+    }
+
+    var right = this.parseExpression(0);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 ? middle : right;
+  }
+
+  return left;
+};
+
+Preprocessor.prototype.parseExpression = function(precedence) {
+  var value = this.parsePrefix();
+
+  if (value === 2) {
+    return 2;
+  }
+
+  while (true) {
+    var current = this.current;
+    value = this.parseInfix(precedence, value);
+
+    if (value === 2) {
+      return 2;
+    }
+
+    if (this.current === current) {
+      break;
+    }
+  }
+
+  return value;
+};
+
 function Scope() {
   this.parent = null;
   this.symbol = null;
@@ -5065,6 +5586,24 @@ Scope.prototype.defineNativeIntegerType = function(log, name, byteSizeAndMaxAlig
   return type;
 };
 
+var stringBuilderPool = null;
+
+function StringBuilder_new() {
+  var sb = stringBuilderPool;
+
+  if (sb !== null) {
+    stringBuilderPool = sb.next;
+  }
+
+  else {
+    sb = new StringBuilder();
+  }
+
+  sb.clear();
+
+  return sb;
+}
+
 function StringBuilder() {
   this.next = null;
   this._text = null;
@@ -5098,24 +5637,6 @@ StringBuilder.prototype.finish = function() {
 
   return this._text;
 };
-
-var stringBuilderPool = null;
-
-function StringBuilder_new() {
-  var sb = stringBuilderPool;
-
-  if (sb !== null) {
-    stringBuilderPool = sb.next;
-  }
-
-  else {
-    sb = new StringBuilder();
-  }
-
-  sb.clear();
-
-  return sb;
-}
 
 function isType(kind) {
   return kind >= 0 && kind <= 3;
