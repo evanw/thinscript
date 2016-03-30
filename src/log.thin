@@ -33,7 +33,7 @@ class Range {
     }
 
     var length = string_length(contents);
-    while (end + 1 < length && string_get(contents, end) != '\n') {
+    while (end < length && string_get(contents, end) != '\n') {
       end = end + 1;
     }
 
@@ -56,7 +56,8 @@ function createRange(source: Source, start: int, end: int): Range {
 
 function spanRanges(left: Range, right: Range): Range {
   assert(left.source == right.source);
-  assert(left.end <= right.start);
+  assert(left.start <= right.start);
+  assert(left.end <= right.end);
   return createRange(left.source, left.start, right.end);
 }
 

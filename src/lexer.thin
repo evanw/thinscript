@@ -85,6 +85,7 @@ enum TokenKind {
   PREPROCESSOR_ENDIF,
   PREPROCESSOR_IF,
   PREPROCESSOR_NEEDED,
+  PREPROCESSOR_NEWLINE,
   PREPROCESSOR_UNDEF,
 }
 
@@ -184,6 +185,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.PREPROCESSOR_ELSE) return "'#else'";
   if (token == TokenKind.PREPROCESSOR_ENDIF) return "'#endif'";
   if (token == TokenKind.PREPROCESSOR_IF) return "'#if'";
+  if (token == TokenKind.PREPROCESSOR_NEWLINE) return "newline";
   if (token == TokenKind.PREPROCESSOR_UNDEF) return "'#undef'";
 
   assert(false);
@@ -214,6 +216,7 @@ function tokenize(source: Source, log: Log): Token {
   var contents = source.contents;
   var limit = string_length(contents);
   var needsPreprocessor = false;
+  var wantNewline = false;
   var i = 0;
 
   while (i < limit) {
@@ -221,14 +224,25 @@ function tokenize(source: Source, log: Log): Token {
     var c = string_get(contents, i);
     i = i + 1;
 
-    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+    if (c == ' ' || c == '\t' || c == '\r') {
       continue;
     }
 
     var kind = TokenKind.END_OF_FILE;
 
+    // Newline
+    if (c == '\n') {
+      if (!wantNewline) {
+        continue;
+      }
+
+      // Preprocessor commands all end in a newline
+      kind = TokenKind.PREPROCESSOR_NEWLINE;
+      wantNewline = false;
+    }
+
     // Identifier
-    if (isAlpha(c)) {
+    else if (isAlpha(c)) {
       kind = TokenKind.IDENTIFIER;
 
       while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
@@ -558,10 +572,12 @@ function tokenize(source: Source, log: Log): Token {
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
 
+        // Check for #elif typos
         if (string_equals(text, "#elsif") || string_equals(text, "#elseif")) {
           builder.append(", did you mean '#elif'?");
         }
 
+        // Check for #endif typos
         else if (string_equals(text, "#end")) {
           builder.append(", did you mean '#endif'?");
         }
@@ -570,7 +586,26 @@ function tokenize(source: Source, log: Log): Token {
         return null;
       }
 
+      // All preprocessor directives must be on a line by themselves
+      if (last != null && last.kind != TokenKind.PREPROCESSOR_NEWLINE) {
+        var end = last.range.end;
+        var j = i - 1;
+        while (j >= end) {
+          if (string_get(contents, j) == '\n') {
+            break;
+          }
+          j = j - 1;
+        }
+        if (j < end) {
+          log.error(createRange(source, start, i), StringBuilder_new()
+            .append("Expected newline before ")
+            .append(tokenToString(kind))
+            .finish());
+        }
+      }
+
       needsPreprocessor = true;
+      wantNewline = true;
     }
 
     var range = createRange(source, start, i);
