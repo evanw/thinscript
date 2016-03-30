@@ -1,3 +1,9 @@
+enum PreprocessorValue {
+  FALSE,
+  TRUE,
+  ERROR,
+}
+
 class PreprocessorFlag {
   isDefined: bool;
   name: string;
@@ -135,8 +141,7 @@ class Preprocessor {
         }
 
         // Help out people trying to use this like C
-        if (this.peek(TokenKind.FALSE) || this.peek(TokenKind.INT) && string_equals(this.current.range.toString(), "0")) {
-          this.advance();
+        if (this.eat(TokenKind.FALSE) || this.eat(TokenKind.INT) && string_equals(this.previous.range.toString(), "0")) {
           this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
         }
 
@@ -183,26 +188,23 @@ class Preprocessor {
 
         // Scan over the entire if-else chain
         while (true) {
-          var name = this.current;
+          var condition = this.parseExpression(Precedence.LOWEST);
 
-          // Reject if the identifier is missing
-          if (!this.expect(TokenKind.IDENTIFIER) || !this.expect(TokenKind.PREPROCESSOR_NEWLINE)) {
+          // Reject if the condition is missing
+          if (condition == PreprocessorValue.ERROR || !this.expect(TokenKind.PREPROCESSOR_NEWLINE)) {
             return false;
           }
 
           // Remove the #if/#elif header
           this.removeTokensFrom(previous);
 
-          // Evaluate the condition
-          var condition = this.isDefined(name.range.toString());
-
           // Scan to the next #elif, #else, or #endif
-          if (!this.scan(isLive && condition)) {
+          if (!this.scan(isLive && condition == PreprocessorValue.TRUE)) {
             return false;
           }
 
           // Remove these tokens?
-          if (!isLive || !condition) {
+          if (!isLive || condition == PreprocessorValue.FALSE) {
             this.removeTokensFrom(previous);
           }
 
@@ -259,5 +261,130 @@ class Preprocessor {
     }
 
     return true;
+  }
+
+  parsePrefix(): PreprocessorValue {
+    var isDefinedOperator = false;
+    var start = this.current;
+
+    // true or false
+    if (this.eat(TokenKind.TRUE)) return PreprocessorValue.TRUE;
+    if (this.eat(TokenKind.FALSE)) return PreprocessorValue.FALSE;
+
+    // Identifier
+    if (this.eat(TokenKind.IDENTIFIER)) {
+      var name = this.previous.range.toString();
+
+      // Recover from a C-style define operator
+      if (this.peek(TokenKind.LEFT_PARENTHESIS) && string_equals(name, "defined")) {
+        isDefinedOperator = true;
+      }
+
+      else {
+        var isTrue = this.isDefined(name);
+        return isTrue ? PreprocessorValue.TRUE : PreprocessorValue.FALSE;
+      }
+    }
+
+    // !
+    if (this.eat(TokenKind.NOT)) {
+      var value = this.parseExpression(Precedence.UNARY_PREFIX);
+      if (value == PreprocessorValue.ERROR) return PreprocessorValue.ERROR;
+      return value == PreprocessorValue.TRUE ? PreprocessorValue.FALSE : PreprocessorValue.TRUE;
+    }
+
+    // Group
+    if (this.eat(TokenKind.LEFT_PARENTHESIS)) {
+      var first = this.current;
+      var value = this.parseExpression(Precedence.LOWEST);
+      if (value == PreprocessorValue.ERROR || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+        return PreprocessorValue.ERROR;
+      }
+
+      // Recover from a C-style define operator
+      if (isDefinedOperator) {
+        var builder = StringBuilder_new().append("There is no 'defined' operator");
+        if (first.kind == TokenKind.IDENTIFIER && this.previous == first.next) {
+          builder.append(" (just use '").append(first.range.toString()).append("' instead)");
+        }
+        this.log.error(spanRanges(start.range, this.previous.range), builder.finish());
+      }
+
+      return value;
+    }
+
+    // Recover from a C-style boolean
+    if (this.eat(TokenKind.INT)) {
+      var isTrue = !string_equals(this.previous.range.toString(), "0");
+      this.log.error(this.previous.range, StringBuilder_new()
+        .append("Unexpected integer (did you mean '")
+        .append(isTrue ? "true" : "false")
+        .append("')?")
+        .finish());
+      return isTrue ? PreprocessorValue.TRUE : PreprocessorValue.FALSE;
+    }
+
+    this.unexpectedToken();
+    return PreprocessorValue.ERROR;
+  }
+
+  parseInfix(precedence: Precedence, left: PreprocessorValue): PreprocessorValue {
+    var operator = this.current.kind;
+
+    // == or !=
+    if (precedence < Precedence.EQUAL && (this.eat(TokenKind.EQUAL) || this.eat(TokenKind.NOT_EQUAL))) {
+      var right = this.parseExpression(Precedence.EQUAL);
+      if (right == PreprocessorValue.ERROR) return PreprocessorValue.ERROR;
+      return (operator == TokenKind.EQUAL) == (left == right) ? PreprocessorValue.TRUE : PreprocessorValue.FALSE;
+    }
+
+    // &&
+    if (precedence < Precedence.LOGICAL_AND && this.eat(TokenKind.LOGICAL_AND)) {
+      var right = this.parseExpression(Precedence.LOGICAL_AND);
+      if (right == PreprocessorValue.ERROR) return PreprocessorValue.ERROR;
+      return (left == PreprocessorValue.TRUE && right == PreprocessorValue.TRUE) ? PreprocessorValue.TRUE : PreprocessorValue.FALSE;
+    }
+
+    // ||
+    if (precedence < Precedence.LOGICAL_OR && this.eat(TokenKind.LOGICAL_OR)) {
+      var right = this.parseExpression(Precedence.LOGICAL_OR);
+      if (right == PreprocessorValue.ERROR) return PreprocessorValue.ERROR;
+      return (left == PreprocessorValue.TRUE || right == PreprocessorValue.TRUE) ? PreprocessorValue.TRUE : PreprocessorValue.FALSE;
+    }
+
+    // Hook
+    if (precedence == Precedence.LOWEST && this.eat(TokenKind.QUESTION_MARK)) {
+      var middle = this.parseExpression(Precedence.LOWEST);
+      if (middle == PreprocessorValue.ERROR || !this.expect(TokenKind.COLON)) {
+        return PreprocessorValue.ERROR;
+      }
+
+      var right = this.parseExpression(Precedence.LOWEST);
+      if (right == PreprocessorValue.ERROR) {
+        return PreprocessorValue.ERROR;
+      }
+
+      return left == PreprocessorValue.TRUE ? middle : right;
+    }
+
+    return left;
+  }
+
+  parseExpression(precedence: Precedence): PreprocessorValue {
+    // Prefix
+    var value = this.parsePrefix();
+    if (value == PreprocessorValue.ERROR) {
+      return PreprocessorValue.ERROR;
+    }
+
+    // Infix
+    while (true) {
+      var current = this.current;
+      value = this.parseInfix(precedence, value);
+      if (value == PreprocessorValue.ERROR) return PreprocessorValue.ERROR;
+      if (this.current == current) break;
+    }
+
+    return value;
   }
 }

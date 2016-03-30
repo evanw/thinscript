@@ -2897,17 +2897,22 @@ function tokenize(source, log) {
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar(39);
 
-        if (globals.string_equals(text, "#elsif") || globals.string_equals(text, "#elseif")) {
+        if (globals.string_equals(text, "#ifdef")) {
+          builder.append(", did you mean '#if'?");
+          kind = 77;
+        }
+
+        else if (globals.string_equals(text, "#elsif") || globals.string_equals(text, "#elseif")) {
           builder.append(", did you mean '#elif'?");
+          kind = 73;
         }
 
         else if (globals.string_equals(text, "#end")) {
           builder.append(", did you mean '#endif'?");
+          kind = 75;
         }
 
         log.error(createRange(source, start, i), builder.finish());
-
-        return null;
       }
 
       if (last !== null && last.kind !== 79) {
@@ -5255,8 +5260,7 @@ Preprocessor.prototype.scan = function(isParentLive) {
         this.define(this.previous.range.toString(), current.kind === 72);
       }
 
-      if (this.peek(51) || this.peek(3) && globals.string_equals(this.current.range.toString(), "0")) {
-        this.advance();
+      if (this.eat(51) || this.eat(3) && globals.string_equals(this.previous.range.toString(), "0")) {
         this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
       }
 
@@ -5293,20 +5297,19 @@ Preprocessor.prototype.scan = function(isParentLive) {
       var isLive = isParentLive;
 
       while (true) {
-        var name = this.current;
+        var condition = this.parseExpression(0);
 
-        if (!this.expect(2) || !this.expect(79)) {
+        if (condition === 2 || !this.expect(79)) {
           return false;
         }
 
         this.removeTokensFrom(previous);
-        var condition = this.isDefined(name.range.toString());
 
-        if (!this.scan(isLive && condition)) {
+        if (!this.scan(isLive && condition === 1)) {
           return false;
         }
 
-        if (!isLive || !condition) {
+        if (!isLive || condition === 0) {
           this.removeTokensFrom(previous);
         }
 
@@ -5355,6 +5358,150 @@ Preprocessor.prototype.scan = function(isParentLive) {
   }
 
   return true;
+};
+
+Preprocessor.prototype.parsePrefix = function() {
+  var isDefinedOperator = false;
+  var start = this.current;
+
+  if (this.eat(68)) {
+    return 1;
+  }
+
+  if (this.eat(51)) {
+    return 0;
+  }
+
+  if (this.eat(2)) {
+    var name = this.previous.range.toString();
+
+    if (this.peek(19) && globals.string_equals(name, "defined")) {
+      isDefinedOperator = true;
+    }
+
+    else {
+      var isTrue = this.isDefined(name);
+
+      return isTrue ? 1 : 0;
+    }
+  }
+
+  if (this.eat(27)) {
+    var value = this.parseExpression(12);
+
+    if (value === 2) {
+      return 2;
+    }
+
+    return value === 1 ? 0 : 1;
+  }
+
+  if (this.eat(19)) {
+    var first = this.current;
+    var value = this.parseExpression(0);
+
+    if (value === 2 || !this.expect(35)) {
+      return 2;
+    }
+
+    if (isDefinedOperator) {
+      var builder = StringBuilder_new().append("There is no 'defined' operator");
+
+      if (first.kind === 2 && this.previous === first.next) {
+        builder.append(" (just use '").append(first.range.toString()).append("' instead)");
+      }
+
+      this.log.error(spanRanges(start.range, this.previous.range), builder.finish());
+    }
+
+    return value;
+  }
+
+  if (this.eat(3)) {
+    var isTrue = !globals.string_equals(this.previous.range.toString(), "0");
+    this.log.error(this.previous.range, StringBuilder_new().append("Unexpected integer (did you mean '").append(isTrue ? "true" : "false").append("')?").finish());
+
+    return isTrue ? 1 : 0;
+  }
+
+  this.unexpectedToken();
+
+  return 2;
+};
+
+Preprocessor.prototype.parseInfix = function(precedence, left) {
+  var operator = this.current.kind;
+
+  if (precedence < 7 && (this.eat(14) || this.eat(28))) {
+    var right = this.parseExpression(7);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return operator === 14 === (left === right) ? 1 : 0;
+  }
+
+  if (precedence < 3 && this.eat(22)) {
+    var right = this.parseExpression(3);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 && right === 1 ? 1 : 0;
+  }
+
+  if (precedence < 2 && this.eat(23)) {
+    var right = this.parseExpression(2);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 || right === 1 ? 1 : 0;
+  }
+
+  if (precedence === 0 && this.eat(31)) {
+    var middle = this.parseExpression(0);
+
+    if (middle === 2 || !this.expect(9)) {
+      return 2;
+    }
+
+    var right = this.parseExpression(0);
+
+    if (right === 2) {
+      return 2;
+    }
+
+    return left === 1 ? middle : right;
+  }
+
+  return left;
+};
+
+Preprocessor.prototype.parseExpression = function(precedence) {
+  var value = this.parsePrefix();
+
+  if (value === 2) {
+    return 2;
+  }
+
+  while (true) {
+    var current = this.current;
+    value = this.parseInfix(precedence, value);
+
+    if (value === 2) {
+      return 2;
+    }
+
+    if (this.current === current) {
+      break;
+    }
+  }
+
+  return value;
 };
 
 function Scope() {

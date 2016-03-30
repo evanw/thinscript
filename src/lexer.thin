@@ -578,18 +578,25 @@ function tokenize(source: Source, log: Log): Token {
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
 
+        // Check for #if typos
+        if (string_equals(text, "#ifdef")) {
+          builder.append(", did you mean '#if'?");
+          kind = TokenKind.PREPROCESSOR_IF;
+        }
+
         // Check for #elif typos
-        if (string_equals(text, "#elsif") || string_equals(text, "#elseif")) {
+        else if (string_equals(text, "#elsif") || string_equals(text, "#elseif")) {
           builder.append(", did you mean '#elif'?");
+          kind = TokenKind.PREPROCESSOR_ELIF;
         }
 
         // Check for #endif typos
         else if (string_equals(text, "#end")) {
           builder.append(", did you mean '#endif'?");
+          kind = TokenKind.PREPROCESSOR_ENDIF;
         }
 
         log.error(createRange(source, start, i), builder.finish());
-        return null;
       }
 
       // All preprocessor directives must be on a line by themselves
