@@ -5275,8 +5275,8 @@ class WasmModule {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -5289,11 +5289,11 @@ class WasmModule {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -10281,8 +10281,8 @@ class WasmModule2 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -10295,11 +10295,11 @@ class WasmModule2 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -11089,8 +11089,8 @@ class WasmModule3 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -11103,11 +11103,11 @@ class WasmModule3 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -11898,8 +11898,8 @@ class WasmModule4 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -11912,11 +11912,11 @@ class WasmModule4 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -12706,8 +12706,8 @@ class WasmModule5 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -12720,11 +12720,11 @@ class WasmModule5 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -13514,8 +13514,8 @@ class WasmModule6 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -13528,11 +13528,11 @@ class WasmModule6 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -13564,7 +13564,7 @@ class WasmModule6 {
         var value = symbol.node.variableValue().intValue;
         var memoryInitializer = this.memoryInitializer;
 
-        // Copy the inital value into the memory initializer
+        // Copy the initial value into the memory initializer
         this.growMemoryInitializer();
         if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
@@ -14322,8 +14322,8 @@ class WasmModule7 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -14336,11 +14336,11 @@ class WasmModule7 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -15130,8 +15130,8 @@ class WasmModule8 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -15144,11 +15144,11 @@ class WasmModule8 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -15938,8 +15938,8 @@ class WasmModule9 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -15952,11 +15952,11 @@ class WasmModule9 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -16746,8 +16746,8 @@ class WasmModule10 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -16760,11 +16760,11 @@ class WasmModule10 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
