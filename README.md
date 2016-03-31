@@ -1,6 +1,6 @@
 # ThinScript
 
-ThinScript is an experimental programming language that compiles to both WebAssembly and JavaScript.
+ThinScript is an experimental programming language that compiles to JavaScript, WebAssembly, and C.
 It's meant to be a thin layer on top of WebAssembly that makes it easier to work with: no dependencies and fast compile times.
 The syntax is inspired by TypeScript and the compiler is open source and bootstrapped (it can compile itself).
 
@@ -55,6 +55,8 @@ extern function main(): int {
     print("Hello from JavaScript");
   #elif WASM
     print("Hello from WebAssembly");
+  #elif C
+    print("Hello from C");
   #else
     print("Unknown target");
   #endif
