@@ -19,7 +19,7 @@ class JsResult {
   }
 
   emitNewlineBefore(node: Node): void {
-    if (this.previousNode != null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+    if (this.previousNode != null && (!isCompactNodeKind(this.previousNode.kind) || !isCompactNodeKind(node.kind))) {
       this.code.appendChar('\n');
     }
     this.previousNode = null;
@@ -608,13 +608,6 @@ class JsResult {
       assert(false);
     }
   }
-}
-
-function jsIsCompactNodeKind(kind: NodeKind): bool {
-  return
-    kind == NodeKind.CONSTANTS ||
-    kind == NodeKind.EXPRESSION ||
-    kind == NodeKind.VARIABLES;
 }
 
 function jsEmit(global: Node, context: CheckContext): string {

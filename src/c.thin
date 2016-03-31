@@ -19,7 +19,7 @@ class CResult {
   }
 
   emitNewlineBefore(node: Node): void {
-    if (this.previousNode != null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+    if (this.previousNode != null && (!isCompactNodeKind(this.previousNode.kind) || !isCompactNodeKind(node.kind))) {
       this.code.appendChar('\n');
     }
     this.previousNode = null;
@@ -72,10 +72,26 @@ class CResult {
   }
 
   emitBinary(node: Node, parentPrecedence: Precedence, operator: string, operatorPrecedence: Precedence): void {
-    var isRightAssociative = node.kind == NodeKind.ASSIGN;
+    var kind = node.kind;
+    var isRightAssociative = kind == NodeKind.ASSIGN;
+    var needsParentheses = parentPrecedence > operatorPrecedence;
+    var parentKind = node.parent.kind;
     var code = this.code;
 
-    if (parentPrecedence > operatorPrecedence) {
+    // Clang warns about "&&" inside "||" or "&" inside "|" without parentheses
+    if (parentKind == NodeKind.LOGICAL_OR && kind == NodeKind.LOGICAL_AND ||
+        parentKind == NodeKind.BITWISE_OR && kind == NodeKind.BITWISE_AND) {
+      needsParentheses = true;
+    }
+
+    // Clang and GCC also warn about add/subtract inside bitwise operations and shifts without parentheses
+    else if ((kind == NodeKind.ADD || kind == NodeKind.SUBTRACT) && (
+        parentKind == NodeKind.BITWISE_AND || parentKind == NodeKind.BITWISE_OR || parentKind == NodeKind.BITWISE_XOR ||
+        parentKind == NodeKind.SHIFT_LEFT || parentKind == NodeKind.SHIFT_RIGHT)) {
+      needsParentheses = true;
+    }
+
+    if (needsParentheses) {
       code.appendChar('(');
     }
 
@@ -83,7 +99,7 @@ class CResult {
     code.append(operator);
     this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : (operatorPrecedence as int + 1) as Precedence);
 
-    if (parentPrecedence > operatorPrecedence) {
+    if (needsParentheses) {
       code.appendChar(')');
     }
   }
@@ -188,6 +204,7 @@ class CResult {
       code.appendChar(')');
     }
 
+    // This uses "calloc" instead of "malloc" because it needs to be zero-initialized
     else if (node.kind == NodeKind.NEW) {
       code.append("calloc(1, sizeof(");
       this.emitType(node.resolvedType, TypeMode.BARE);
@@ -232,6 +249,8 @@ class CResult {
     var context = this.context;
     var code = this.code;
 
+    type = type.underlyingType(this.context);
+
     if (type.isClass()) {
       code.append("struct ");
     }
@@ -254,39 +273,7 @@ class CResult {
   emitStatement(node: Node): void {
     var code = this.code;
 
-    if (node.kind == NodeKind.FUNCTION) {
-      var body = node.functionBody();
-      if (body == null) {
-        return;
-      }
-
-      var symbol = node.symbol;
-      var returnType = node.functionReturnType();
-      var child = node.firstChild;
-
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
-      this.emitSymbolName(symbol);
-      code.appendChar('(');
-
-      while (child != returnType) {
-        assert(child.kind == NodeKind.VARIABLE);
-        this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
-        this.emitSymbolName(child.symbol);
-        child = child.nextSibling;
-        if (child != returnType) {
-          code.append(", ");
-        }
-      }
-
-      code.append(") ");
-      this.emitBlock(node.functionBody());
-      code.appendChar('\n');
-      this.emitNewlineAfter(node);
-    }
-
-    else if (node.kind == NodeKind.IF) {
+    if (node.kind == NodeKind.IF) {
       this.emitNewlineBefore(node);
       this.emitIndent();
       while (true) {
@@ -391,45 +378,6 @@ class CResult {
       this.emitNewlineAfter(node);
     }
 
-    else if (node.kind == NodeKind.CLASS) {
-      if (node.isDeclare()) {
-        return;
-      }
-
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      code.append("struct ");
-      this.emitSymbolName(node.symbol);
-      code.append(" {\n");
-      this.indent = this.indent + 1;
-
-      // Emit constructor body
-      var child = node.firstChild;
-      while (child != null) {
-        if (child.kind == NodeKind.VARIABLE) {
-          this.emitIndent();
-          this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
-          this.emitSymbolName(child.symbol);
-          code.append(";\n");
-        }
-        child = child.nextSibling;
-      }
-
-      this.indent = this.indent - 1;
-      this.emitIndent();
-      code.append("};\n");
-      this.emitNewlineAfter(node);
-
-      // Emit instance functions
-      child = node.firstChild;
-      while (child != null) {
-        if (child.kind == NodeKind.FUNCTION) {
-          this.emitStatement(child);
-        }
-        child = child.nextSibling;
-      }
-    }
-
     else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.ENUM) {
     }
 
@@ -437,13 +385,191 @@ class CResult {
       assert(false);
     }
   }
+
+  emitIncludes(): void {
+    var code = this.code;
+    code.append("#include <stdint.h>\n"); // Need "int32_t" and friends
+    code.append("#include <stdlib.h>\n"); // Need "NULL" and "calloc"
+  }
+
+  emitTypeDeclarations(node: Node): void {
+    var code = this.code;
+
+    while (node != null) {
+      if (node.kind == NodeKind.CLASS) {
+        this.emitNewlineBefore(node);
+        code.append("struct ").append(node.symbol.name).append(";\n");
+      }
+
+      node = node.nextSibling;
+    }
+  }
+
+  emitTypeDefinitions(node: Node): void {
+    var code = this.code;
+
+    while (node != null) {
+      if (node.kind == NodeKind.CLASS) {
+        this.emitNewlineBefore(node);
+        code.append("struct ");
+        this.emitSymbolName(node.symbol);
+        code.append(" {\n");
+        this.indent = this.indent + 1;
+
+        // Emit member variables
+        var child = node.firstChild;
+        while (child != null) {
+          if (child.kind == NodeKind.VARIABLE) {
+            this.emitIndent();
+            this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
+            this.emitSymbolName(child.symbol);
+            code.append(";\n");
+          }
+          child = child.nextSibling;
+        }
+
+        this.indent = this.indent - 1;
+        code.append("};\n");
+        this.emitNewlineAfter(node);
+      }
+
+      node = node.nextSibling;
+    }
+  }
+
+  emitFunctionDeclarations(node: Node): void {
+    var code = this.code;
+
+    while (node != null) {
+      if (node.kind == NodeKind.FUNCTION) {
+        var symbol = node.symbol;
+        var returnType = node.functionReturnType();
+        var child = node.firstChild;
+
+        this.emitNewlineBefore(node);
+        if (!node.isExtern() && !node.isDeclare()) {
+          code.append("static ");
+        }
+        this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
+        this.emitSymbolName(symbol);
+        code.appendChar('(');
+
+        while (child != returnType) {
+          assert(child.kind == NodeKind.VARIABLE);
+          this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
+          this.emitSymbolName(child.symbol);
+          child = child.nextSibling;
+          if (child != returnType) {
+            code.append(", ");
+          }
+        }
+
+        code.append(");\n");
+      }
+
+      else if (node.kind == NodeKind.CLASS) {
+        this.emitFunctionDeclarations(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  }
+
+  emitGlobalVariables(node: Node): void {
+    var code = this.code;
+
+    while (node != null) {
+      if (node.kind == NodeKind.VARIABLE) {
+        var value = node.variableValue();
+        this.emitNewlineBefore(node);
+        if (!node.isExtern() && !node.isDeclare()) {
+          code.append("static ");
+        }
+        this.emitType(node.symbol.resolvedType, TypeMode.DECLARATION);
+        this.emitSymbolName(node.symbol);
+        code.append(" = ");
+        this.emitExpression(value, Precedence.LOWEST);
+        code.append(";\n");
+      }
+
+      else if (node.kind == NodeKind.VARIABLES) {
+        this.emitGlobalVariables(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  }
+
+  emitFunctionDefinitions(node: Node): void {
+    var code = this.code;
+
+    while (node != null) {
+      if (node.kind == NodeKind.FUNCTION) {
+        var body = node.functionBody();
+        if (body != null) {
+          var symbol = node.symbol;
+          var returnType = node.functionReturnType();
+          var child = node.firstChild;
+
+          this.emitNewlineBefore(node);
+          if (!node.isExtern() && !node.isDeclare()) {
+            code.append("static ");
+          }
+          this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
+          this.emitSymbolName(symbol);
+          code.appendChar('(');
+
+          while (child != returnType) {
+            assert(child.kind == NodeKind.VARIABLE);
+            this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
+            this.emitSymbolName(child.symbol);
+            child = child.nextSibling;
+            if (child != returnType) {
+              code.append(", ");
+            }
+          }
+
+          code.append(") ");
+          this.emitBlock(node.functionBody());
+          code.appendChar('\n');
+          this.emitNewlineAfter(node);
+        }
+      }
+
+      else if (node.kind == NodeKind.CLASS) {
+        this.emitFunctionDefinitions(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  }
 }
 
 function cEmit(global: Node, context: CheckContext): string {
+  var child = global.firstChild;
   var code = StringBuilder_new();
   var result = new CResult();
   result.context = context;
   result.code = code;
-  result.emitStatements(global.firstChild);
+
+  if (child != null) {
+    result.emitIncludes();
+    result.emitNewlineAfter(child);
+
+    result.emitTypeDeclarations(child);
+    result.emitNewlineAfter(child);
+
+    result.emitTypeDefinitions(child);
+    result.emitNewlineAfter(child);
+
+    result.emitFunctionDeclarations(child);
+    result.emitNewlineAfter(child);
+
+    result.emitGlobalVariables(child);
+    result.emitNewlineAfter(child);
+
+    result.emitFunctionDefinitions(child);
+  }
+
   return code.finish();
 }

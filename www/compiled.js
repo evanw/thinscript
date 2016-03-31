@@ -96,7 +96,7 @@
   };
 
   CResult.prototype.emitNewlineBefore = function(node) {
-    if (this.previousNode !== null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+    if (this.previousNode !== null && (!isCompactNodeKind(this.previousNode.kind) || !isCompactNodeKind(node.kind))) {
       this.code.appendChar(10);
     }
 
@@ -150,10 +150,21 @@
   };
 
   CResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence) {
-    var isRightAssociative = node.kind === 41;
+    var kind = node.kind;
+    var isRightAssociative = kind === 41;
+    var needsParentheses = parentPrecedence > operatorPrecedence;
+    var parentKind = node.parent.kind;
     var code = this.code;
 
-    if (parentPrecedence > operatorPrecedence) {
+    if (parentKind === 52 && kind === 51 || parentKind === 43 && kind === 42) {
+      needsParentheses = true;
+    }
+
+    else if ((kind === 40 || kind === 58) && (parentKind === 42 || parentKind === 43 || parentKind === 44 || parentKind === 56 || parentKind === 57)) {
+      needsParentheses = true;
+    }
+
+    if (needsParentheses) {
       code.appendChar(40);
     }
 
@@ -161,7 +172,7 @@
     code.append(operator);
     this.emitExpression(node.binaryRight(), isRightAssociative ? operatorPrecedence : operatorPrecedence + 1 | 0);
 
-    if (parentPrecedence > operatorPrecedence) {
+    if (needsParentheses) {
       code.appendChar(41);
     }
   };
@@ -386,6 +397,7 @@
   CResult.prototype.emitType = function(type, mode) {
     var context = this.context;
     var code = this.code;
+    type = type.underlyingType(this.context);
 
     if (type.isClass()) {
       code.append("struct ");
@@ -437,40 +449,7 @@
   CResult.prototype.emitStatement = function(node) {
     var code = this.code;
 
-    if (node.kind === 10) {
-      var body = node.functionBody();
-
-      if (body === null) {
-        return;
-      }
-
-      var symbol = node.symbol;
-      var returnType = node.functionReturnType();
-      var child = node.firstChild;
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      this.emitType(returnType.resolvedType, 1);
-      this.emitSymbolName(symbol);
-      code.appendChar(40);
-
-      while (child !== returnType) {
-        __declare.assert(child.kind === 1);
-        this.emitType(child.symbol.resolvedType, 1);
-        this.emitSymbolName(child.symbol);
-        child = child.nextSibling;
-
-        if (child !== returnType) {
-          code.append(", ");
-        }
-      }
-
-      code.append(") ");
-      this.emitBlock(node.functionBody());
-      code.appendChar(10);
-      this.emitNewlineAfter(node);
-    }
-
-    else if (node.kind === 11) {
+    if (node.kind === 11) {
       this.emitNewlineBefore(node);
       this.emitIndent();
 
@@ -591,45 +570,6 @@
       this.emitNewlineAfter(node);
     }
 
-    else if (node.kind === 4) {
-      if (node.isDeclare()) {
-        return;
-      }
-
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      code.append("struct ");
-      this.emitSymbolName(node.symbol);
-      code.append(" {\n");
-      this.indent = this.indent + 1 | 0;
-      var child = node.firstChild;
-
-      while (child !== null) {
-        if (child.kind === 1) {
-          this.emitIndent();
-          this.emitType(child.symbol.resolvedType, 1);
-          this.emitSymbolName(child.symbol);
-          code.append(";\n");
-        }
-
-        child = child.nextSibling;
-      }
-
-      this.indent = this.indent - 1 | 0;
-      this.emitIndent();
-      code.append("};\n");
-      this.emitNewlineAfter(node);
-      child = node.firstChild;
-
-      while (child !== null) {
-        if (child.kind === 10) {
-          this.emitStatement(child);
-        }
-
-        child = child.nextSibling;
-      }
-    }
-
     else if (node.kind === 5 || node.kind === 8) {
     }
 
@@ -638,12 +578,191 @@
     }
   };
 
+  CResult.prototype.emitIncludes = function() {
+    var code = this.code;
+    code.append("#include <stdint.h>\n");
+    code.append("#include <stdlib.h>\n");
+  };
+
+  CResult.prototype.emitTypeDeclarations = function(node) {
+    var code = this.code;
+
+    while (node !== null) {
+      if (node.kind === 4) {
+        this.emitNewlineBefore(node);
+        code.append("struct ").append(node.symbol.name).append(";\n");
+      }
+
+      node = node.nextSibling;
+    }
+  };
+
+  CResult.prototype.emitTypeDefinitions = function(node) {
+    var code = this.code;
+
+    while (node !== null) {
+      if (node.kind === 4) {
+        this.emitNewlineBefore(node);
+        code.append("struct ");
+        this.emitSymbolName(node.symbol);
+        code.append(" {\n");
+        this.indent = this.indent + 1 | 0;
+        var child = node.firstChild;
+
+        while (child !== null) {
+          if (child.kind === 1) {
+            this.emitIndent();
+            this.emitType(child.symbol.resolvedType, 1);
+            this.emitSymbolName(child.symbol);
+            code.append(";\n");
+          }
+
+          child = child.nextSibling;
+        }
+
+        this.indent = this.indent - 1 | 0;
+        code.append("};\n");
+        this.emitNewlineAfter(node);
+      }
+
+      node = node.nextSibling;
+    }
+  };
+
+  CResult.prototype.emitFunctionDeclarations = function(node) {
+    var code = this.code;
+
+    while (node !== null) {
+      if (node.kind === 10) {
+        var symbol = node.symbol;
+        var returnType = node.functionReturnType();
+        var child = node.firstChild;
+        this.emitNewlineBefore(node);
+
+        if (!node.isExtern() && !node.isDeclare()) {
+          code.append("static ");
+        }
+
+        this.emitType(returnType.resolvedType, 1);
+        this.emitSymbolName(symbol);
+        code.appendChar(40);
+
+        while (child !== returnType) {
+          __declare.assert(child.kind === 1);
+          this.emitType(child.symbol.resolvedType, 1);
+          this.emitSymbolName(child.symbol);
+          child = child.nextSibling;
+
+          if (child !== returnType) {
+            code.append(", ");
+          }
+        }
+
+        code.append(");\n");
+      }
+
+      else if (node.kind === 4) {
+        this.emitFunctionDeclarations(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  };
+
+  CResult.prototype.emitGlobalVariables = function(node) {
+    var code = this.code;
+
+    while (node !== null) {
+      if (node.kind === 1) {
+        var value = node.variableValue();
+        this.emitNewlineBefore(node);
+
+        if (!node.isExtern() && !node.isDeclare()) {
+          code.append("static ");
+        }
+
+        this.emitType(node.symbol.resolvedType, 1);
+        this.emitSymbolName(node.symbol);
+        code.append(" = ");
+        this.emitExpression(value, 0);
+        code.append(";\n");
+      }
+
+      else if (node.kind === 14) {
+        this.emitGlobalVariables(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  };
+
+  CResult.prototype.emitFunctionDefinitions = function(node) {
+    var code = this.code;
+
+    while (node !== null) {
+      if (node.kind === 10) {
+        var body = node.functionBody();
+
+        if (body !== null) {
+          var symbol = node.symbol;
+          var returnType = node.functionReturnType();
+          var child = node.firstChild;
+          this.emitNewlineBefore(node);
+
+          if (!node.isExtern() && !node.isDeclare()) {
+            code.append("static ");
+          }
+
+          this.emitType(returnType.resolvedType, 1);
+          this.emitSymbolName(symbol);
+          code.appendChar(40);
+
+          while (child !== returnType) {
+            __declare.assert(child.kind === 1);
+            this.emitType(child.symbol.resolvedType, 1);
+            this.emitSymbolName(child.symbol);
+            child = child.nextSibling;
+
+            if (child !== returnType) {
+              code.append(", ");
+            }
+          }
+
+          code.append(") ");
+          this.emitBlock(node.functionBody());
+          code.appendChar(10);
+          this.emitNewlineAfter(node);
+        }
+      }
+
+      else if (node.kind === 4) {
+        this.emitFunctionDefinitions(node.firstChild);
+      }
+
+      node = node.nextSibling;
+    }
+  };
+
   function cEmit(global, context) {
+    var child = global.firstChild;
     var code = StringBuilder_new();
     var result = new CResult();
     result.context = context;
     result.code = code;
-    result.emitStatements(global.firstChild);
+
+    if (child !== null) {
+      result.emitIncludes();
+      result.emitNewlineAfter(child);
+      result.emitTypeDeclarations(child);
+      result.emitNewlineAfter(child);
+      result.emitTypeDefinitions(child);
+      result.emitNewlineAfter(child);
+      result.emitFunctionDeclarations(child);
+      result.emitNewlineAfter(child);
+      result.emitGlobalVariables(child);
+      result.emitNewlineAfter(child);
+      result.emitFunctionDefinitions(child);
+    }
 
     return code.finish();
   }
@@ -1865,7 +1984,7 @@
     return compiler;
   };
 
-  var Compiler_addInput = __extern.Compiler_addInput = function(compiler, name, contents) {
+  var Compiler_callAddInput = __extern.Compiler_callAddInput = function(compiler, name, contents) {
     compiler.addInput(name, contents);
   };
 
@@ -1873,7 +1992,7 @@
     compiler.preprocessor.define(text, true);
   };
 
-  var Compiler_finish = __extern.Compiler_finish = function(compiler) {
+  var Compiler_callFinish = __extern.Compiler_callFinish = function(compiler) {
     compiler.finish();
 
     return !compiler.log.hasErrors();
@@ -1923,7 +2042,7 @@
   };
 
   JsResult.prototype.emitNewlineBefore = function(node) {
-    if (this.previousNode !== null && (!jsIsCompactNodeKind(this.previousNode.kind) || !jsIsCompactNodeKind(node.kind))) {
+    if (this.previousNode !== null && (!isCompactNodeKind(this.previousNode.kind) || !isCompactNodeKind(node.kind))) {
       this.code.appendChar(10);
     }
 
@@ -2592,10 +2711,6 @@
       __declare.assert(false);
     }
   };
-
-  function jsIsCompactNodeKind(kind) {
-    return kind === 5 || kind === 9 || kind === 14;
-  }
 
   function jsEmit(global, context) {
     var code = StringBuilder_new();
@@ -3809,6 +3924,10 @@
 
   function isExpression(node) {
     return node.kind >= 16 && node.kind <= 58;
+  }
+
+  function isCompactNodeKind(kind) {
+    return kind === 5 || kind === 9 || kind === 14;
   }
 
   function NodeFlag() {

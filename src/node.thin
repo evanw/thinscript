@@ -85,6 +85,13 @@ function isExpression(node: Node): bool {
   return node.kind >= NodeKind.ALIGN_OF && node.kind <= NodeKind.SUBTRACT;
 }
 
+function isCompactNodeKind(kind: NodeKind): bool {
+  return
+    kind == NodeKind.CONSTANTS ||
+    kind == NodeKind.EXPRESSION ||
+    kind == NodeKind.VARIABLES;
+}
+
 const NODE_FLAG_DECLARE = 1 << 0;
 const NODE_FLAG_EXPORT = 1 << 1;
 const NODE_FLAG_EXTERN = 1 << 2;

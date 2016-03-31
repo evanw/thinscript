@@ -148,10 +148,10 @@ function compileWebAssembly(code) {
         bytes[contentsString + i + 4] = contents.charCodeAt(i);
       }
 
-      exports.Compiler_addInput(compiler, nameString, contentsString);
+      exports.Compiler_callAddInput(compiler, nameString, contentsString);
     });
 
-    exports.Compiler_finish(compiler);
+    exports.Compiler_callFinish(compiler);
 
     var wasm = exports.Compiler_wasm(compiler);
     var wasmData = wasm && stdlib.ints[wasm >> 2];
@@ -184,7 +184,7 @@ function compileJavaScript(code) {
     var compiler = exports.Compiler_new(target);
 
     sources.forEach(function(source) {
-      exports.Compiler_addInput(compiler, source.name, source.contents);
+      exports.Compiler_callAddInput(compiler, source.name, source.contents);
     });
 
     if (defines) {
@@ -193,7 +193,7 @@ function compileJavaScript(code) {
       });
     }
 
-    exports.Compiler_finish(compiler);
+    exports.Compiler_callFinish(compiler);
     var wasm = exports.Compiler_wasm(compiler);
 
     var after = now();
