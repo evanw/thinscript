@@ -575,6 +575,15 @@ function tokenize(source: Source, log: Log): Token {
       else if (string_equals(text, "#if")) kind = TokenKind.PREPROCESSOR_IF;
       else if (string_equals(text, "#undef")) kind = TokenKind.PREPROCESSOR_UNDEF;
       else if (string_equals(text, "#warning")) kind = TokenKind.PREPROCESSOR_WARNING;
+
+      // Allow a shebang at the start of the file
+      else if (start == 0 && string_equals(text, "#") && i < limit && string_get(contents, i) == '!') {
+        while (i < limit && string_get(contents, i) != '\n') {
+          i = i + 1;
+        }
+        continue;
+      }
+
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
 

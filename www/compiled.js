@@ -2894,6 +2894,14 @@ function tokenize(source, log) {
         kind = 81;
       }
 
+      else if (start === 0 && globals.string_equals(text, "#") && i < limit && globals.string_get(contents, i) === 33) {
+        while (i < limit && globals.string_get(contents, i) !== 10) {
+          i = i + 1 | 0;
+        }
+
+        continue;
+      }
+
       else {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar(39);
 
