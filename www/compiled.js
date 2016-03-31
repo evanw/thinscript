@@ -2010,7 +2010,34 @@
       }
     }
 
-    else if (node.kind === 5 || node.kind === 8) {
+    else if (node.kind === 8) {
+      if (node.isExtern()) {
+        this.emitNewlineBefore(node);
+        this.emitIndent();
+        code.append("__extern.");
+        code.append(node.symbol.name);
+        code.append(" = {\n");
+        this.indent = this.indent + 1 | 0;
+        var child = node.firstChild;
+
+        while (child !== null) {
+          __declare.assert(child.kind === 1);
+          this.emitIndent();
+          code.append(child.symbol.name);
+          code.append(": ");
+          code.append(__declare.string_intToString(child.symbol.offset));
+          child = child.nextSibling;
+          code.append(child !== null ? ",\n" : "\n");
+        }
+
+        this.indent = this.indent - 1 | 0;
+        this.emitIndent();
+        code.append("};\n");
+        this.emitNewlineAfter(node);
+      }
+    }
+
+    else if (node.kind === 5) {
     }
 
     else {
@@ -4887,6 +4914,7 @@
     }
 
     var node = token.kind === 43 ? createConstants() : createVariables();
+    node.firstFlag = firstFlag;
 
     while (true) {
       var name = this.current;

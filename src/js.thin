@@ -544,6 +544,7 @@ class JsResult {
       this.emitIndent();
       code.append("var ");
       var child = node.firstChild;
+
       while (child != null) {
         var value = child.variableValue();
         code.append(child.symbol.name);
@@ -555,6 +556,7 @@ class JsResult {
         code.append(" = ");
         this.emitExpression(value, Precedence.LOWEST);
       }
+
       code.append(";\n");
       this.emitNewlineAfter(node);
     }
@@ -600,7 +602,35 @@ class JsResult {
       }
     }
 
-    else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.ENUM) {
+    else if (node.kind == NodeKind.ENUM) {
+      if (node.isExtern()) {
+        this.emitNewlineBefore(node);
+        this.emitIndent();
+        code.append("__extern.");
+        code.append(node.symbol.name);
+        code.append(" = {\n");
+        this.indent = this.indent + 1;
+
+        // Emit enum values
+        var child = node.firstChild;
+        while (child != null) {
+          assert(child.kind == NodeKind.VARIABLE);
+          this.emitIndent();
+          code.append(child.symbol.name);
+          code.append(": ");
+          code.append(string_intToString(child.symbol.offset));
+          child = child.nextSibling;
+          code.append(child != null ? ",\n" : "\n");
+        }
+
+        this.indent = this.indent - 1;
+        this.emitIndent();
+        code.append("};\n");
+        this.emitNewlineAfter(node);
+      }
+    }
+
+    else if (node.kind == NodeKind.CONSTANTS) {
     }
 
     else {

@@ -884,6 +884,7 @@ class ParserContext {
     }
 
     var node = token.kind == TokenKind.CONST ? createConstants() : createVariables();
+    node.firstFlag = firstFlag;
 
     while (true) {
       var name = this.current;
