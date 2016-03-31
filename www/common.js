@@ -111,7 +111,7 @@ var CompileTarget = {
 
 function compileWebAssembly(code) {
   var stdlib = loadStdlibForWebAssembly();
-  var module = Wasm.instantiateModule(code, {globals: stdlib});
+  var module = Wasm.instantiateModule(code, {global: stdlib});
   var exports = module.exports;
   var memory = exports.memory;
   stdlib.bytes = new Uint8Array(memory);
@@ -166,7 +166,7 @@ function compileWebAssembly(code) {
 function compileJavaScript(code) {
   var stdlib = loadStdlibForJavaScript();
   var exports = {};
-  new Function('globals', 'exports', code)(stdlib, exports);
+  new Function('global', 'exports', code)(stdlib, exports);
 
   return function(sources, target) {
     console.log('compiling to ' + (target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly') + ' using JavaScript');

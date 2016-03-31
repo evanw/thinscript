@@ -156,7 +156,7 @@ class JsResult {
     if (node.kind == NodeKind.NAME) {
       var symbol = node.symbol;
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
-        code.append("globals.");
+        code.append("__declare.");
       }
       code.append(symbol.name);
     }
@@ -420,7 +420,7 @@ class JsResult {
       else if (node.isExtern()) {
         code.append("var ");
         code.append(symbol.name);
-        code.append(" = exports.");
+        code.append(" = __extern.");
         code.append(symbol.name);
         code.append(" = function");
         needsSemicolon = true;
@@ -621,13 +621,29 @@ function jsEmit(global: Node, context: CheckContext): string {
   var result = new JsResult();
   result.context = context;
   result.code = code;
+
+  code.append("(function(__declare, __extern) {\n");
+  result.indent = 1;
   result.emitStatements(global.firstChild);
 
   if (result.foundMultiply) {
-    code.append("\nvar __imul = Math.imul || function(a, b) {\n");
-    code.append("  return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    code.appendChar('\n');
+    result.emitIndent();
+    code.append("var __imul = Math.imul || function(a, b) {\n");
+    result.indent = 2;
+    result.emitIndent();
+    code.append("return (a * (b >>> 16) << 16) + a * (b & 65535) | 0;\n");
+    result.indent = 1;
+    result.emitIndent();
     code.append("};\n");
   }
+
+  code.append("}(\n");
+  result.emitIndent();
+  code.append("typeof global !== 'undefined' ? global : this,\n");
+  result.emitIndent();
+  code.append("typeof exports !== 'undefined' ? exports : this\n");
+  code.append("));\n");
 
   return code.finish();
 }

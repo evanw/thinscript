@@ -575,7 +575,7 @@ class WasmModule {
 
       // Functions without bodies are imports
       if (body == null) {
-        var moduleName = symbol.kind == SymbolKind.FUNCTION_INSTANCE ? symbol.parent().name : "globals";
+        var moduleName = symbol.kind == SymbolKind.FUNCTION_INSTANCE ? symbol.parent().name : "global";
         symbol.offset = this.importCount;
         this.allocateImport(signatureIndex, moduleName, symbol.name);
         node = node.nextSibling;
