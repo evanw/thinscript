@@ -168,7 +168,7 @@ function compileJavaScript(code) {
   var exports = {};
   new Function('global', 'exports', code)(stdlib, exports);
 
-  return function(sources, target) {
+  return function(sources, target, defines) {
     console.log('compiling to ' + (target === CompileTarget.JAVASCRIPT ? 'JavaScript' : 'WebAssembly') + ' using JavaScript');
     var before = now();
 
@@ -177,6 +177,12 @@ function compileJavaScript(code) {
     sources.forEach(function(source) {
       exports.Compiler_addInput(compiler, source.name, source.contents);
     });
+
+    if (defines) {
+      defines.forEach(function(define) {
+        exports.Compiler_define(compiler, define);
+      });
+    }
 
     exports.Compiler_finish(compiler);
     var wasm = exports.Compiler_wasm(compiler);

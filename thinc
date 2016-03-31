@@ -1,0 +1,145 @@
+#!/usr/bin/env node
+
+var fs = require('fs');
+var compiled = null;
+
+function parseError(text) {
+  Terminal_setColor(compiled.Color.RED);
+  Terminal_write('error: ');
+  Terminal_setColor(compiled.Color.BOLD);
+  Terminal_write(text + '\n');
+  Terminal_setColor(compiled.Color.DEFAULT);
+  process.exit(1);
+}
+
+function parseCommandLine() {
+  var args = process.argv;
+  var parsed = {
+    target: compiled.CompileTarget.NONE,
+    output: null,
+    defines: [],
+    sources: [],
+  };
+
+  for (var i = 2; i < args.length; i++) {
+    var arg = args[i];
+
+    if (arg[0] === '-') {
+      if (arg === '--js') {
+        parsed.target = compiled.CompileTarget.JAVASCRIPT;
+      }
+
+      else if (arg === '--wasm') {
+        parsed.target = compiled.CompileTarget.WEBASSEMBLY;
+      }
+
+      else if (arg === '--define' && i + 1 < args.length) {
+        parsed.defines.push(args[++i]);
+      }
+
+      else if ((arg === '--out') && i + 1 < args.length) {
+        parsed.output = args[++i];
+      }
+
+      else {
+        parseError('Invalid flag: ' + arg);
+      }
+    }
+
+    else {
+      parsed.sources.push({
+        name: arg,
+        contents: fs.readFileSync(arg, 'utf8'),
+      });
+    }
+  }
+
+  if (!parsed.sources.length) {
+    parseError('No input files');
+  }
+
+  if (!parsed.output) {
+    parseError('Missing an output file (use the --out flag)');
+  }
+
+  if (parsed.target === compiled.CompileTarget.NONE) {
+    if (parsed.output.slice(-3) === '.js') {
+      parsed.target = compiled.CompileTarget.JAVASCRIPT;
+    }
+
+    else if (parsed.output.slice(-5) === '.wasm') {
+      parsed.target = compiled.CompileTarget.WEBASSEMBLY;
+    }
+
+    else {
+      parseError('Missing a target (use either --js or --wasm)');
+    }
+  }
+
+  return parsed;
+}
+
+function Terminal_setColor(color) {
+  if (process.stdout.isTTY) {
+    var code =
+      color === compiled.Color.BOLD ? 1 :
+      color === compiled.Color.RED ? 91 :
+      color === compiled.Color.GREEN ? 92 :
+      color === compiled.Color.MAGENTA ? 95 :
+      0;
+    process.stdout.write('\x1B[0;' + code + 'm');
+  }
+}
+
+function Terminal_write(text) {
+  process.stdout.write(text);
+}
+
+function main() {
+  global.assert = require('assert');
+  global.Terminal_setColor = Terminal_setColor;
+  global.Terminal_write = Terminal_write;
+  global.Profiler_begin = function() {};
+  global.Profiler_end = function() {};
+  global.string_length = function(x) { return x.length; };
+  global.string_get = function(x, i) { return x.charCodeAt(i); };
+  global.string_slice = function(x, a, b) { return x.slice(a, b); };
+  global.string_equals = function(a, b) { return a === b; };
+  global.string_intToString = function(x) { return (x | 0).toString(); };
+  global.string_uintToString = function(x) { return (x >>> 0).toString(); };
+  global.StringBuilder_append = function(a, b) { return a + b; };
+  global.StringBuilder_appendChar = function(a, b) { return a + String.fromCharCode(b); };
+  global.Uint8Array_new = function(x) { return new Uint8Array(x); };
+  compiled = require('./www/compiled');
+
+  var parsed = parseCommandLine(compiled);
+  var compiler = compiled.Compiler_new(parsed.target);
+
+  for (var i = 0; i < parsed.sources.length; i++) {
+    var source = parsed.sources[i];
+    compiled.Compiler_addInput(compiler, source.name, source.contents);
+  }
+
+  for (var i = 0; i < parsed.defines.length; i++) {
+    compiled.Compiler_define(compiler, parsed.defines[i]);
+  }
+
+  var success = compiled.Compiler_finish(compiler);
+  compiled.Compiler_writeLogToTerminal(compiler);
+
+  if (success) {
+    switch (parsed.target) {
+      case compiled.CompileTarget.JAVASCRIPT: {
+        fs.writeFileSync(parsed.output, compiled.Compiler_js(compiler));
+        break;
+      }
+
+      case compiled.CompileTarget.WEBASSEMBLY: {
+        fs.writeFileSync(parsed.output, Buffer(compiled.Compiler_wasm(compiler).bytes()));
+        break;
+      }
+    }
+  }
+}
+
+main();

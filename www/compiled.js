@@ -1163,6 +1163,12 @@
     return context;
   }
 
+  __extern.CompileTarget = {
+    NONE: 0,
+    JAVASCRIPT: 1,
+    WEBASSEMBLY: 2
+  };
+
   function Compiler() {
     this.log = null;
     this.global = null;
@@ -1284,8 +1290,14 @@
     compiler.addInput(name, contents);
   };
 
+  var Compiler_define = __extern.Compiler_define = function(compiler, text) {
+    compiler.preprocessor.define(text, true);
+  };
+
   var Compiler_finish = __extern.Compiler_finish = function(compiler) {
     compiler.finish();
+
+    return !compiler.log.hasErrors();
   };
 
   var Compiler_wasm = __extern.Compiler_wasm = function(compiler) {
@@ -3039,12 +3051,39 @@
     return "\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class UBytePtr { value: ubyte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
   }
 
+  function LineColumn() {
+    this.line = 0;
+    this.column = 0;
+  }
+
   function Source() {
     this.name = null;
     this.contents = null;
     this.next = null;
     this.firstToken = null;
   }
+
+  Source.prototype.indexToLineColumn = function(index) {
+    var contents = this.contents;
+    var lastNewline = 0;
+    var line = 0;
+    var i = 0;
+
+    while (i < index) {
+      if (__declare.string_get(contents, i) === 10) {
+        lastNewline = i + 1 | 0;
+        line = line + 1 | 0;
+      }
+
+      i = i + 1 | 0;
+    }
+
+    var location = new LineColumn();
+    location.line = line;
+    location.column = index - lastNewline | 0;
+
+    return location;
+  };
 
   function Range() {
     this.source = null;
@@ -3107,6 +3146,58 @@
     this.next = null;
   }
 
+  Diagnostic.prototype.appendSourceName = function(builder, location) {
+    builder.append(this.range.source.name).appendChar(58).append(__declare.string_intToString(location.line + 1 | 0)).appendChar(58).append(__declare.string_intToString(location.column + 1 | 0)).append(": ");
+  };
+
+  Diagnostic.prototype.appendKind = function(builder) {
+    builder.append(this.kind === 0 ? "error: " : "warning: ");
+  };
+
+  Diagnostic.prototype.appendMessage = function(builder) {
+    builder.append(this.message).appendChar(10);
+  };
+
+  Diagnostic.prototype.appendLineContents = function(builder, location) {
+    var range = this.range;
+    var contents = range.source.contents;
+    var length = __declare.string_length(contents);
+    var start = range.start - location.column | 0;
+    var end = range.start;
+
+    while (end < length && __declare.string_get(contents, end) !== 10) {
+      end = end + 1 | 0;
+    }
+
+    builder.appendSlice(contents, start, end).appendChar(10);
+  };
+
+  Diagnostic.prototype.appendRange = function(builder, location) {
+    var range = this.range;
+    var column = location.column;
+    var contents = range.source.contents;
+
+    while (column > 0) {
+      builder.appendChar(32);
+      column = column - 1 | 0;
+    }
+
+    if ((range.end - range.start | 0) <= 1) {
+      builder.appendChar(94);
+    }
+
+    else {
+      var i = range.start;
+
+      while (i < range.end && __declare.string_get(contents, i) !== 10) {
+        builder.appendChar(126);
+        i = i + 1 | 0;
+      }
+    }
+
+    builder.appendChar(10);
+  };
+
   function Log() {
     this.first = null;
     this.last = null;
@@ -3138,49 +3229,34 @@
   };
 
   Log.prototype.toString = function() {
-    var result = StringBuilder_new();
-    var d = this.first;
+    var builder = StringBuilder_new();
+    var diagnostic = this.first;
 
-    while (d !== null) {
-      var lineRange = d.range.enclosingLine();
-      var column = d.range.start - lineRange.start | 0;
-      var line = 0;
-      var i = 0;
-
-      while (i < lineRange.start) {
-        if (__declare.string_get(lineRange.source.contents, i) === 10) {
-          line = line + 1 | 0;
-        }
-
-        i = i + 1 | 0;
-      }
-
-      result.append(d.range.source.name).appendChar(58).append(__declare.string_intToString(line + 1 | 0)).appendChar(58).append(__declare.string_intToString(column + 1 | 0)).append(d.kind === 0 ? ": error: " : ": warning: ").append(d.message).appendChar(10).append(lineRange.toString()).appendChar(10);
-      i = 0;
-
-      while (i < column) {
-        result.appendChar(32);
-        i = i + 1 | 0;
-      }
-
-      if ((d.range.end - d.range.start | 0) <= 1) {
-        result.appendChar(94);
-      }
-
-      else {
-        i = d.range.start;
-
-        while (i < d.range.end && i < lineRange.end) {
-          result.appendChar(126);
-          i = i + 1 | 0;
-        }
-      }
-
-      result.appendChar(10);
-      d = d.next;
+    while (diagnostic !== null) {
+      var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
+      diagnostic.appendSourceName(builder, location);
+      diagnostic.appendKind(builder);
+      diagnostic.appendMessage(builder);
+      diagnostic.appendLineContents(builder, location);
+      diagnostic.appendRange(builder, location);
+      diagnostic = diagnostic.next;
     }
 
-    return result.finish();
+    return builder.finish();
+  };
+
+  Log.prototype.hasErrors = function() {
+    var diagnostic = this.first;
+
+    while (diagnostic !== null) {
+      if (diagnostic.kind === 0) {
+        return true;
+      }
+
+      diagnostic = diagnostic.next;
+    }
+
+    return false;
   };
 
   function isUnary(kind) {
@@ -5773,6 +5849,46 @@
     offset = alignToNextMultipleOf(offset, maxAlignment);
     this.byteSize = offset;
     this.maxAlignment = maxAlignment;
+  };
+
+  __extern.Color = {
+    DEFAULT: 0,
+    BOLD: 1,
+    RED: 2,
+    GREEN: 3,
+    MAGENTA: 4
+  };
+
+  var Compiler_writeLogToTerminal = __extern.Compiler_writeLogToTerminal = function(compiler) {
+    var diagnostic = compiler.log.first;
+    var builder = null;
+
+    while (diagnostic !== null) {
+      var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
+      builder = StringBuilder_new();
+      diagnostic.appendSourceName(builder, location);
+      __declare.Terminal_setColor(1);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendKind(builder);
+      __declare.Terminal_setColor(diagnostic.kind === 0 ? 2 : 4);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendMessage(builder);
+      __declare.Terminal_setColor(1);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendLineContents(builder, location);
+      __declare.Terminal_setColor(0);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendRange(builder, location);
+      __declare.Terminal_setColor(3);
+      __declare.Terminal_write(builder.finish());
+      diagnostic = diagnostic.next;
+    }
+
+    __declare.Terminal_setColor(0);
   };
 
   function Type() {

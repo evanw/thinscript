@@ -6,7 +6,7 @@ eval(fs.readFileSync('./www/common.js', 'utf8'));
 function compile(compiler, sources) {
   var compiled = compileJavaScript(compiler);
 
-  var compilerJS = compiled(sources, CompileTarget.JAVASCRIPT);
+  var compilerJS = compiled(sources, CompileTarget.JAVASCRIPT, ['TERMINAL']);
   if (compilerJS.log) {
     process.stdout.write(compilerJS.log);
     process.exit(1);

@@ -1,4 +1,4 @@
-enum CompileTarget {
+extern enum CompileTarget {
   NONE,
   JAVASCRIPT,
   WEBASSEMBLY,
@@ -119,8 +119,13 @@ extern function Compiler_addInput(compiler: Compiler, name: string, contents: st
   compiler.addInput(name, contents);
 }
 
-extern function Compiler_finish(compiler: Compiler): void {
+extern function Compiler_define(compiler: Compiler, text: string): void {
+  compiler.preprocessor.define(text, true);
+}
+
+extern function Compiler_finish(compiler: Compiler): bool {
   compiler.finish();
+  return !compiler.log.hasErrors();
 }
 
 extern function Compiler_wasm(compiler: Compiler): ByteArray {

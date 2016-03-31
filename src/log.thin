@@ -1,3 +1,8 @@
+class LineColumn {
+  line: int; // 0-based
+  column: int; // 0-based
+}
+
 class Source {
   name: string;
   contents: string;
@@ -5,6 +10,27 @@ class Source {
   // These are for internal use by the compiler
   next: Source;
   firstToken: Token;
+
+  indexToLineColumn(index: int): LineColumn {
+    var contents = this.contents;
+    var lastNewline = 0;
+    var line = 0;
+    var i = 0;
+
+    // Just count the number of lines from the beginning of the file for now
+    while (i < index) {
+      if (string_get(contents, i) == '\n') {
+        lastNewline = i + 1;
+        line = line + 1;
+      }
+      i = i + 1;
+    }
+
+    var location = new LineColumn();
+    location.line = line;
+    location.column = index - lastNewline;
+    return location;
+  }
 }
 
 class Range {
@@ -71,6 +97,66 @@ class Diagnostic {
   message: string;
   kind: DiagnosticKind;
   next: Diagnostic;
+
+  appendSourceName(builder: StringBuilder, location: LineColumn): void {
+    builder
+      .append(this.range.source.name)
+      .appendChar(':')
+      .append(string_intToString(location.line + 1))
+      .appendChar(':')
+      .append(string_intToString(location.column + 1))
+      .append(": ");
+  }
+
+  appendKind(builder: StringBuilder): void {
+    builder.append(this.kind == DiagnosticKind.ERROR ? "error: " : "warning: ");
+  }
+
+  appendMessage(builder: StringBuilder): void {
+    builder.append(this.message).appendChar('\n');
+  }
+
+  appendLineContents(builder: StringBuilder, location: LineColumn): void {
+    var range = this.range;
+    var contents = range.source.contents;
+    var length = string_length(contents);
+    var start = range.start - location.column;
+    var end = range.start;
+
+    while (end < length && string_get(contents, end) != '\n') {
+      end = end + 1;
+    }
+
+    builder.appendSlice(contents, start, end).appendChar('\n');
+  }
+
+  appendRange(builder: StringBuilder, location: LineColumn): void {
+    var range = this.range;
+    var column = location.column;
+    var contents = range.source.contents;
+
+    // Whitespace
+    while (column > 0) {
+      builder.appendChar(' ');
+      column = column - 1;
+    }
+
+    // Single character
+    if (range.end - range.start <= 1) {
+      builder.appendChar('^');
+    }
+
+    // Multiple characters
+    else {
+      var i = range.start;
+      while (i < range.end && string_get(contents, i) != '\n') {
+        builder.appendChar('~');
+        i = i + 1;
+      }
+    }
+
+    builder.appendChar('\n');
+  }
 }
 
 class Log {
@@ -97,54 +183,32 @@ class Log {
   }
 
   toString(): string {
-    var result = StringBuilder_new();
-    var d = this.first;
+    var builder = StringBuilder_new();
+    var diagnostic = this.first;
 
-    while (d != null) {
-      var lineRange = d.range.enclosingLine();
-      var column = d.range.start - lineRange.start;
-      var line = 0;
-
-      var i = 0;
-      while (i < lineRange.start) {
-        if (string_get(lineRange.source.contents, i) == '\n') {
-          line = line + 1;
-        }
-        i = i + 1;
-      }
-
-      result
-        .append(d.range.source.name)
-        .appendChar(':')
-        .append(string_intToString(line + 1))
-        .appendChar(':')
-        .append(string_intToString(column + 1))
-        .append(d.kind == DiagnosticKind.ERROR ? ": error: " : ": warning: ")
-        .append(d.message)
-        .appendChar('\n')
-        .append(lineRange.toString())
-        .appendChar('\n');
-
-      i = 0;
-      while (i < column) {
-        result.appendChar(' ');
-        i = i + 1;
-      }
-
-      if (d.range.end - d.range.start <= 1) {
-        result.appendChar('^');
-      } else {
-        i = d.range.start;
-        while (i < d.range.end && i < lineRange.end) {
-          result.appendChar('~');
-          i = i + 1;
-        }
-      }
-
-      result.appendChar('\n');
-      d = d.next;
+    while (diagnostic != null) {
+      var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
+      diagnostic.appendSourceName(builder, location);
+      diagnostic.appendKind(builder);
+      diagnostic.appendMessage(builder);
+      diagnostic.appendLineContents(builder, location);
+      diagnostic.appendRange(builder, location);
+      diagnostic = diagnostic.next;
     }
 
-    return result.finish();
+    return builder.finish();
+  }
+
+  hasErrors(): bool {
+    var diagnostic = this.first;
+
+    while (diagnostic != null) {
+      if (diagnostic.kind == DiagnosticKind.ERROR) {
+        return true;
+      }
+      diagnostic = diagnostic.next;
+    }
+
+    return false;
   }
 }
