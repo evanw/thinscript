@@ -6984,17 +6984,17 @@
   WasmModule.prototype.emitDataSegments = function(array) {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(initalizerLength + 8 | 0, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(initializerLength + 8 | 0, 8);
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
     ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
     var section = wasmStartSection(array, "data_segments");
     wasmWriteVarUnsigned(array, 1);
     wasmWriteVarUnsigned(array, 8);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
     var i = 0;
 
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1 | 0;
     }
