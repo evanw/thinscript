@@ -654,7 +654,7 @@ class ParserContext {
       var text = childName.range.toString();
 
       // Support operator definitions
-      if (string_equals(text, "operator") && this.peek(TokenKind.LEFT_BRACKET)) {
+      if (string_equals(text, "operator") && !this.peek(TokenKind.LEFT_PARENTHESIS) && !this.peek(TokenKind.IDENTIFIER)) {
         childName.kind = TokenKind.OPERATOR;
         this.current = childName;
         if (this.parseFunction(childFlags, node) == null) {
@@ -734,19 +734,44 @@ class ParserContext {
     if (parent != null && this.eat(TokenKind.OPERATOR)) {
       var end = this.current;
 
-      if (!this.expect(TokenKind.LEFT_BRACKET) || !this.expect(TokenKind.RIGHT_BRACKET)) {
-        return null;
+      if (this.eat(TokenKind.LEFT_BRACKET)) {
+        if (!this.expect(TokenKind.RIGHT_BRACKET)) {
+          return null;
+        }
+
+        if (this.peek(TokenKind.ASSIGN)) {
+          nameRange = spanRanges(token.range, this.current.range);
+          name = "[]=";
+          this.advance();
+        }
+
+        else {
+          nameRange = spanRanges(token.range, end.range);
+          name = "[]";
+        }
       }
 
-      if (this.peek(TokenKind.ASSIGN)) {
-        nameRange = spanRanges(token.range, this.current.range);
-        name = "[]=";
-        this.advance();
+      else if (this.eat(TokenKind.BITWISE_AND) ||
+          this.eat(TokenKind.BITWISE_OR) ||
+          this.eat(TokenKind.BITWISE_XOR) ||
+          this.eat(TokenKind.COMPLEMENT) ||
+          this.eat(TokenKind.DIVIDE) ||
+          this.eat(TokenKind.EQUAL) ||
+          this.eat(TokenKind.LESS_THAN) ||
+          this.eat(TokenKind.MINUS) ||
+          this.eat(TokenKind.MINUS_MINUS) ||
+          this.eat(TokenKind.MULTIPLY) ||
+          this.eat(TokenKind.PLUS) ||
+          this.eat(TokenKind.PLUS_PLUS) ||
+          this.eat(TokenKind.REMAINDER) ||
+          this.eat(TokenKind.SHIFT_LEFT) ||
+          this.eat(TokenKind.SHIFT_RIGHT)) {
+        nameRange = end.range;
+        name = nameRange.toString();
       }
 
       else {
-        nameRange = spanRanges(token.range, end.range);
-        name = "[]";
+        this.unexpectedToken();
       }
     }
 

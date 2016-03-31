@@ -5428,7 +5428,7 @@
 
       var text = childName.range.toString();
 
-      if (__declare.string_equals(text, "operator") && this.peek(18)) {
+      if (__declare.string_equals(text, "operator") && !this.peek(19) && !this.peek(2)) {
         childName.kind = 60;
         this.current = childName;
 
@@ -5496,19 +5496,30 @@
     if (parent !== null && this.eat(60)) {
       var end = this.current;
 
-      if (!this.expect(18) || !this.expect(34)) {
-        return null;
+      if (this.eat(18)) {
+        if (!this.expect(34)) {
+          return null;
+        }
+
+        if (this.peek(5)) {
+          nameRange = spanRanges(token.range, this.current.range);
+          name = "[]=";
+          this.advance();
+        }
+
+        else {
+          nameRange = spanRanges(token.range, end.range);
+          name = "[]";
+        }
       }
 
-      if (this.peek(5)) {
-        nameRange = spanRanges(token.range, this.current.range);
-        name = "[]=";
-        this.advance();
+      else if (this.eat(6) || this.eat(7) || this.eat(8) || this.eat(11) || this.eat(12) || this.eat(14) || this.eat(20) || this.eat(24) || this.eat(25) || this.eat(26) || this.eat(29) || this.eat(30) || this.eat(32) || this.eat(37) || this.eat(38)) {
+        nameRange = end.range;
+        name = nameRange.toString();
       }
 
       else {
-        nameRange = spanRanges(token.range, end.range);
-        name = "[]";
+        this.unexpectedToken();
       }
     }
 
