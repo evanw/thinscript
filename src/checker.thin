@@ -795,7 +795,6 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     if (target.resolvedType != context.errorType) {
       if (target.isType() && target.resolvedType.isEnum() ||
           !target.isType() && target.resolvedType.isClass()) {
-        var child = target.resolvedType.symbol.node.firstChild;
         var name = node.stringValue;
 
         // Empty names are left over from parse errors that have already been reported

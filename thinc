@@ -25,7 +25,11 @@ function parseCommandLine() {
     var arg = args[i];
 
     if (arg[0] === '-') {
-      if (arg === '--js') {
+      if (arg === '--c') {
+        parsed.target = compiled.CompileTarget.C;
+      }
+
+      else if (arg === '--js') {
         parsed.target = compiled.CompileTarget.JAVASCRIPT;
       }
 
@@ -63,7 +67,11 @@ function parseCommandLine() {
   }
 
   if (parsed.target === compiled.CompileTarget.NONE) {
-    if (parsed.output.slice(-3) === '.js') {
+    if (parsed.output.slice(-2) === '.c') {
+      parsed.target = compiled.CompileTarget.C;
+    }
+
+    else if (parsed.output.slice(-3) === '.js') {
       parsed.target = compiled.CompileTarget.JAVASCRIPT;
     }
 
@@ -72,7 +80,7 @@ function parseCommandLine() {
     }
 
     else {
-      parseError('Missing a target (use either --js or --wasm)');
+      parseError('Missing a target (use either --c, --js, or --wasm)');
     }
   }
 
@@ -117,18 +125,23 @@ function main() {
 
   for (var i = 0; i < parsed.sources.length; i++) {
     var source = parsed.sources[i];
-    compiled.Compiler_addInput(compiler, source.name, source.contents);
+    compiled.Compiler_callAddInput(compiler, source.name, source.contents);
   }
 
   for (var i = 0; i < parsed.defines.length; i++) {
     compiled.Compiler_define(compiler, parsed.defines[i]);
   }
 
-  var success = compiled.Compiler_finish(compiler);
+  var success = compiled.Compiler_callFinish(compiler);
   compiled.Compiler_writeLogToTerminal(compiler);
 
   if (success) {
     switch (parsed.target) {
+      case compiled.CompileTarget.C: {
+        fs.writeFileSync(parsed.output, compiled.Compiler_c(compiler));
+        break;
+      }
+
       case compiled.CompileTarget.JAVASCRIPT: {
         fs.writeFileSync(parsed.output, compiled.Compiler_js(compiler));
         break;

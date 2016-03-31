@@ -214,10 +214,6 @@ class Node {
     this.lastChild = child;
   }
 
-  prependChild(child: Node): void {
-    this.insertChildBefore(this.firstChild, child);
-  }
-
   insertChildBefore(after: Node, before: Node): void {
     if (before == null) {
       return;

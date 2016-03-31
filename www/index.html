@@ -27,6 +27,10 @@
     line-height: 30px;
   }
 
+  input {
+    vertical-align: top;
+  }
+
   a {
     color: inherit;
   }
@@ -147,9 +151,9 @@
     <label><input type="radio" name="backend" id="backend-wasm"> <span class="wasm-backend-text">WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></span></label>
     <br>
     <b>Compile to:</b>
-    <label><input type="radio" name="target" id="target-c" checked> C</label>
     <label><input type="radio" name="target" id="target-js"> JavaScript</label>
-    <label><input type="radio" name="target" id="target-wasm"> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
+    <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
+    <label><input type="radio" name="target" id="target-c"> C</label>
     <br>Compile time: <span id="compileTime"></span>
   </p>
 
@@ -239,6 +243,8 @@
     '    print("Hello from JavaScript");',
     '  #elif WASM',
     '    print("Hello from WebAssembly");',
+    '  #elif C',
+    '    print("Hello from C");',
     '  #else',
     '    print("Unknown target");',
     '  #endif',
@@ -339,14 +345,16 @@
           downloadName = 'compiled.c';
           blobToDownload = new Blob([compilerOther.c], {type: 'text/plain'});
           otherCodeToRun = joinLines([
+            '// Compile with "cc compiled.c main.c" assuming this file is called "main.c"',
+            '',
             '#include <stdio.h>',
-            '#include <stdlib.h>',
+            '#include <stdint.h>',
+            '',
+            'int32_t demo();',
             '',
             'void print(const char *text) {',
             '  puts(text);',
             '}',
-            '',
-            '#include "compiled.c"',
             '',
             'int main() {',
             '  return demo();',

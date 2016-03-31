@@ -1488,7 +1488,6 @@
 
       if (target.resolvedType !== context.errorType) {
         if (target.isType() && target.resolvedType.isEnum() || !target.isType() && target.resolvedType.isClass()) {
-          var child = target.resolvedType.symbol.node.firstChild;
           var name = node.stringValue;
 
           if (__declare.string_length(name) > 0) {
@@ -4046,10 +4045,6 @@
     }
 
     this.lastChild = child;
-  };
-
-  Node.prototype.prependChild = function(child) {
-    this.insertChildBefore(this.firstChild, child);
   };
 
   Node.prototype.insertChildBefore = function(after, before) {
