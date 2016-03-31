@@ -135,22 +135,24 @@ function main() {
   var success = compiled.Compiler_callFinish(compiler);
   compiled.Compiler_writeLogToTerminal(compiler);
 
-  if (success) {
-    switch (parsed.target) {
-      case compiled.CompileTarget.C: {
-        fs.writeFileSync(parsed.output, compiled.Compiler_c(compiler));
-        break;
-      }
+  if (!success) {
+    process.exit(1);
+  }
 
-      case compiled.CompileTarget.JAVASCRIPT: {
-        fs.writeFileSync(parsed.output, compiled.Compiler_js(compiler));
-        break;
-      }
+  switch (parsed.target) {
+    case compiled.CompileTarget.C: {
+      fs.writeFileSync(parsed.output, compiled.Compiler_c(compiler));
+      break;
+    }
 
-      case compiled.CompileTarget.WEBASSEMBLY: {
-        fs.writeFileSync(parsed.output, Buffer(compiled.Compiler_wasm(compiler).bytes()));
-        break;
-      }
+    case compiled.CompileTarget.JAVASCRIPT: {
+      fs.writeFileSync(parsed.output, compiled.Compiler_js(compiler));
+      break;
+    }
+
+    case compiled.CompileTarget.WEBASSEMBLY: {
+      fs.writeFileSync(parsed.output, Buffer(compiled.Compiler_wasm(compiler).bytes()));
+      break;
     }
   }
 }
