@@ -17,9 +17,8 @@ function ByteArray_append32(array: ByteArray, value: int): void {
   array.append((value >> 24) as ubyte);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+#if JS ////////////////////////////////////////////////////////////////////////////////
 
-#if JS
   declare function Uint8Array_new(length: int): Uint8Array;
 
   declare class Uint8Array {
@@ -84,11 +83,10 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       this._length = length;
     }
   }
-#endif
 
-////////////////////////////////////////////////////////////////////////////////
 
-#if WASM
+#elif WASM ////////////////////////////////////////////////////////////////////////////////
+
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
     unsafe {
       var length = (text as UIntPtr).value;
@@ -146,4 +144,18 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       this._length = length as uint;
     }
   }
+
+#else ////////////////////////////////////////////////////////////////////////////////
+
+  declare function ByteArray_setString(array: ByteArray, index: int, text: string): void;
+
+  declare class ByteArray {
+    length(): int;
+    clear(): void;
+    get(index: int): ubyte;
+    set(index: int, value: ubyte): void;
+    append(value: ubyte): void;
+    resize(length: int): void;
+  }
+
 #endif
