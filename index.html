@@ -27,6 +27,10 @@
     line-height: 30px;
   }
 
+  input {
+    vertical-align: top;
+  }
+
   a {
     color: inherit;
   }
@@ -149,6 +153,7 @@
     <b>Compile to:</b>
     <label><input type="radio" name="target" id="target-js"> JavaScript</label>
     <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
+    <label><input type="radio" name="target" id="target-c"> C</label>
     <br>Compile time: <span id="compileTime"></span>
   </p>
 
@@ -182,15 +187,16 @@
   var backendWebAssembly = document.getElementById('backend-wasm');
   var backendJavaScript = document.getElementById('backend-js');
 
-  var targetWebAssembly = document.getElementById('target-wasm');
+  var targetC = document.getElementById('target-c');
   var targetJavaScript = document.getElementById('target-js');
+  var targetWebAssembly = document.getElementById('target-wasm');
 
   var compiledWebAssembly = null;
   var compiledJavaScript = null;
 
   var downloadName = null;
   var javaScriptToRun = null;
-  var webAssemblyToRun = null;
+  var otherCodeToRun = null;
   var blobToDownload = null;
 
   function joinLines(lines) {
@@ -220,7 +226,7 @@
     '  }',
     '}',
     '',
-    'extern function main(): int {',
+    'extern function demo(): int {',
     '  var list = new List();',
     '  list.append(1);',
     '  list.append(2);',
@@ -237,6 +243,8 @@
     '    print("Hello from JavaScript");',
     '  #elif WASM',
     '    print("Hello from WebAssembly");',
+    '  #elif C',
+    '    print("Hello from C");',
     '  #else',
     '    print("Unknown target");',
     '  #endif',
@@ -276,7 +284,10 @@
   }
 
   function compile() {
-    var target = targetJavaScript.checked ? CompileTarget.JAVASCRIPT : CompileTarget.WEBASSEMBLY;
+    var target =
+      targetC.checked ? CompileTarget.C :
+      targetJavaScript.checked ? CompileTarget.JAVASCRIPT :
+      CompileTarget.WEBASSEMBLY;
     var sources = [{
       name: '<stdin>',
       contents: input.value,
@@ -285,10 +296,10 @@
     try {
       if (backendWebAssembly.checked) {
         var compilerJS = compiledWebAssembly(sources, CompileTarget.JAVASCRIPT);
-        var compilerWASM = compiledWebAssembly(sources, CompileTarget.WEBASSEMBLY);
+        var compilerOther = target === CompileTarget.JavaScript ? null : compiledWebAssembly(sources, target);
       } else {
         var compilerJS = compiledJavaScript(sources, CompileTarget.JAVASCRIPT);
-        var compilerWASM = compiledJavaScript(sources, CompileTarget.WEBASSEMBLY);
+        var compilerOther = target === CompileTarget.JavaScript ? null : compiledJavaScript(sources, target);
       }
     } catch (e) {
       var message = e + '';
@@ -301,67 +312,97 @@
       return;
     }
 
-    var log = (targetJavaScript.checked ? compilerJS : compilerWASM).log;
+    var log = (targetJavaScript.checked ? compilerJS : compilerOther).log;
 
     if (log) {
       output.value = log;
       downloadName = 'log.txt';
+      javaScriptToRun = otherCodeToRun = '';
       blobToDownload = new Blob([log], {type: 'text/plain'});
     }
 
-    else if (targetJavaScript.checked) {
-      output.value = compilerJS.js;
-      downloadName = 'compiled.js';
-      blobToDownload = new Blob([compilerJS.js], {type: 'text/plain'});
-    }
-
     else {
-      output.value = compilerWASM.wasm && hexdump(compilerWASM.wasm);
-      downloadName = 'compiled.wasm';
-      blobToDownload = new Blob([compilerWASM.wasm], {type: 'application/octet-stream'});
+      javaScriptToRun = joinLines([
+        'function compileAndRunJavaScript(compiled) {',
+        '  var global = {',
+        '    print: function(text) {',
+        '      console.log(text);',
+        '    },',
+        '  };',
+        '  var exports = {};',
+        '  var code = new Function("global", "exports", compiled)',
+        '  code(global, exports);',
+        '  var result = exports.demo();',
+        '  console.log("result:", result);',
+        '}',
+        '',
+        'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || compilerJS.log) + ');',
+      ]);
+
+      switch (target) {
+        case CompileTarget.C: {
+          output.value = compilerOther.c;
+          downloadName = 'compiled.c';
+          blobToDownload = new Blob([compilerOther.c], {type: 'text/plain'});
+          otherCodeToRun = joinLines([
+            '// Compile with "cc compiled.c main.c" assuming this file is called "main.c"',
+            '',
+            '#include <stdio.h>',
+            '#include <stdint.h>',
+            '',
+            'int32_t demo();',
+            '',
+            'void print(const char *text) {',
+            '  puts(text);',
+            '}',
+            '',
+            'int main() {',
+            '  return demo();',
+            '}',
+          ]);
+          break;
+        }
+
+        case CompileTarget.JAVASCRIPT: {
+          output.value = compilerJS.js;
+          downloadName = 'compiled.js';
+          blobToDownload = new Blob([compilerJS.js], {type: 'text/plain'});
+          otherCodeToRun = '';
+          break;
+        }
+
+        case CompileTarget.WEBASSEMBLY: {
+          output.value = compilerOther.wasm && hexdump(compilerOther.wasm);
+          downloadName = 'compiled.wasm';
+          blobToDownload = new Blob([compilerOther.wasm], {type: 'application/octet-stream'});
+          otherCodeToRun = joinLines([
+            'function compileAndRunWebAssembly(compiled) {',
+            '  var extractLengthPrefixedString = function(ptr) {',
+            '    var text = "", length = ints[ptr >> 2], i = ptr + 4;',
+            '    while (length-- > 0) text += String.fromCharCode(bytes[i++]);',
+            '    return text;',
+            '  };',
+            '  var global = {',
+            '    print: function(ptr) {',
+            '      console.log(extractLengthPrefixedString(ptr));',
+            '    },',
+            '  };',
+            '  var exports = Wasm.instantiateModule(compiled, {global: global}).exports;',
+            '  var bytes = new Uint8Array(exports.memory);',
+            '  var ints = new Int32Array(exports.memory);',
+            '  var result = exports.demo();',
+            '  console.log("result:", result);',
+            '}',
+            '',
+            'compileAndRunWebAssembly(new Uint8Array([' + (compilerOther.wasm ? Array.prototype.slice.call(compilerOther.wasm).join(', ') : '') + ']));',
+          ]);
+          break;
+        }
+      }
     }
 
-    javaScriptToRun = joinLines([
-      'function compileAndRunJavaScript(compiled) {',
-      '  var globals = {',
-      '    print: function(text) {',
-      '      console.log(text);',
-      '    },',
-      '  };',
-      '  var exports = {};',
-      '  var code = new Function("globals", "exports", compiled)',
-      '  code(globals, exports);',
-      '  var result = exports.main();',
-      '  console.log("result:", result);',
-      '}',
-      '',
-      'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || compilerJS.log) + ');',
-    ]);
-
-    webAssemblyToRun = joinLines([
-      'function compileAndRunWebAssembly(compiled) {',
-      '  var extractLengthPrefixedString = function(ptr) {',
-      '    var text = "", length = ints[ptr >> 2], i = ptr + 4;',
-      '    while (length-- > 0) text += String.fromCharCode(bytes[i++]);',
-      '    return text;',
-      '  };',
-      '  var globals = {',
-      '    print: function(ptr) {',
-      '      console.log(extractLengthPrefixedString(ptr));',
-      '    },',
-      '  };',
-      '  var exports = Wasm.instantiateModule(compiled, {globals: globals}).exports;',
-      '  var bytes = new Uint8Array(exports.memory);',
-      '  var ints = new Int32Array(exports.memory);',
-      '  var result = exports.main();',
-      '  console.log("result:", result);',
-      '}',
-      '',
-      'compileAndRunWebAssembly(new Uint8Array([' + (compilerWASM.wasm ? Array.prototype.slice.call(compilerWASM.wasm).join(', ') : '') + ']));',
-    ]);
-
-    usage.textContent = targetWebAssembly.checked ? webAssemblyToRun : javaScriptToRun;
-    compileTime.textContent = (targetWebAssembly.checked ? compilerWASM : compilerJS).totalTime + 'ms';
+    usage.textContent = target !== CompileTarget.JAVASCRIPT ? otherCodeToRun : javaScriptToRun;
+    compileTime.textContent = (target !== CompileTarget.JAVASCRIPT ? compilerOther : compilerJS).totalTime + 'ms';
   }
 
   function downloadCompiledResult() {
@@ -382,8 +423,9 @@
   }
 
   function runCompiledResult() {
-    var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? webAssemblyToRun : javaScriptToRun);
+    var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? otherCodeToRun : javaScriptToRun);
     var target =
+      targetC.checked ? 'JavaScript (cannot compile C in the browser)' :
       targetJavaScript.checked ? 'JavaScript' :
       supportsWebAssembly() ? 'WebAssembly' :
       'JavaScript (WebAssembly is not supported by your browser)';
@@ -413,6 +455,7 @@
         backendJavaScript.onchange = compile;
         targetWebAssembly.onchange = compile;
         targetJavaScript.onchange = compile;
+        targetC.onchange = compile;
         input.oninput = compile;
         download.onclick = downloadCompiledResult;
         run.onclick = runCompiledResult;
