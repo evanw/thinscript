@@ -201,7 +201,7 @@ function compileJavaScript(code) {
     console.log('total time: ' + totalTime + 'ms');
 
     return {
-      wasm: wasm ? wasm.bytes() : null,
+      wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
       log: exports.Compiler_log(compiler),
       js: exports.Compiler_js(compiler),
       c: exports.Compiler_c(compiler),

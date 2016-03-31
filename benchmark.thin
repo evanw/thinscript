@@ -2,8 +2,8 @@ declare function Uint8Array_new(length: int): Uint8Array;
 
 declare class Uint8Array {
   length: int;
-  operator [] (index: int): ubyte;
-  operator []= (index: int, value: ubyte): void;
+  operator [] (index: int): byte;
+  operator []= (index: int, value: byte): void;
 }
 
 class ByteArray {
@@ -14,17 +14,17 @@ class ByteArray {
     return this._length;
   }
 
-  get(index: int): ubyte {
+  get(index: int): byte {
     assert((index as uint) < (this._length as uint));
     return this._data[index];
   }
 
-  set(index: int, value: ubyte): void {
+  set(index: int, value: byte): void {
     assert((index as uint) < (this._length as uint));
     this._data[index] = value;
   }
 
-  append(value: ubyte): void {
+  append(value: byte): void {
     var index = this._length;
     this._resize(index + 1);
     this._data[index] = value;
@@ -52,22 +52,22 @@ class ByteArray {
   }
 }
 function ByteArray_set16(array: ByteArray, index: int, value: int): void {
-  array.set(index, value as ubyte);
-  array.set(index + 1, (value >> 8) as ubyte);
+  array.set(index, value as byte);
+  array.set(index + 1, (value >> 8) as byte);
 }
 
 function ByteArray_set32(array: ByteArray, index: int, value: int): void {
-  array.set(index, value as ubyte);
-  array.set(index + 1, (value >> 8) as ubyte);
-  array.set(index + 2, (value >> 16) as ubyte);
-  array.set(index + 3, (value >> 24) as ubyte);
+  array.set(index, value as byte);
+  array.set(index + 1, (value >> 8) as byte);
+  array.set(index + 2, (value >> 16) as byte);
+  array.set(index + 3, (value >> 24) as byte);
 }
 
 function ByteArray_append32(array: ByteArray, value: int): void {
-  array.append(value as ubyte);
-  array.append((value >> 8) as ubyte);
-  array.append((value >> 16) as ubyte);
-  array.append((value >> 24) as ubyte);
+  array.append(value as byte);
+  array.append((value >> 8) as byte);
+  array.append((value >> 16) as byte);
+  array.append((value >> 24) as byte);
 }
 class CheckContext {
   log: Log;
@@ -146,7 +146,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, false);
     context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
     context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
-    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", 1, true);
+    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, true);
     context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
     context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
   }
@@ -2494,7 +2494,7 @@ function libraryForWebAssembly(): string {
   return `
 // Casting to this enables writing to arbitrary locations in memory
 unsafe class UBytePtr {
-  value: ubyte;
+  value: byte;
 }
 
 // These will be filled in by the WebAssembly code generator
@@ -4792,180 +4792,180 @@ class Type {
   }
 }
 // Control flow operators
-const WASM_OPCODE_NOP: ubyte = 0;
-const WASM_OPCODE_BLOCK: ubyte = 1;
-const WASM_OPCODE_LOOP: ubyte = 2;
-const WASM_OPCODE_IF: ubyte = 3;
-const WASM_OPCODE_IF_ELSE: ubyte = 4;
-const WASM_OPCODE_SELECT: ubyte = 5;
-const WASM_OPCODE_BR: ubyte = 6;
-const WASM_OPCODE_BR_IF: ubyte = 7;
-const WASM_OPCODE_BR_TABLE: ubyte = 8;
-const WASM_OPCODE_RETURN: ubyte = 20;
-const WASM_OPCODE_UNREACHABLE: ubyte = 21;
+const WASM_OPCODE_NOP: byte = 0;
+const WASM_OPCODE_BLOCK: byte = 1;
+const WASM_OPCODE_LOOP: byte = 2;
+const WASM_OPCODE_IF: byte = 3;
+const WASM_OPCODE_IF_ELSE: byte = 4;
+const WASM_OPCODE_SELECT: byte = 5;
+const WASM_OPCODE_BR: byte = 6;
+const WASM_OPCODE_BR_IF: byte = 7;
+const WASM_OPCODE_BR_TABLE: byte = 8;
+const WASM_OPCODE_RETURN: byte = 20;
+const WASM_OPCODE_UNREACHABLE: byte = 21;
 
 // Basic operators
-const WASM_OPCODE_I32_CONST: ubyte = 10;
-const WASM_OPCODE_I64_CONST: ubyte = 11;
-const WASM_OPCODE_F64_CONST: ubyte = 12;
-const WASM_OPCODE_F32_CONST: ubyte = 13;
-const WASM_OPCODE_GET_LOCAL: ubyte = 14;
-const WASM_OPCODE_SET_LOCAL: ubyte = 15;
-const WASM_OPCODE_CALL: ubyte = 18;
-const WASM_OPCODE_CALL_INDIRECT: ubyte = 19;
-const WASM_OPCODE_CALL_IMPORT: ubyte = 31;
+const WASM_OPCODE_I32_CONST: byte = 10;
+const WASM_OPCODE_I64_CONST: byte = 11;
+const WASM_OPCODE_F64_CONST: byte = 12;
+const WASM_OPCODE_F32_CONST: byte = 13;
+const WASM_OPCODE_GET_LOCAL: byte = 14;
+const WASM_OPCODE_SET_LOCAL: byte = 15;
+const WASM_OPCODE_CALL: byte = 18;
+const WASM_OPCODE_CALL_INDIRECT: byte = 19;
+const WASM_OPCODE_CALL_IMPORT: byte = 31;
 
 // Memory-related operators
-const WASM_OPCODE_I32_LOAD8_S: ubyte = 32;
-const WASM_OPCODE_I32_LOAD8_U: ubyte = 33;
-const WASM_OPCODE_I32_LOAD16_S: ubyte = 34;
-const WASM_OPCODE_I32_LOAD16_U: ubyte = 35;
-const WASM_OPCODE_I64_LOAD8_S: ubyte = 36;
-const WASM_OPCODE_I64_LOAD8_U: ubyte = 37;
-const WASM_OPCODE_I64_LOAD16_S: ubyte = 38;
-const WASM_OPCODE_I64_LOAD16_U: ubyte = 39;
-const WASM_OPCODE_I64_LOAD32_S: ubyte = 40;
-const WASM_OPCODE_I64_LOAD32_U: ubyte = 41;
-const WASM_OPCODE_I32_LOAD: ubyte = 42;
-const WASM_OPCODE_I64_LOAD: ubyte = 43;
-const WASM_OPCODE_F32_LOAD: ubyte = 44;
-const WASM_OPCODE_F64_LOAD: ubyte = 45;
-const WASM_OPCODE_I32_STORE8: ubyte = 46;
-const WASM_OPCODE_I32_STORE16: ubyte = 47;
-const WASM_OPCODE_I64_STORE8: ubyte = 48;
-const WASM_OPCODE_I64_STORE16: ubyte = 49;
-const WASM_OPCODE_I64_STORE32: ubyte = 50;
-const WASM_OPCODE_I32_STORE: ubyte = 51;
-const WASM_OPCODE_I64_STORE: ubyte = 52;
-const WASM_OPCODE_F32_STORE: ubyte = 53;
-const WASM_OPCODE_F64_STORE: ubyte = 54;
-const WASM_OPCODE_MEMORY_SIZE: ubyte = 59;
-const WASM_OPCODE_GROW_MEMORY: ubyte = 57;
+const WASM_OPCODE_I32_LOAD8_S: byte = 32;
+const WASM_OPCODE_I32_LOAD8_U: byte = 33;
+const WASM_OPCODE_I32_LOAD16_S: byte = 34;
+const WASM_OPCODE_I32_LOAD16_U: byte = 35;
+const WASM_OPCODE_I64_LOAD8_S: byte = 36;
+const WASM_OPCODE_I64_LOAD8_U: byte = 37;
+const WASM_OPCODE_I64_LOAD16_S: byte = 38;
+const WASM_OPCODE_I64_LOAD16_U: byte = 39;
+const WASM_OPCODE_I64_LOAD32_S: byte = 40;
+const WASM_OPCODE_I64_LOAD32_U: byte = 41;
+const WASM_OPCODE_I32_LOAD: byte = 42;
+const WASM_OPCODE_I64_LOAD: byte = 43;
+const WASM_OPCODE_F32_LOAD: byte = 44;
+const WASM_OPCODE_F64_LOAD: byte = 45;
+const WASM_OPCODE_I32_STORE8: byte = 46;
+const WASM_OPCODE_I32_STORE16: byte = 47;
+const WASM_OPCODE_I64_STORE8: byte = 48;
+const WASM_OPCODE_I64_STORE16: byte = 49;
+const WASM_OPCODE_I64_STORE32: byte = 50;
+const WASM_OPCODE_I32_STORE: byte = 51;
+const WASM_OPCODE_I64_STORE: byte = 52;
+const WASM_OPCODE_F32_STORE: byte = 53;
+const WASM_OPCODE_F64_STORE: byte = 54;
+const WASM_OPCODE_MEMORY_SIZE: byte = 59;
+const WASM_OPCODE_GROW_MEMORY: byte = 57;
 
 // Simple operators
-const WASM_OPCODE_I32_ADD: ubyte = 64;
-const WASM_OPCODE_I32_SUB: ubyte = 65;
-const WASM_OPCODE_I32_MUL: ubyte = 66;
-const WASM_OPCODE_I32_DIV_S: ubyte = 67;
-const WASM_OPCODE_I32_DIV_U: ubyte = 68;
-const WASM_OPCODE_I32_REM_S: ubyte = 69;
-const WASM_OPCODE_I32_REM_U: ubyte = 70;
-const WASM_OPCODE_I32_AND: ubyte = 71;
-const WASM_OPCODE_I32_OR: ubyte = 72;
-const WASM_OPCODE_I32_XOR: ubyte = 73;
-const WASM_OPCODE_I32_SHL: ubyte = 74;
-const WASM_OPCODE_I32_SHR_U: ubyte = 75;
-const WASM_OPCODE_I32_SHR_S: ubyte = 76;
-const WASM_OPCODE_I32_ROTR: ubyte = 182;
-const WASM_OPCODE_I32_ROTL: ubyte = 183;
-const WASM_OPCODE_I32_EQ: ubyte = 77;
-const WASM_OPCODE_I32_NE: ubyte = 78;
-const WASM_OPCODE_I32_LT_S: ubyte = 79;
-const WASM_OPCODE_I32_LE_S: ubyte = 80;
-const WASM_OPCODE_I32_LT_U: ubyte = 81;
-const WASM_OPCODE_I32_LE_U: ubyte = 82;
-const WASM_OPCODE_I32_GT_S: ubyte = 83;
-const WASM_OPCODE_I32_GE_S: ubyte = 84;
-const WASM_OPCODE_I32_GT_U: ubyte = 85;
-const WASM_OPCODE_I32_GE_U: ubyte = 86;
-const WASM_OPCODE_I32_CLZ: ubyte = 87;
-const WASM_OPCODE_I32_CTZ: ubyte = 88;
-const WASM_OPCODE_I32_POPCNT: ubyte = 89;
-const WASM_OPCODE_I32_EQZ: ubyte = 90;
-const WASM_OPCODE_I64_ADD: ubyte = 91;
-const WASM_OPCODE_I64_SUB: ubyte = 92;
-const WASM_OPCODE_I64_MUL: ubyte = 93;
-const WASM_OPCODE_I64_DIV_S: ubyte = 94;
-const WASM_OPCODE_I64_DIV_U: ubyte = 95;
-const WASM_OPCODE_I64_REM_S: ubyte = 96;
-const WASM_OPCODE_I64_REM_U: ubyte = 97;
-const WASM_OPCODE_I64_AND: ubyte = 98;
-const WASM_OPCODE_I64_OR: ubyte = 99;
-const WASM_OPCODE_I64_XOR: ubyte = 100;
-const WASM_OPCODE_I64_SHL: ubyte = 101;
-const WASM_OPCODE_I64_SHR_U: ubyte = 102;
-const WASM_OPCODE_I64_SHR_S: ubyte = 103;
-const WASM_OPCODE_I64_ROTR: ubyte = 184;
-const WASM_OPCODE_I64_ROTL: ubyte = 185;
-const WASM_OPCODE_I64_EQ: ubyte = 104;
-const WASM_OPCODE_I64_NE: ubyte = 105;
-const WASM_OPCODE_I64_LT_S: ubyte = 106;
-const WASM_OPCODE_I64_LE_S: ubyte = 107;
-const WASM_OPCODE_I64_LT_U: ubyte = 108;
-const WASM_OPCODE_I64_LE_U: ubyte = 109;
-const WASM_OPCODE_I64_GT_S: ubyte = 110;
-const WASM_OPCODE_I64_GE_S: ubyte = 111;
-const WASM_OPCODE_I64_GT_U: ubyte = 112;
-const WASM_OPCODE_I64_GE_U: ubyte = 113;
-const WASM_OPCODE_I64_CLZ: ubyte = 114;
-const WASM_OPCODE_I64_CTZ: ubyte = 115;
-const WASM_OPCODE_I64_POPCNT: ubyte = 116;
-const WASM_OPCODE_I64_EQZ: ubyte = 186;
-const WASM_OPCODE_F32_ADD: ubyte = 117;
-const WASM_OPCODE_F32_SUB: ubyte = 118;
-const WASM_OPCODE_F32_MUL: ubyte = 119;
-const WASM_OPCODE_F32_DIV: ubyte = 120;
-const WASM_OPCODE_F32_MIN: ubyte = 121;
-const WASM_OPCODE_F32_MAX: ubyte = 122;
-const WASM_OPCODE_F32_ABS: ubyte = 123;
-const WASM_OPCODE_F32_NEG: ubyte = 124;
-const WASM_OPCODE_F32_COPYSIGN: ubyte = 125;
-const WASM_OPCODE_F32_CEIL: ubyte = 126;
-const WASM_OPCODE_F32_FLOOR: ubyte = 127;
-const WASM_OPCODE_F32_TRUNC: ubyte = 128;
-const WASM_OPCODE_F32_NEAREST: ubyte = 129;
-const WASM_OPCODE_F32_SQRT: ubyte = 130;
-const WASM_OPCODE_F32_EQ: ubyte = 131;
-const WASM_OPCODE_F32_NE: ubyte = 132;
-const WASM_OPCODE_F32_LT: ubyte = 133;
-const WASM_OPCODE_F32_LE: ubyte = 134;
-const WASM_OPCODE_F32_GT: ubyte = 135;
-const WASM_OPCODE_F32_GE: ubyte = 136;
-const WASM_OPCODE_F64_ADD: ubyte = 137;
-const WASM_OPCODE_F64_SUB: ubyte = 138;
-const WASM_OPCODE_F64_MUL: ubyte = 139;
-const WASM_OPCODE_F64_DIV: ubyte = 140;
-const WASM_OPCODE_F64_MIN: ubyte = 141;
-const WASM_OPCODE_F64_MAX: ubyte = 142;
-const WASM_OPCODE_F64_ABS: ubyte = 143;
-const WASM_OPCODE_F64_NEG: ubyte = 144;
-const WASM_OPCODE_F64_COPYSIGN: ubyte = 145;
-const WASM_OPCODE_F64_CEIL: ubyte = 146;
-const WASM_OPCODE_F64_FLOOR: ubyte = 147;
-const WASM_OPCODE_F64_TRUNC: ubyte = 148;
-const WASM_OPCODE_F64_NEAREST: ubyte = 149;
-const WASM_OPCODE_F64_SQRT: ubyte = 150;
-const WASM_OPCODE_F64_EQ: ubyte = 151;
-const WASM_OPCODE_F64_NE: ubyte = 152;
-const WASM_OPCODE_F64_LT: ubyte = 153;
-const WASM_OPCODE_F64_LE: ubyte = 154;
-const WASM_OPCODE_F64_GT: ubyte = 155;
-const WASM_OPCODE_F64_GE: ubyte = 156;
-const WASM_OPCODE_I32_TRUNC_S_F32: ubyte = 157;
-const WASM_OPCODE_I32_TRUNC_S_F64: ubyte = 158;
-const WASM_OPCODE_I32_TRUNC_U_F32: ubyte = 159;
-const WASM_OPCODE_I32_TRUNC_U_F64: ubyte = 160;
-const WASM_OPCODE_I32_WRAP_I64: ubyte = 161;
-const WASM_OPCODE_I64_TRUNC_S_F32: ubyte = 162;
-const WASM_OPCODE_I64_TRUNC_S_F64: ubyte = 163;
-const WASM_OPCODE_I64_TRUNC_U_F32: ubyte = 164;
-const WASM_OPCODE_I64_TRUNC_U_F64: ubyte = 165;
-const WASM_OPCODE_I64_EXTEND_S_I32: ubyte = 166;
-const WASM_OPCODE_I64_EXTEND_U_I32: ubyte = 167;
-const WASM_OPCODE_F32_CONVERT_S_I32: ubyte = 168;
-const WASM_OPCODE_F32_CONVERT_U_I32: ubyte = 169;
-const WASM_OPCODE_F32_CONVERT_S_I64: ubyte = 170;
-const WASM_OPCODE_F32_CONVERT_U_I64: ubyte = 171;
-const WASM_OPCODE_F32_DEMOTE_F64: ubyte = 172;
-const WASM_OPCODE_F32_REINTERPRET_I32: ubyte = 173;
-const WASM_OPCODE_F64_CONVERT_S_I32: ubyte = 174;
-const WASM_OPCODE_F64_CONVERT_U_I32: ubyte = 175;
-const WASM_OPCODE_F64_CONVERT_S_I64: ubyte = 176;
-const WASM_OPCODE_F64_CONVERT_U_I64: ubyte = 177;
-const WASM_OPCODE_F64_PROMOTE_F32: ubyte = 178;
-const WASM_OPCODE_F64_REINTERPRET_I64: ubyte = 179;
-const WASM_OPCODE_I32_REINTERPRET_F32: ubyte = 180;
-const WASM_OPCODE_I64_REINTERPRET_F64: ubyte = 181;
+const WASM_OPCODE_I32_ADD: byte = 64;
+const WASM_OPCODE_I32_SUB: byte = 65;
+const WASM_OPCODE_I32_MUL: byte = 66;
+const WASM_OPCODE_I32_DIV_S: byte = 67;
+const WASM_OPCODE_I32_DIV_U: byte = 68;
+const WASM_OPCODE_I32_REM_S: byte = 69;
+const WASM_OPCODE_I32_REM_U: byte = 70;
+const WASM_OPCODE_I32_AND: byte = 71;
+const WASM_OPCODE_I32_OR: byte = 72;
+const WASM_OPCODE_I32_XOR: byte = 73;
+const WASM_OPCODE_I32_SHL: byte = 74;
+const WASM_OPCODE_I32_SHR_U: byte = 75;
+const WASM_OPCODE_I32_SHR_S: byte = 76;
+const WASM_OPCODE_I32_ROTR: byte = 182;
+const WASM_OPCODE_I32_ROTL: byte = 183;
+const WASM_OPCODE_I32_EQ: byte = 77;
+const WASM_OPCODE_I32_NE: byte = 78;
+const WASM_OPCODE_I32_LT_S: byte = 79;
+const WASM_OPCODE_I32_LE_S: byte = 80;
+const WASM_OPCODE_I32_LT_U: byte = 81;
+const WASM_OPCODE_I32_LE_U: byte = 82;
+const WASM_OPCODE_I32_GT_S: byte = 83;
+const WASM_OPCODE_I32_GE_S: byte = 84;
+const WASM_OPCODE_I32_GT_U: byte = 85;
+const WASM_OPCODE_I32_GE_U: byte = 86;
+const WASM_OPCODE_I32_CLZ: byte = 87;
+const WASM_OPCODE_I32_CTZ: byte = 88;
+const WASM_OPCODE_I32_POPCNT: byte = 89;
+const WASM_OPCODE_I32_EQZ: byte = 90;
+const WASM_OPCODE_I64_ADD: byte = 91;
+const WASM_OPCODE_I64_SUB: byte = 92;
+const WASM_OPCODE_I64_MUL: byte = 93;
+const WASM_OPCODE_I64_DIV_S: byte = 94;
+const WASM_OPCODE_I64_DIV_U: byte = 95;
+const WASM_OPCODE_I64_REM_S: byte = 96;
+const WASM_OPCODE_I64_REM_U: byte = 97;
+const WASM_OPCODE_I64_AND: byte = 98;
+const WASM_OPCODE_I64_OR: byte = 99;
+const WASM_OPCODE_I64_XOR: byte = 100;
+const WASM_OPCODE_I64_SHL: byte = 101;
+const WASM_OPCODE_I64_SHR_U: byte = 102;
+const WASM_OPCODE_I64_SHR_S: byte = 103;
+const WASM_OPCODE_I64_ROTR: byte = 184;
+const WASM_OPCODE_I64_ROTL: byte = 185;
+const WASM_OPCODE_I64_EQ: byte = 104;
+const WASM_OPCODE_I64_NE: byte = 105;
+const WASM_OPCODE_I64_LT_S: byte = 106;
+const WASM_OPCODE_I64_LE_S: byte = 107;
+const WASM_OPCODE_I64_LT_U: byte = 108;
+const WASM_OPCODE_I64_LE_U: byte = 109;
+const WASM_OPCODE_I64_GT_S: byte = 110;
+const WASM_OPCODE_I64_GE_S: byte = 111;
+const WASM_OPCODE_I64_GT_U: byte = 112;
+const WASM_OPCODE_I64_GE_U: byte = 113;
+const WASM_OPCODE_I64_CLZ: byte = 114;
+const WASM_OPCODE_I64_CTZ: byte = 115;
+const WASM_OPCODE_I64_POPCNT: byte = 116;
+const WASM_OPCODE_I64_EQZ: byte = 186;
+const WASM_OPCODE_F32_ADD: byte = 117;
+const WASM_OPCODE_F32_SUB: byte = 118;
+const WASM_OPCODE_F32_MUL: byte = 119;
+const WASM_OPCODE_F32_DIV: byte = 120;
+const WASM_OPCODE_F32_MIN: byte = 121;
+const WASM_OPCODE_F32_MAX: byte = 122;
+const WASM_OPCODE_F32_ABS: byte = 123;
+const WASM_OPCODE_F32_NEG: byte = 124;
+const WASM_OPCODE_F32_COPYSIGN: byte = 125;
+const WASM_OPCODE_F32_CEIL: byte = 126;
+const WASM_OPCODE_F32_FLOOR: byte = 127;
+const WASM_OPCODE_F32_TRUNC: byte = 128;
+const WASM_OPCODE_F32_NEAREST: byte = 129;
+const WASM_OPCODE_F32_SQRT: byte = 130;
+const WASM_OPCODE_F32_EQ: byte = 131;
+const WASM_OPCODE_F32_NE: byte = 132;
+const WASM_OPCODE_F32_LT: byte = 133;
+const WASM_OPCODE_F32_LE: byte = 134;
+const WASM_OPCODE_F32_GT: byte = 135;
+const WASM_OPCODE_F32_GE: byte = 136;
+const WASM_OPCODE_F64_ADD: byte = 137;
+const WASM_OPCODE_F64_SUB: byte = 138;
+const WASM_OPCODE_F64_MUL: byte = 139;
+const WASM_OPCODE_F64_DIV: byte = 140;
+const WASM_OPCODE_F64_MIN: byte = 141;
+const WASM_OPCODE_F64_MAX: byte = 142;
+const WASM_OPCODE_F64_ABS: byte = 143;
+const WASM_OPCODE_F64_NEG: byte = 144;
+const WASM_OPCODE_F64_COPYSIGN: byte = 145;
+const WASM_OPCODE_F64_CEIL: byte = 146;
+const WASM_OPCODE_F64_FLOOR: byte = 147;
+const WASM_OPCODE_F64_TRUNC: byte = 148;
+const WASM_OPCODE_F64_NEAREST: byte = 149;
+const WASM_OPCODE_F64_SQRT: byte = 150;
+const WASM_OPCODE_F64_EQ: byte = 151;
+const WASM_OPCODE_F64_NE: byte = 152;
+const WASM_OPCODE_F64_LT: byte = 153;
+const WASM_OPCODE_F64_LE: byte = 154;
+const WASM_OPCODE_F64_GT: byte = 155;
+const WASM_OPCODE_F64_GE: byte = 156;
+const WASM_OPCODE_I32_TRUNC_S_F32: byte = 157;
+const WASM_OPCODE_I32_TRUNC_S_F64: byte = 158;
+const WASM_OPCODE_I32_TRUNC_U_F32: byte = 159;
+const WASM_OPCODE_I32_TRUNC_U_F64: byte = 160;
+const WASM_OPCODE_I32_WRAP_I64: byte = 161;
+const WASM_OPCODE_I64_TRUNC_S_F32: byte = 162;
+const WASM_OPCODE_I64_TRUNC_S_F64: byte = 163;
+const WASM_OPCODE_I64_TRUNC_U_F32: byte = 164;
+const WASM_OPCODE_I64_TRUNC_U_F64: byte = 165;
+const WASM_OPCODE_I64_EXTEND_S_I32: byte = 166;
+const WASM_OPCODE_I64_EXTEND_U_I32: byte = 167;
+const WASM_OPCODE_F32_CONVERT_S_I32: byte = 168;
+const WASM_OPCODE_F32_CONVERT_U_I32: byte = 169;
+const WASM_OPCODE_F32_CONVERT_S_I64: byte = 170;
+const WASM_OPCODE_F32_CONVERT_U_I64: byte = 171;
+const WASM_OPCODE_F32_DEMOTE_F64: byte = 172;
+const WASM_OPCODE_F32_REINTERPRET_I32: byte = 173;
+const WASM_OPCODE_F64_CONVERT_S_I32: byte = 174;
+const WASM_OPCODE_F64_CONVERT_U_I32: byte = 175;
+const WASM_OPCODE_F64_CONVERT_S_I64: byte = 176;
+const WASM_OPCODE_F64_CONVERT_U_I64: byte = 177;
+const WASM_OPCODE_F64_PROMOTE_F32: byte = 178;
+const WASM_OPCODE_F64_REINTERPRET_I64: byte = 179;
+const WASM_OPCODE_I32_REINTERPRET_F32: byte = 180;
+const WASM_OPCODE_I64_REINTERPRET_F64: byte = 181;
 
 const WASM_MAGIC = '\0' | 'a' << 8 | 's' << 16 | 'm' << 24;
 const WASM_VERSION = 10;
@@ -5275,8 +5275,8 @@ class WasmModule {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -5289,11 +5289,11 @@ class WasmModule {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -5310,7 +5310,7 @@ class WasmModule {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -5327,7 +5327,7 @@ class WasmModule {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -5403,7 +5403,7 @@ class WasmModule {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -5849,13 +5849,13 @@ function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValu
   var current = value as uint;
   var max = maxValue as uint;
   while (true) {
-    var byte = current & 127;
+    var element = current & 127;
     current = current >> 7;
     max = max >> 7;
     if (max != 0) {
-      byte = byte | 128;
+      element = element | 128;
     }
-    array.set(offset, byte as ubyte);
+    array.set(offset, element as byte);
     offset = offset + 1;
     if (max == 0) {
       break;
@@ -5866,12 +5866,12 @@ function wasmPatchVarUnsigned(array: ByteArray, offset: int, value: int, maxValu
 function wasmWriteVarUnsigned(array: ByteArray, value: int): void {
   var current = value as uint;
   while (true) {
-    var byte = current & 127;
+    var element = current & 127;
     current = current >> 7;
     if (current != 0) {
-      byte = byte | 128;
+      element = element | 128;
     }
-    array.append(byte as ubyte);
+    array.append(element as byte);
     if (current == 0) {
       break;
     }
@@ -5880,15 +5880,15 @@ function wasmWriteVarUnsigned(array: ByteArray, value: int): void {
 
 function wasmWriteVarSigned(array: ByteArray, value: int): void {
   while (true) {
-    var byte = value & 127;
+    var element = value & 127;
     value = value >> 7;
     var done =
-      value == 0 && (byte & 64) == 0 ||
-      value == -1 && (byte & 64) != 0;
+      value == 0 && (element & 64) == 0 ||
+      value == -1 && (element & 64) != 0;
     if (!done) {
-      byte = byte | 128;
+      element = element | 128;
     }
-    array.append(byte as ubyte);
+    array.append(element as byte);
     if (done) {
       break;
     }
@@ -5900,7 +5900,7 @@ function wasmWriteLengthPrefixedString(array: ByteArray, value: String): void {
   wasmWriteVarUnsigned(array, length);
   var i = 0;
   while (i < length) {
-    array.append(String_get(value, i) as ubyte);
+    array.append(String_get(value, i) as byte);
     i = i + 1;
   }
 }
@@ -10281,8 +10281,8 @@ class WasmModule2 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -10295,11 +10295,11 @@ class WasmModule2 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -10316,7 +10316,7 @@ class WasmModule2 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -10333,7 +10333,7 @@ class WasmModule2 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -10409,7 +10409,7 @@ class WasmModule2 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -11089,8 +11089,8 @@ class WasmModule3 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -11103,11 +11103,11 @@ class WasmModule3 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -11124,7 +11124,7 @@ class WasmModule3 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -11141,7 +11141,7 @@ class WasmModule3 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -11217,7 +11217,7 @@ class WasmModule3 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -11898,8 +11898,8 @@ class WasmModule4 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -11912,11 +11912,11 @@ class WasmModule4 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -11933,7 +11933,7 @@ class WasmModule4 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -11950,7 +11950,7 @@ class WasmModule4 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -12026,7 +12026,7 @@ class WasmModule4 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -12706,8 +12706,8 @@ class WasmModule5 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -12720,11 +12720,11 @@ class WasmModule5 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -12741,7 +12741,7 @@ class WasmModule5 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -12758,7 +12758,7 @@ class WasmModule5 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -12834,7 +12834,7 @@ class WasmModule5 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -13514,8 +13514,8 @@ class WasmModule6 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -13528,11 +13528,11 @@ class WasmModule6 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -13549,7 +13549,7 @@ class WasmModule6 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -13564,9 +13564,9 @@ class WasmModule6 {
         var value = symbol.node.variableValue().intValue;
         var memoryInitializer = this.memoryInitializer;
 
-        // Copy the inital value into the memory initializer
+        // Copy the initial value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -13642,7 +13642,7 @@ class WasmModule6 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -14322,8 +14322,8 @@ class WasmModule7 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -14336,11 +14336,11 @@ class WasmModule7 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -14357,7 +14357,7 @@ class WasmModule7 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -14374,7 +14374,7 @@ class WasmModule7 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -14450,7 +14450,7 @@ class WasmModule7 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -15130,8 +15130,8 @@ class WasmModule8 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -15144,11 +15144,11 @@ class WasmModule8 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -15165,7 +15165,7 @@ class WasmModule8 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -15182,7 +15182,7 @@ class WasmModule8 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -15258,7 +15258,7 @@ class WasmModule8 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -15938,8 +15938,8 @@ class WasmModule9 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -15952,11 +15952,11 @@ class WasmModule9 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -15973,7 +15973,7 @@ class WasmModule9 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -15990,7 +15990,7 @@ class WasmModule9 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -16066,7 +16066,7 @@ class WasmModule9 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
@@ -16746,8 +16746,8 @@ class WasmModule10 {
   emitDataSegments(array: ByteArray): void {
     this.growMemoryInitializer();
     var memoryInitializer = this.memoryInitializer;
-    var initalizerLength = memoryInitializer.length();
-    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initalizerLength, 8);
+    var initializerLength = memoryInitializer.length();
+    var initialHeapPointer = alignToNextMultipleOf(WASM_MEMORY_INITIALIZER_BASE + initializerLength, 8);
 
     // Pass the initial heap pointer to the "malloc" function
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
@@ -16760,11 +16760,11 @@ class WasmModule10 {
 
     // Emit the range of the memory initializer
     wasmWriteVarUnsigned(array, WASM_MEMORY_INITIALIZER_BASE);
-    wasmWriteVarUnsigned(array, initalizerLength);
+    wasmWriteVarUnsigned(array, initializerLength);
 
     // Copy the entire memory initializer (also includes zero-initialized data for now)
     var i = 0;
-    while (i < initalizerLength) {
+    while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
     }
@@ -16781,7 +16781,7 @@ class WasmModule10 {
       var memoryInitializer = this.memoryInitializer;
       var i = 0;
       while (i < length) {
-        memoryInitializer.set(offset + i, String_get(text, i) as ubyte);
+        memoryInitializer.set(offset + i, String_get(text, i) as byte);
         i = i + 1;
       }
       memoryInitializer.set(offset + length, 0);
@@ -16798,7 +16798,7 @@ class WasmModule10 {
 
         // Copy the inital value into the memory initializer
         this.growMemoryInitializer();
-        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as ubyte);
+        if (sizeOf == 1) memoryInitializer.set(symbol.offset, value as byte);
         else if (sizeOf == 2) ByteArray_set16(memoryInitializer, symbol.offset, value);
         else if (sizeOf == 4) ByteArray_set32(memoryInitializer, symbol.offset, value);
         else assert(false);
@@ -16874,7 +16874,7 @@ class WasmModule10 {
     }
   }
 
-  emitBinaryExpression(array: ByteArray, node: Node, opcode: ubyte): void {
+  emitBinaryExpression(array: ByteArray, node: Node, opcode: byte): void {
     array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
