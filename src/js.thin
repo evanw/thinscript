@@ -163,7 +163,7 @@ class JsResult {
 
       else {
         // Sign-extend
-        if (type == context.byteType || type == context.shortType) {
+        if (type == context.sbyteType || type == context.shortType) {
           if (parentPrecedence > Precedence.SHIFT) {
             code.appendChar('(');
           }
@@ -181,7 +181,7 @@ class JsResult {
         }
 
         // Mask
-        else if (type == context.ubyteType || type == context.ushortType) {
+        else if (type == context.byteType || type == context.ushortType) {
           if (parentPrecedence > Precedence.BITWISE_AND) {
             code.appendChar('(');
           }

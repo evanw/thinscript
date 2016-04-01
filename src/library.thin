@@ -2,7 +2,7 @@ function library(): string {
   return `
 #if WASM
   // Cast to these to read from and write to arbitrary locations in memory
-  unsafe class UBytePtr { value: ubyte; }
+  unsafe class BytePtr { value: byte; }
   unsafe class UShortPtr { value: ushort; }
   unsafe class UIntPtr { value: uint; }
 

@@ -136,7 +136,7 @@ class CResult {
     }
 
     else if (node.kind == NodeKind.BOOL) {
-      code.appendChar(node.intValue != 0 ? '1' as ubyte : '0' as ubyte);
+      code.appendChar(node.intValue != 0 ? '1' as byte : '0' as byte);
     }
 
     else if (node.kind == NodeKind.INT) {
@@ -255,8 +255,8 @@ class CResult {
       code.append("struct ");
     }
 
-    if (type == context.boolType || type == context.ubyteType) code.append("uint8_t");
-    else if (type == context.byteType) code.append("int8_t");
+    if (type == context.boolType || type == context.byteType) code.append("uint8_t");
+    else if (type == context.sbyteType) code.append("int8_t");
     else if (type == context.intType) code.append("int32_t");
     else if (type == context.shortType) code.append("int16_t");
     else if (type == context.stringType) code.append("const char");

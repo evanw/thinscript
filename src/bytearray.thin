@@ -1,20 +1,20 @@
 function ByteArray_set16(array: ByteArray, index: int, value: int): void {
-  array.set(index, value as ubyte);
-  array.set(index + 1, (value >> 8) as ubyte);
+  array.set(index, value as byte);
+  array.set(index + 1, (value >> 8) as byte);
 }
 
 function ByteArray_set32(array: ByteArray, index: int, value: int): void {
-  array.set(index, value as ubyte);
-  array.set(index + 1, (value >> 8) as ubyte);
-  array.set(index + 2, (value >> 16) as ubyte);
-  array.set(index + 3, (value >> 24) as ubyte);
+  array.set(index, value as byte);
+  array.set(index + 1, (value >> 8) as byte);
+  array.set(index + 2, (value >> 16) as byte);
+  array.set(index + 3, (value >> 24) as byte);
 }
 
 function ByteArray_append32(array: ByteArray, value: int): void {
-  array.append(value as ubyte);
-  array.append((value >> 8) as ubyte);
-  array.append((value >> 16) as ubyte);
-  array.append((value >> 24) as ubyte);
+  array.append(value as byte);
+  array.append((value >> 8) as byte);
+  array.append((value >> 16) as byte);
+  array.append((value >> 24) as byte);
 }
 
 #if JS ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +25,8 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     length: int;
     set(source: Uint8Array): void;
     subarray(start: int, end: int): Uint8Array;
-    operator [] (index: int): ubyte;
-    operator []= (index: int, value: ubyte): void;
+    operator [] (index: int): byte;
+    operator []= (index: int, value: byte): void;
   }
 
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
@@ -35,7 +35,7 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     var data = array._data;
     var i = 0;
     while (i < length) {
-      data[index + i] = string_get(text, i) as ubyte;
+      data[index + i] = string_get(text, i) as byte;
       i = i + 1;
     }
   }
@@ -52,17 +52,17 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       this._length = 0;
     }
 
-    get(index: int): ubyte {
+    get(index: int): byte {
       assert((index as uint) < (this._length as uint));
       return this._data[index];
     }
 
-    set(index: int, value: ubyte): void {
+    set(index: int, value: byte): void {
       assert((index as uint) < (this._length as uint));
       this._data[index] = value;
     }
 
-    append(value: ubyte): void {
+    append(value: byte): void {
       var index = this._length;
       this.resize(index + 1);
       this._data[index] = value;
@@ -108,25 +108,25 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       this._length = 0;
     }
 
-    get(index: int): ubyte {
+    get(index: int): byte {
       assert((index as uint) < this._length);
       unsafe {
-        return ((this._data as int + index) as UBytePtr).value;
+        return ((this._data as int + index) as BytePtr).value;
       }
     }
 
-    set(index: int, value: ubyte): void {
+    set(index: int, value: byte): void {
       assert((index as uint) < this._length);
       unsafe {
-        ((this._data as int + index) as UBytePtr).value = value;
+        ((this._data as int + index) as BytePtr).value = value;
       }
     }
 
-    append(value: ubyte): void {
+    append(value: byte): void {
       var offset = this._length;
       unsafe {
         this.resize(offset as int + 1);
-        ((this._data + offset) as UBytePtr).value = value;
+        ((this._data + offset) as BytePtr).value = value;
       }
     }
 
@@ -152,9 +152,9 @@ function ByteArray_append32(array: ByteArray, value: int): void {
   declare class ByteArray {
     length(): int;
     clear(): void;
-    get(index: int): ubyte;
-    set(index: int, value: ubyte): void;
-    append(value: ubyte): void;
+    get(index: int): byte;
+    set(index: int, value: byte): void;
+    append(value: byte): void;
     resize(length: int): void;
   }
 

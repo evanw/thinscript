@@ -165,7 +165,7 @@ extern function Compiler_log(compiler: Compiler): string {
     if (length >= 16 && source % 4 == target % 4) {
       // Pick off the beginning
       while (target % 4 != 0) {
-        (target as UBytePtr).value = (source as UBytePtr).value;
+        (target as BytePtr).value = (source as BytePtr).value;
         target = target + 1;
         source = source + 1;
         length = length - 1;
@@ -174,7 +174,7 @@ extern function Compiler_log(compiler: Compiler): string {
       // Pick off the end
       while (length % 4 != 0) {
         length = length - 1;
-        ((target + length) as UBytePtr).value = ((source + length) as UBytePtr).value;
+        ((target + length) as BytePtr).value = ((source + length) as BytePtr).value;
       }
 
       // Zip over the middle
@@ -190,7 +190,7 @@ extern function Compiler_log(compiler: Compiler): string {
     else {
       var end = target + length;
       while (target < end) {
-        (target as UBytePtr).value = (source as UBytePtr).value;
+        (target as BytePtr).value = (source as BytePtr).value;
         target = target + 1;
         source = source + 1;
       }

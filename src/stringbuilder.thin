@@ -46,7 +46,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
 
-  declare function StringBuilder_appendChar(a: string, b: ubyte): string;
+  declare function StringBuilder_appendChar(a: string, b: byte): string;
   declare function StringBuilder_append(a: string, b: string): string;
 
   class StringBuilder {
@@ -57,7 +57,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       this._text = "";
     }
 
-    appendChar(c: ubyte): StringBuilder {
+    appendChar(c: byte): StringBuilder {
       this._text = StringBuilder_appendChar(this._text, c);
       return this;
     }
@@ -99,7 +99,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   function string_get(text: string, index: int): int {
     assert(index as uint < string_length(text) as uint);
     unsafe {
-      return ((text as int + index + 4) as UBytePtr).value;
+      return ((text as int + index + 4) as BytePtr).value;
     }
   }
 
@@ -129,7 +129,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       // Compare trailing 8-bit values
       an = ai + length % 4;
       while (ai < an) {
-        if ((ai as UBytePtr).value != (bi as UBytePtr).value) {
+        if ((ai as BytePtr).value != (bi as BytePtr).value) {
           return false;
         }
         ai = ai + 1;
@@ -187,12 +187,12 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       (ptr as UIntPtr).value = length;
 
       if (sign) {
-        ((ptr + 4) as UBytePtr).value = '-';
+        ((ptr + 4) as BytePtr).value = '-';
       }
 
       while (value != 0) {
         end = end - 1;
-        (end as UBytePtr).value = (value % 10 + '0') as ubyte;
+        (end as BytePtr).value = (value % 10 + '0') as byte;
         value = value / 10;
       }
 
@@ -214,7 +214,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       }
     }
 
-    appendChar(c: ubyte): StringBuilder {
+    appendChar(c: byte): StringBuilder {
       this._bytes.append(c);
       return this;
     }
@@ -261,7 +261,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   declare class StringBuilder {
     next: StringBuilder;
     clear(): void;
-    appendChar(c: ubyte): StringBuilder;
+    appendChar(c: byte): StringBuilder;
     appendSlice(text: string, start: int, end: int): StringBuilder;
     append(text: string): StringBuilder;
     finish(): string;

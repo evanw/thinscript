@@ -7,13 +7,13 @@ class CheckContext {
 
   // Native types
   boolType: Type;
-  byteType: Type;
+  sbyteType: Type;
   errorType: Type;
   intType: Type;
   nullType: Type;
   shortType: Type;
   stringType: Type;
-  ubyteType: Type;
+  byteType: Type;
   uintType: Type;
   ushortType: Type;
   voidType: Type;
@@ -73,10 +73,10 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     context.voidType = parentScope.defineNativeType(context.log, "void", 0);
 
     // Native integer types
-    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, false);
+    context.sbyteType = parentScope.defineNativeIntegerType(context.log, "sbyte", 1, false);
     context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
     context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
-    context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", 1, true);
+    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, true);
     context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
     context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
   }

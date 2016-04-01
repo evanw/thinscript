@@ -403,11 +403,11 @@
       code.append("struct ");
     }
 
-    if (type === context.boolType || type === context.ubyteType) {
+    if (type === context.boolType || type === context.byteType) {
       code.append("uint8_t");
     }
 
-    else if (type === context.byteType) {
+    else if (type === context.sbyteType) {
       code.append("int8_t");
     }
 
@@ -774,13 +774,13 @@
     this.currentReturnType = null;
     this.nextGlobalVariableOffset = 0;
     this.boolType = null;
-    this.byteType = null;
+    this.sbyteType = null;
     this.errorType = null;
     this.intType = null;
     this.nullType = null;
     this.shortType = null;
     this.stringType = null;
-    this.ubyteType = null;
+    this.byteType = null;
     this.uintType = null;
     this.ushortType = null;
     this.voidType = null;
@@ -833,10 +833,10 @@
       context.nullType = parentScope.defineNativeType(context.log, "null", 0);
       context.stringType = parentScope.defineNativeType(context.log, "string", 4);
       context.voidType = parentScope.defineNativeType(context.log, "void", 0);
-      context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, false);
+      context.sbyteType = parentScope.defineNativeIntegerType(context.log, "sbyte", 1, false);
       context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
       context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
-      context.ubyteType = parentScope.defineNativeIntegerType(context.log, "ubyte", 1, true);
+      context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, true);
       context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
       context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
     }
@@ -2205,7 +2205,7 @@
         this.emitExpression(value, parentPrecedence);
       }
 
-      else if (type === context.byteType || type === context.shortType) {
+      else if (type === context.sbyteType || type === context.shortType) {
         if (parentPrecedence > 9) {
           code.appendChar(40);
         }
@@ -2222,7 +2222,7 @@
         }
       }
 
-      else if (type === context.ubyteType || type === context.ushortType) {
+      else if (type === context.byteType || type === context.ushortType) {
         if (parentPrecedence > 6) {
           code.appendChar(40);
         }
@@ -3725,7 +3725,7 @@
   }
 
   function library() {
-    return "\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class UBytePtr { value: ubyte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
+    return "\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
   }
 
   function LineColumn() {
@@ -7454,7 +7454,7 @@
         this.emitNode(array, value);
       }
 
-      else if (type === context.byteType || type === context.shortType) {
+      else if (type === context.sbyteType || type === context.shortType) {
         var shift = 32 - (type.symbol.byteSize << 3) | 0;
         array.append(76);
         array.append(74);
@@ -7465,7 +7465,7 @@
         wasmWriteVarSigned(array, shift);
       }
 
-      else if (type === context.ubyteType || type === context.ushortType) {
+      else if (type === context.byteType || type === context.ushortType) {
         array.append(71);
         this.emitNode(array, value);
         array.append(10);
@@ -7624,15 +7624,15 @@
     var max = maxValue >>> 0;
 
     while (true) {
-      var byte = current & 127;
+      var element = current & 127;
       current = current >>> 7;
       max = max >>> 7;
 
       if (max !== 0) {
-        byte = byte | 128;
+        element = element | 128;
       }
 
-      array.set(offset, byte & 255);
+      array.set(offset, element & 255);
       offset = offset + 1 | 0;
 
       if (max === 0) {
@@ -7645,14 +7645,14 @@
     var current = value >>> 0;
 
     while (true) {
-      var byte = current & 127;
+      var element = current & 127;
       current = current >>> 7;
 
       if (current !== 0) {
-        byte = byte | 128;
+        element = element | 128;
       }
 
-      array.append(byte & 255);
+      array.append(element & 255);
 
       if (current === 0) {
         break;
@@ -7662,15 +7662,15 @@
 
   function wasmWriteVarSigned(array, value) {
     while (true) {
-      var byte = value & 127;
+      var element = value & 127;
       value = value >> 7;
-      var done = value === 0 && (byte & 64) === 0 || value === -1 && (byte & 64) !== 0;
+      var done = value === 0 && (element & 64) === 0 || value === -1 && (element & 64) !== 0;
 
       if (!done) {
-        byte = byte | 128;
+        element = element | 128;
       }
 
-      array.append(byte & 255);
+      array.append(element & 255);
 
       if (done) {
         break;
