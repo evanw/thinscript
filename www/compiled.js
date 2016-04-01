@@ -770,6 +770,7 @@
   function CheckContext() {
     this.log = null;
     this.isUnsafeAllowed = false;
+    this.enclosingClass = null;
     this.currentReturnType = null;
     this.nextGlobalVariableOffset = 0;
     this.boolType = null;
@@ -925,18 +926,20 @@
     var node = symbol.node;
     forbidFlag(context, node, 2, "Unsupported flag 'export'");
     forbidFlag(context, node, 8, "Unsupported flag 'get'");
-    forbidFlag(context, node, 16, "Unsupported flag 'private'");
     forbidFlag(context, node, 32, "Unsupported flag 'protected'");
-    forbidFlag(context, node, 64, "Unsupported flag 'public'");
     forbidFlag(context, node, 128, "Unsupported flag 'set'");
     forbidFlag(context, node, 256, "Unsupported flag 'static'");
 
     if (symbol.kind === 0) {
+      forbidFlag(context, node, 64, "Cannot use 'public' on a class");
+      forbidFlag(context, node, 16, "Cannot use 'private' on a class");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
     }
 
     else if (symbol.kind === 1) {
+      forbidFlag(context, node, 64, "Cannot use 'public' on an enum");
+      forbidFlag(context, node, 16, "Cannot use 'private' on an enum");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
       var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
@@ -948,6 +951,12 @@
       var body = node.functionBody();
       var returnType = node.functionReturnType();
       resolveAsType(context, returnType, symbol.scope.parent);
+
+      if (symbol.kind !== 4) {
+        forbidFlag(context, node, 64, "Cannot use 'public' here");
+        forbidFlag(context, node, 16, "Cannot use 'private' here");
+      }
+
       var offset = 0;
       var child = node.firstChild;
 
@@ -993,6 +1002,11 @@
     else if (isVariable(symbol.kind)) {
       var type = node.variableType();
       var value = node.variableValue();
+
+      if (symbol.kind !== 9) {
+        forbidFlag(context, node, 64, "Cannot use 'public' here");
+        forbidFlag(context, node, 16, "Cannot use 'private' here");
+      }
 
       if (type !== null) {
         resolveAsType(context, type, symbol.scope);
@@ -1242,6 +1256,16 @@
       return false;
     }
 
+    if (symbol.node !== null && symbol.node.isPrivate()) {
+      var parent = symbol.parent();
+
+      if (parent !== null && context.enclosingClass !== parent) {
+        context.log.error(range, StringBuilder_new().append("Cannot access private symbol '").append(symbol.name).append("' here").finish());
+
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -1259,9 +1283,12 @@
     }
 
     else if (node.kind === 4) {
+      var oldEnclosingClass = context.enclosingClass;
       initializeSymbol(context, node.symbol);
+      context.enclosingClass = node.symbol;
       resolveChildren(context, node, node.scope);
       node.symbol.determineClassLayout(context);
+      context.enclosingClass = oldEnclosingClass;
     }
 
     else if (node.kind === 8) {
@@ -4010,6 +4037,10 @@
 
   Node.prototype.isExtern = function() {
     return (this.flags & 4) !== 0;
+  };
+
+  Node.prototype.isPrivate = function() {
+    return (this.flags & 16) !== 0;
   };
 
   Node.prototype.isUnsafe = function() {

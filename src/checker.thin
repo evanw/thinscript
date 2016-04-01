@@ -1,6 +1,7 @@
 class CheckContext {
   log: Log;
   isUnsafeAllowed: bool;
+  enclosingClass: Symbol;
   currentReturnType: Type;
   nextGlobalVariableOffset: int;
 
@@ -177,20 +178,22 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   var node = symbol.node;
   forbidFlag(context, node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
   forbidFlag(context, node, NODE_FLAG_GET, "Unsupported flag 'get'");
-  forbidFlag(context, node, NODE_FLAG_PRIVATE, "Unsupported flag 'private'");
   forbidFlag(context, node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
-  forbidFlag(context, node, NODE_FLAG_PUBLIC, "Unsupported flag 'public'");
   forbidFlag(context, node, NODE_FLAG_SET, "Unsupported flag 'set'");
   forbidFlag(context, node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class
   if (symbol.kind == SymbolKind.TYPE_CLASS) {
+    forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' on a class");
+    forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' on a class");
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
   }
 
   // Enum
   else if (symbol.kind == SymbolKind.TYPE_ENUM) {
+    forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' on an enum");
+    forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' on an enum");
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
@@ -203,6 +206,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     var body = node.functionBody();
     var returnType = node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
+
+    if (symbol.kind != SymbolKind.FUNCTION_INSTANCE) {
+      forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' here");
+      forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' here");
+    }
 
     var offset = 0;
     var child = node.firstChild;
@@ -253,6 +261,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   else if (isVariable(symbol.kind)) {
     var type = node.variableType();
     var value = node.variableValue();
+
+    if (symbol.kind != SymbolKind.VARIABLE_INSTANCE) {
+      forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' here");
+      forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' here");
+    }
 
     if (type != null) {
       resolveAsType(context, type, symbol.scope);
@@ -541,6 +554,19 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Ran
     return false;
   }
 
+  if (symbol.node != null && symbol.node.isPrivate()) {
+    var parent = symbol.parent();
+
+    if (parent != null && context.enclosingClass != parent) {
+      context.log.error(range, StringBuilder_new()
+        .append("Cannot access private symbol '")
+        .append(symbol.name)
+        .append("' here")
+        .finish());
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -558,9 +584,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.CLASS) {
+    var oldEnclosingClass = context.enclosingClass;
     initializeSymbol(context, node.symbol);
+    context.enclosingClass = node.symbol;
     resolveChildren(context, node, node.scope);
     node.symbol.determineClassLayout(context);
+    context.enclosingClass = oldEnclosingClass;
   }
 
   else if (node.kind == NodeKind.ENUM) {

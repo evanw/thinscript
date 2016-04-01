@@ -181,6 +181,10 @@ class Node {
     return (this.flags & NODE_FLAG_EXTERN) != 0;
   }
 
+  isPrivate(): bool {
+    return (this.flags & NODE_FLAG_PRIVATE) != 0;
+  }
+
   isUnsafe(): bool {
     return (this.flags & NODE_FLAG_UNSAFE) != 0;
   }
