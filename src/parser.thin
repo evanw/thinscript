@@ -11,9 +11,14 @@ enum Precedence {
   SHIFT,
   ADD,
   MULTIPLY,
+  EXPONENT,
   UNARY_PREFIX,
   UNARY_POSTFIX,
   MEMBER,
+}
+
+function isRightAssociative(precedence: Precedence): bool {
+  return precedence == Precedence.ASSIGN || precedence == Precedence.EXPONENT;
 }
 
 enum ParseKind {
@@ -30,6 +35,9 @@ class ParserContext {
   previous: Token;
   current: Token;
   log: Log;
+
+  // This is used to suppress subsequent errors for the same token
+  lastError: Token;
 
   peek(kind: TokenKind): bool {
     return this.current.kind == kind;
@@ -52,32 +60,39 @@ class ParserContext {
   }
 
   unexpectedToken(): void {
-    this.log.error(this.current.range, StringBuilder_new()
-      .append("Unexpected ")
-      .append(tokenToString(this.current.kind))
-      .finish());
+    if (this.lastError != this.current) {
+      this.lastError = this.current;
+      this.log.error(this.current.range, StringBuilder_new()
+        .append("Unexpected ")
+        .append(tokenToString(this.current.kind))
+        .finish());
+    }
   }
 
   expect(kind: TokenKind): bool {
     if (!this.peek(kind)) {
-      var previousLine = this.previous.range.enclosingLine();
-      var currentLine = this.current.range.enclosingLine();
+      if (this.lastError != this.current) {
+        this.lastError = this.current;
 
-      // Show missing token errors on the previous line for clarity
-      if (kind != TokenKind.IDENTIFIER && !previousLine.equals(currentLine)) {
-        this.log.error(previousLine.rangeAtEnd(), StringBuilder_new()
-          .append("Expected ")
-          .append(tokenToString(kind))
-          .finish());
-      }
+        var previousLine = this.previous.range.enclosingLine();
+        var currentLine = this.current.range.enclosingLine();
 
-      else {
-        this.log.error(this.current.range, StringBuilder_new()
-          .append("Expected ")
-          .append(tokenToString(kind))
-          .append(" but found ")
-          .append(tokenToString(this.current.kind))
-          .finish());
+        // Show missing token errors on the previous line for clarity
+        if (kind != TokenKind.IDENTIFIER && !previousLine.equals(currentLine)) {
+          this.log.error(previousLine.rangeAtEnd(), StringBuilder_new()
+            .append("Expected ")
+            .append(tokenToString(kind))
+            .finish());
+        }
+
+        else {
+          this.log.error(this.current.range, StringBuilder_new()
+            .append("Expected ")
+            .append(tokenToString(kind))
+            .append(" but found ")
+            .append(tokenToString(this.current.kind))
+            .finish());
+        }
       }
 
       return false;
@@ -106,17 +121,18 @@ class ParserContext {
       return left;
     }
 
+    var token = this.current;
     this.advance();
 
-    // Reduce the precedence since the assign operator is right-associative
-    var precedence = operatorPrecedence == Precedence.ASSIGN ? Precedence.LOWEST : operatorPrecedence;
+    // Reduce the precedence for right-associative operators
+    var precedence = isRightAssociative(operatorPrecedence) ? (operatorPrecedence as int - 1) as Precedence : operatorPrecedence;
     var right = this.parseExpression(precedence, ParseKind.EXPRESSION);
 
     if (right == null) {
       return null;
     }
 
-    return createBinary(kind, left, right).withRange(spanRanges(left.range, right.range));
+    return createBinary(kind, left, right).withRange(spanRanges(left.range, right.range)).withInternalRange(token.range);
   }
 
   parseUnaryPostfix(kind: NodeKind, value: Node, localPrecedence: Precedence): Node {
@@ -314,6 +330,7 @@ class ParserContext {
       if (this.peek(TokenKind.BITWISE_XOR)) return this.parseBinary(NodeKind.BITWISE_XOR, node, precedence, Precedence.BITWISE_XOR);
       if (this.peek(TokenKind.DIVIDE)) return this.parseBinary(NodeKind.DIVIDE, node, precedence, Precedence.MULTIPLY);
       if (this.peek(TokenKind.EQUAL)) return this.parseBinary(NodeKind.EQUAL, node, precedence, Precedence.EQUAL);
+      if (this.peek(TokenKind.EXPONENT)) return this.parseBinary(NodeKind.EXPONENT, node, precedence, Precedence.EXPONENT);
       if (this.peek(TokenKind.GREATER_THAN)) return this.parseBinary(NodeKind.GREATER_THAN, node, precedence, Precedence.COMPARE);
       if (this.peek(TokenKind.GREATER_THAN_EQUAL)) return this.parseBinary(NodeKind.GREATER_THAN_EQUAL, node, precedence, Precedence.COMPARE);
       if (this.peek(TokenKind.LESS_THAN)) return this.parseBinary(NodeKind.LESS_THAN, node, precedence, Precedence.COMPARE);
@@ -757,6 +774,7 @@ class ParserContext {
           this.eat(TokenKind.COMPLEMENT) ||
           this.eat(TokenKind.DIVIDE) ||
           this.eat(TokenKind.EQUAL) ||
+          this.eat(TokenKind.EXPONENT) ||
           this.eat(TokenKind.LESS_THAN) ||
           this.eat(TokenKind.MINUS) ||
           this.eat(TokenKind.MINUS_MINUS) ||

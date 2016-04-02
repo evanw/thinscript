@@ -18,6 +18,7 @@ enum TokenKind {
   DIVIDE,
   DOT,
   EQUAL,
+  EXPONENT,
   GREATER_THAN,
   GREATER_THAN_EQUAL,
   LEFT_BRACE,
@@ -121,6 +122,7 @@ function tokenToString(token: TokenKind): string {
   if (token == TokenKind.DIVIDE) return "'/'";
   if (token == TokenKind.DOT) return "'.'";
   if (token == TokenKind.EQUAL) return "'=='";
+  if (token == TokenKind.EXPONENT) return "'**'";
   if (token == TokenKind.GREATER_THAN) return "'>'";
   if (token == TokenKind.GREATER_THAN_EQUAL) return "'>='";
   if (token == TokenKind.LEFT_BRACE) return "'{'";
@@ -396,7 +398,6 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '%') kind = TokenKind.REMAINDER;
     else if (c == '(') kind = TokenKind.LEFT_PARENTHESIS;
     else if (c == ')') kind = TokenKind.RIGHT_PARENTHESIS;
-    else if (c == '*') kind = TokenKind.MULTIPLY;
     else if (c == ',') kind = TokenKind.COMMA;
     else if (c == '.') kind = TokenKind.DOT;
     else if (c == ':') kind = TokenKind.COLON;
@@ -408,6 +409,16 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '{') kind = TokenKind.LEFT_BRACE;
     else if (c == '}') kind = TokenKind.RIGHT_BRACE;
     else if (c == '~') kind = TokenKind.COMPLEMENT;
+
+    // * or **
+    else if (c == '*') {
+      kind = TokenKind.MULTIPLY;
+
+      if (i < limit && string_get(contents, i) == '*') {
+        kind = TokenKind.EXPONENT;
+        i = i + 1;
+      }
+    }
 
     // / or // or /*
     else if (c == '/') {

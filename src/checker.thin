@@ -1187,6 +1187,23 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
+  else if (node.kind == NodeKind.EXPONENT) {
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
+
+    if (left.resolvedType != context.errorType) {
+      context.log.error(node.internalRange,
+        StringBuilder_new()
+        .append("No operator '**' on type '")
+        .append(left.resolvedType.toString())
+        .appendChar('\'')
+        .finish());
+    }
+  }
+
   else if (
       node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
       node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
