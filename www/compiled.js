@@ -855,9 +855,28 @@
       var symbol = new Symbol();
       symbol.kind = node.parent.kind === 4 ? 4 : 5;
       symbol.name = node.stringValue;
+
+      if (node.isOperator()) {
+        if (__declare.string_equals(symbol.name, "+") || __declare.string_equals(symbol.name, "-")) {
+          if (node.firstChild === node.functionReturnType()) {
+            symbol.flags = 4;
+            symbol.rename = __declare.string_equals(symbol.name, "+") ? "op_positive" : "op_negative";
+          }
+
+          else {
+            symbol.flags = 2;
+            symbol.rename = __declare.string_equals(symbol.name, "+") ? "op_add" : "op_subtract";
+          }
+        }
+
+        else {
+          symbol.rename = __declare.string_equals(symbol.name, "~") ? "op_complement" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : null;
+        }
+      }
+
       addScopeToSymbol(symbol, parentScope);
       linkSymbolToNode(symbol, node);
-      parentScope.define(context.log, symbol, symbol.isSetter() ? 1 : 0);
+      parentScope.define(context.log, symbol, symbol.isSetter() ? 2 : symbol.isGetter() ? 3 : symbol.isBinaryOperator() ? 4 : symbol.isUnaryOperator() ? 1 : 0);
       parentScope = symbol.scope;
 
       if (symbol.kind === 4) {
@@ -925,23 +944,23 @@
     symbol.state = 1;
     var node = symbol.node;
     forbidFlag(context, node, 2, "Unsupported flag 'export'");
-    forbidFlag(context, node, 32, "Unsupported flag 'protected'");
-    forbidFlag(context, node, 256, "Unsupported flag 'static'");
+    forbidFlag(context, node, 64, "Unsupported flag 'protected'");
+    forbidFlag(context, node, 512, "Unsupported flag 'static'");
 
     if (symbol.kind === 0) {
       forbidFlag(context, node, 8, "Cannot use 'get' on a class");
-      forbidFlag(context, node, 128, "Cannot use 'set' on a class");
-      forbidFlag(context, node, 64, "Cannot use 'public' on a class");
-      forbidFlag(context, node, 16, "Cannot use 'private' on a class");
+      forbidFlag(context, node, 256, "Cannot use 'set' on a class");
+      forbidFlag(context, node, 128, "Cannot use 'public' on a class");
+      forbidFlag(context, node, 32, "Cannot use 'private' on a class");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
     }
 
     else if (symbol.kind === 1) {
       forbidFlag(context, node, 8, "Cannot use 'get' on an enum");
-      forbidFlag(context, node, 128, "Cannot use 'set' on an enum");
-      forbidFlag(context, node, 64, "Cannot use 'public' on an enum");
-      forbidFlag(context, node, 16, "Cannot use 'private' on an enum");
+      forbidFlag(context, node, 256, "Cannot use 'set' on an enum");
+      forbidFlag(context, node, 128, "Cannot use 'public' on an enum");
+      forbidFlag(context, node, 32, "Cannot use 'private' on an enum");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
       var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
@@ -967,13 +986,13 @@
 
       if (symbol.kind !== 4) {
         forbidFlag(context, node, 8, "Cannot use 'get' here");
-        forbidFlag(context, node, 128, "Cannot use 'set' here");
-        forbidFlag(context, node, 64, "Cannot use 'public' here");
-        forbidFlag(context, node, 16, "Cannot use 'private' here");
+        forbidFlag(context, node, 256, "Cannot use 'set' here");
+        forbidFlag(context, node, 128, "Cannot use 'public' here");
+        forbidFlag(context, node, 32, "Cannot use 'private' here");
       }
 
       else if (node.isGet()) {
-        forbidFlag(context, node, 128, "Cannot use both 'get' and 'set'");
+        forbidFlag(context, node, 256, "Cannot use both 'get' and 'set'");
 
         if (argumentCount !== 1) {
           context.log.error(symbol.range, "Getters must not have any arguments");
@@ -989,14 +1008,20 @@
       }
 
       else if (!isAlpha(__declare.string_get(symbol.name, 0))) {
-        if (__declare.string_equals(symbol.name, "~")) {
+        if (__declare.string_equals(symbol.name, "~") || __declare.string_equals(symbol.name, "++") || __declare.string_equals(symbol.name, "--")) {
           if (argumentCount !== 1) {
-            context.log.error(symbol.range, "Operator '~' must not have any arguments");
+            context.log.error(symbol.range, StringBuilder_new().append("Operator '").append(symbol.name).append("' must not have any arguments").finish());
+          }
+        }
+
+        else if (__declare.string_equals(symbol.name, "+") || __declare.string_equals(symbol.name, "-")) {
+          if (argumentCount > 2) {
+            context.log.error(symbol.range, StringBuilder_new().append("Operator '").append(symbol.name).append("' must have at most one argument").finish());
           }
         }
 
         else if (__declare.string_equals(symbol.name, "[]=")) {
-          if (argumentCount === 1) {
+          if (argumentCount < 2) {
             context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
           }
         }
@@ -1037,7 +1062,7 @@
 
         if (shouldConvertInstanceToGlobal) {
           symbol.kind = 5;
-          symbol.flags = symbol.flags | 4;
+          symbol.flags = symbol.flags | 1;
           symbol.rename = StringBuilder_new().append(parent.name).appendChar(95).append(symbol.rename !== null ? symbol.rename : symbol.name).finish();
           __declare.assert(__declare.string_equals(node.firstChild.symbol.name, "this"));
           node.firstChild.symbol.rename = "__this";
@@ -1056,13 +1081,13 @@
 
     else if (isVariable(symbol.kind)) {
       forbidFlag(context, node, 8, "Cannot use 'get' on a variable");
-      forbidFlag(context, node, 128, "Cannot use 'set' on a variable");
+      forbidFlag(context, node, 256, "Cannot use 'set' on a variable");
       var type = node.variableType();
       var value = node.variableValue();
 
       if (symbol.kind !== 9) {
-        forbidFlag(context, node, 64, "Cannot use 'public' here");
-        forbidFlag(context, node, 16, "Cannot use 'private' here");
+        forbidFlag(context, node, 128, "Cannot use 'public' here");
+        forbidFlag(context, node, 32, "Cannot use 'private' here");
       }
 
       if (type !== null) {
@@ -1583,7 +1608,7 @@
           var name = node.stringValue;
 
           if (__declare.string_length(name) > 0) {
-            var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? 2 : 0);
+            var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? 7 : 6);
 
             if (symbol === null) {
               context.log.error(node.internalRange, StringBuilder_new().append("No member named '").append(name).append("' on type '").append(target.resolvedType.toString()).appendChar(39).finish());
@@ -1800,7 +1825,7 @@
       var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
       if (commonType === context.uintType) {
-        node.flags = node.flags | 1024;
+        node.flags = node.flags | 2048;
       }
 
       checkConversion(context, left, commonType, 0);
@@ -1864,17 +1889,6 @@
       }
     }
 
-    else if (node.kind === 47) {
-      var left = node.binaryLeft();
-      var right = node.binaryRight();
-      resolveAsExpression(context, left, parentScope);
-      resolveAsExpression(context, right, parentScope);
-
-      if (left.resolvedType !== context.errorType) {
-        context.log.error(node.internalRange, StringBuilder_new().append("No operator '**' on type '").append(left.resolvedType.toString()).appendChar(39).finish());
-      }
-    }
-
     else if (node.kind === 50 || node.kind === 51 || node.kind === 48 || node.kind === 49) {
       var left = node.binaryLeft();
       var right = node.binaryRight();
@@ -1885,7 +1899,7 @@
       var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
       if (expectedType === context.uintType) {
-        node.flags = node.flags | 1024;
+        node.flags = node.flags | 2048;
       }
 
       checkConversion(context, left, expectedType, 0);
@@ -1940,8 +1954,9 @@
       }
     }
 
-    else if (node.kind === 36 || node.kind === 37 || node.kind === 38 || node.kind === 39) {
-      context.log.error(node.range, "This operator is currently unsupported");
+    else if (node.kind === 47 || node.kind === 36 || node.kind === 37 || node.kind === 38 || node.kind === 39) {
+      resolveChildrenAsExpressions(context, node, parentScope);
+      context.log.error(node.internalRange, "This operator is currently unsupported");
     }
 
     else if (node.kind === 34) {
@@ -2376,7 +2391,8 @@
 
     else if (node.kind === 20) {
       this.emitExpression(node.dotTarget(), 15);
-      this.emitSymbolAccess(node.symbol);
+      code.appendChar(46);
+      this.emitSymbolName(node.symbol);
     }
 
     else if (node.kind === 21) {
@@ -2570,22 +2586,6 @@
     }
   };
 
-  JsResult.prototype.emitSymbolAccess = function(symbol) {
-    var c = __declare.string_get(symbol.name, 0);
-    var code = this.code;
-
-    if (isAlpha(c)) {
-      code.appendChar(46);
-      this.emitSymbolName(symbol);
-    }
-
-    else {
-      code.appendChar(91);
-      StringBuilder_appendQuoted(code, symbol.name);
-      code.appendChar(93);
-    }
-  };
-
   JsResult.prototype.emitSymbolName = function(symbol) {
     this.code.append(symbol.rename !== null ? symbol.rename : symbol.name);
   };
@@ -2607,8 +2607,8 @@
 
       if (symbol.kind === 4) {
         this.emitSymbolName(symbol.parent());
-        code.append(".prototype");
-        this.emitSymbolAccess(symbol);
+        code.append(".prototype.");
+        this.emitSymbolName(symbol);
         code.append(" = function");
         needsSemicolon = true;
       }
@@ -4167,19 +4167,23 @@
   };
 
   Node.prototype.isSet = function() {
-    return (this.flags & 128) !== 0;
+    return (this.flags & 256) !== 0;
   };
 
-  Node.prototype.isPrivate = function() {
+  Node.prototype.isOperator = function() {
     return (this.flags & 16) !== 0;
   };
 
+  Node.prototype.isPrivate = function() {
+    return (this.flags & 32) !== 0;
+  };
+
   Node.prototype.isUnsafe = function() {
-    return (this.flags & 512) !== 0;
+    return (this.flags & 1024) !== 0;
   };
 
   Node.prototype.isUnsignedOperator = function() {
-    return (this.flags & 1024) !== 0;
+    return (this.flags & 2048) !== 0;
   };
 
   Node.prototype.childCount = function() {
@@ -4935,7 +4939,7 @@
       return null;
     }
 
-    return createUnary(kind, value).withRange(spanRanges(token.range, value.range));
+    return createUnary(kind, value).withRange(spanRanges(token.range, value.range)).withInternalRange(token.range);
   };
 
   ParserContext.prototype.parseBinary = function(kind, left, localPrecedence, operatorPrecedence) {
@@ -4963,7 +4967,7 @@
     var token = this.current;
     this.advance();
 
-    return createUnary(kind, value).withRange(spanRanges(value.range, token.range));
+    return createUnary(kind, value).withRange(spanRanges(value.range, token.range)).withInternalRange(token.range);
   };
 
   ParserContext.prototype.parseQuotedString = function(range) {
@@ -5634,7 +5638,7 @@
         var isSet = __declare.string_equals(text, "set");
 
         if (isGet || isSet) {
-          childFlags = appendFlag(childFlags, isGet ? 8 : 128, childName.range);
+          childFlags = appendFlag(childFlags, isGet ? 8 : 256, childName.range);
           childName = this.current;
           this.advance();
         }
@@ -5679,12 +5683,14 @@
   };
 
   ParserContext.prototype.parseFunction = function(firstFlag, parent) {
+    var isOperator = false;
     var token = this.current;
     var nameRange = null;
     var name = null;
 
     if (parent !== null && this.eat(61)) {
       var end = this.current;
+      isOperator = true;
 
       if (this.eat(19)) {
         if (!this.expect(35)) {
@@ -5708,7 +5714,7 @@
         name = nameRange.toString();
       }
 
-      else if (this.eat(5) || this.eat(16) || this.eat(17) || this.eat(22) || this.eat(23) || this.eat(24) || this.eat(29)) {
+      else if (this.eat(5) || this.eat(16) || this.eat(17) || this.eat(22) || this.eat(23) || this.eat(24) || this.eat(28) || this.eat(29)) {
         nameRange = end.range;
         name = nameRange.toString();
         this.log.error(nameRange, StringBuilder_new().append("The operator '").append(name).append("' is not overridable").append(end.kind === 29 ? " (it is automatically derived from '==')" : end.kind === 16 || end.kind === 17 || end.kind === 22 ? " (it is automatically derived from '<')" : "").finish());
@@ -5741,6 +5747,10 @@
     var node = createFunction(name);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
+
+    if (isOperator) {
+      node.flags = node.flags | 16;
+    }
 
     if (!this.peek(36)) {
       while (true) {
@@ -5928,23 +5938,23 @@
       }
 
       else if (this.eat(62)) {
-        flag = 16;
-      }
-
-      else if (this.eat(63)) {
         flag = 32;
       }
 
-      else if (this.eat(64)) {
+      else if (this.eat(63)) {
         flag = 64;
       }
 
+      else if (this.eat(64)) {
+        flag = 128;
+      }
+
       else if (this.eat(67)) {
-        flag = 256;
+        flag = 512;
       }
 
       else if (this.eat(70)) {
-        flag = 512;
+        flag = 1024;
       }
 
       else {
@@ -5976,7 +5986,7 @@
       return null;
     }
 
-    node.flags = node.flags | 512;
+    node.flags = node.flags | 1024;
 
     return node.withRange(spanRanges(token.range, node.range));
   };
@@ -6502,11 +6512,11 @@
 
     while (symbol !== null) {
       if (__declare.string_equals(symbol.name, name)) {
-        if (hint === 2 && symbol.isGetter()) {
+        if (hint === 6 && symbol.isSetter() || hint === 7 && symbol.isGetter() || hint === 5 && !symbol.isUnaryOperator() || hint === 8 && symbol.isBinaryOperator()) {
           fallback = symbol;
         }
 
-        else if (hint !== 1 || !symbol.isGetter()) {
+        else if ((hint !== 2 || !symbol.isGetter()) && (hint !== 3 || !symbol.isSetter()) && (hint !== 1 || !symbol.isBinaryOperator()) && (hint !== 4 || !symbol.isUnaryOperator())) {
           return symbol;
         }
       }
@@ -6573,7 +6583,7 @@
 
   Scope.prototype.defineNativeIntegerType = function(log, name, byteSizeAndMaxAlignment, isUnsigned) {
     var type = this.defineNativeType(log, name, byteSizeAndMaxAlignment);
-    type.symbol.flags = isUnsigned ? 3 : 1;
+    type.symbol.flags = isUnsigned ? 24 : 16;
 
     return type;
   };
@@ -6720,8 +6730,16 @@
     return this.node.isSet();
   };
 
-  Symbol.prototype.shouldConvertInstanceToGlobal = function() {
+  Symbol.prototype.isBinaryOperator = function() {
+    return (this.flags & 2) !== 0;
+  };
+
+  Symbol.prototype.isUnaryOperator = function() {
     return (this.flags & 4) !== 0;
+  };
+
+  Symbol.prototype.shouldConvertInstanceToGlobal = function() {
+    return (this.flags & 1) !== 0;
   };
 
   Symbol.prototype.parent = function() {
@@ -6827,11 +6845,11 @@
   };
 
   Type.prototype.isInteger = function() {
-    return (this.symbol.flags & 1) !== 0 || this.isEnum();
+    return (this.symbol.flags & 16) !== 0 || this.isEnum();
   };
 
   Type.prototype.isUnsigned = function() {
-    return (this.symbol.flags & 2) !== 0;
+    return (this.symbol.flags & 8) !== 0;
   };
 
   Type.prototype.underlyingType = function(context) {

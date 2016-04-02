@@ -32,9 +32,11 @@ enum SymbolState {
   INITIALIZED,
 }
 
-const SYMBOL_FLAG_NATIVE_INTEGER = 1;
-const SYMBOL_FLAG_IS_UNSIGNED = 2;
-const SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL = 4;
+const SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL = 1 << 0;
+const SYMBOL_FLAG_IS_BINARY_OPERATOR = 1 << 1;
+const SYMBOL_FLAG_IS_UNARY_OPERATOR = 1 << 2;
+const SYMBOL_FLAG_IS_UNSIGNED = 1 << 3;
+const SYMBOL_FLAG_NATIVE_INTEGER = 1 << 4;
 
 class Symbol {
   kind: SymbolKind;
@@ -82,6 +84,14 @@ class Symbol {
 
   isSetter(): bool {
     return this.node.isSet();
+  }
+
+  isBinaryOperator(): bool {
+    return (this.flags & SYMBOL_FLAG_IS_BINARY_OPERATOR) != 0;
+  }
+
+  isUnaryOperator(): bool {
+    return (this.flags & SYMBOL_FLAG_IS_UNARY_OPERATOR) != 0;
   }
 
   shouldConvertInstanceToGlobal(): bool {

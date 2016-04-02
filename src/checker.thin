@@ -99,9 +99,44 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
       node.parent.kind == NodeKind.CLASS ? SymbolKind.FUNCTION_INSTANCE :
       SymbolKind.FUNCTION_GLOBAL;
     symbol.name = node.stringValue;
+    if (node.isOperator()) {
+      if (string_equals(symbol.name, "+") || string_equals(symbol.name, "-")) {
+        if (node.firstChild == node.functionReturnType()) {
+          symbol.flags = SYMBOL_FLAG_IS_UNARY_OPERATOR;
+          symbol.rename = string_equals(symbol.name, "+") ? "op_positive" : "op_negative";
+        } else {
+          symbol.flags = SYMBOL_FLAG_IS_BINARY_OPERATOR;
+          symbol.rename = string_equals(symbol.name, "+") ? "op_add" : "op_subtract";
+        }
+      } else {
+        symbol.rename =
+          string_equals(symbol.name, "~") ? "op_complement" :
+          string_equals(symbol.name, "*") ? "op_multiply" :
+          string_equals(symbol.name, "/") ? "op_divide" :
+          string_equals(symbol.name, "%") ? "op_remainder" :
+          string_equals(symbol.name, "**") ? "op_exponent" :
+          string_equals(symbol.name, "&") ? "op_and" :
+          string_equals(symbol.name, "|") ? "op_or" :
+          string_equals(symbol.name, "^") ? "op_xor" :
+          string_equals(symbol.name, "==") ? "op_equals" :
+          string_equals(symbol.name, "<") ? "op_lessThan" :
+          string_equals(symbol.name, "<<") ? "op_shiftLeft" :
+          string_equals(symbol.name, ">>") ? "op_shiftRight" :
+          string_equals(symbol.name, "++") ? "op_increment" :
+          string_equals(symbol.name, "--") ? "op_decrement" :
+          string_equals(symbol.name, "[]") ? "op_get" :
+          string_equals(symbol.name, "[]=") ? "op_set" :
+          null;
+      }
+    }
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    parentScope.define(context.log, symbol, symbol.isSetter() ? ScopeHint.NOT_GETTER : ScopeHint.NORMAL);
+    parentScope.define(context.log, symbol,
+      symbol.isSetter() ? ScopeHint.NOT_GETTER :
+      symbol.isGetter() ? ScopeHint.NOT_SETTER :
+      symbol.isBinaryOperator() ? ScopeHint.NOT_UNARY :
+      symbol.isUnaryOperator() ? ScopeHint.NOT_BINARY :
+      ScopeHint.NORMAL);
     parentScope = symbol.scope;
 
     // All instance functions have a special "this" type
@@ -252,14 +287,28 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     // Validate operator argument counts including "this"
     else if (!isAlpha(string_get(symbol.name, 0))) {
-      if (string_equals(symbol.name, "~")) {
+      if (string_equals(symbol.name, "~") || string_equals(symbol.name, "++") || string_equals(symbol.name, "--")) {
         if (argumentCount != 1) {
-          context.log.error(symbol.range, "Operator '~' must not have any arguments");
+          context.log.error(symbol.range, StringBuilder_new()
+            .append("Operator '")
+            .append(symbol.name)
+            .append("' must not have any arguments")
+            .finish());
+        }
+      }
+
+      else if (string_equals(symbol.name, "+") || string_equals(symbol.name, "-")) {
+        if (argumentCount > 2) {
+          context.log.error(symbol.range, StringBuilder_new()
+            .append("Operator '")
+            .append(symbol.name)
+            .append("' must have at most one argument")
+            .finish());
         }
       }
 
       else if (string_equals(symbol.name, "[]=")) {
-        if (argumentCount == 1) {
+        if (argumentCount < 2) {
           context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
         }
       }
@@ -919,7 +968,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
         // Empty names are left over from parse errors that have already been reported
         if (string_length(name) > 0) {
-          var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? ScopeHint.PREFER_SETTER : ScopeHint.NORMAL);
+          var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? ScopeHint.PREFER_SETTER : ScopeHint.PREFER_GETTER);
 
           if (symbol == null) {
             context.log.error(node.internalRange, StringBuilder_new()
@@ -1210,23 +1259,6 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.EXPONENT) {
-    var left = node.binaryLeft();
-    var right = node.binaryRight();
-
-    resolveAsExpression(context, left, parentScope);
-    resolveAsExpression(context, right, parentScope);
-
-    if (left.resolvedType != context.errorType) {
-      context.log.error(node.internalRange,
-        StringBuilder_new()
-        .append("No operator '**' on type '")
-        .append(left.resolvedType.toString())
-        .appendChar('\'')
-        .finish());
-    }
-  }
-
   else if (
       node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
       node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
@@ -1300,9 +1332,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
+  else if (node.kind == NodeKind.EXPONENT ||
+      node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
       node.kind == NodeKind.PREFIX_DECREMENT || node.kind == NodeKind.PREFIX_INCREMENT) {
-    context.log.error(node.range, "This operator is currently unsupported");
+    resolveChildrenAsExpressions(context, node, parentScope);
+    context.log.error(node.internalRange, "This operator is currently unsupported");
   }
 
   else if (node.kind == NodeKind.NOT) {

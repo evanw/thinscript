@@ -5,8 +5,14 @@ enum FindNested {
 
 enum ScopeHint {
   NORMAL,
+  NOT_BINARY,
   NOT_GETTER,
+  NOT_SETTER,
+  NOT_UNARY,
+  PREFER_BINARY,
+  PREFER_GETTER,
   PREFER_SETTER,
+  PREFER_UNARY,
 }
 
 class Scope {
@@ -20,9 +26,18 @@ class Scope {
     var fallback: Symbol = null;
     while (symbol != null) {
       if (string_equals(symbol.name, name)) {
-        if (hint == ScopeHint.PREFER_SETTER && symbol.isGetter()) {
+        if (hint == ScopeHint.PREFER_GETTER && symbol.isSetter() ||
+            hint == ScopeHint.PREFER_SETTER && symbol.isGetter() ||
+            hint == ScopeHint.PREFER_BINARY && !symbol.isUnaryOperator() ||
+            hint == ScopeHint.PREFER_UNARY && symbol.isBinaryOperator()) {
           fallback = symbol;
-        } else if (hint != ScopeHint.NOT_GETTER || !symbol.isGetter()) {
+        }
+
+        else if (
+            (hint != ScopeHint.NOT_GETTER || !symbol.isGetter()) &&
+            (hint != ScopeHint.NOT_SETTER || !symbol.isSetter()) &&
+            (hint != ScopeHint.NOT_BINARY || !symbol.isBinaryOperator()) &&
+            (hint != ScopeHint.NOT_UNARY || !symbol.isUnaryOperator())) {
           return symbol;
         }
       }

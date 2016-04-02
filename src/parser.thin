@@ -113,7 +113,7 @@ class ParserContext {
       return null;
     }
 
-    return createUnary(kind, value).withRange(spanRanges(token.range, value.range));
+    return createUnary(kind, value).withRange(spanRanges(token.range, value.range)).withInternalRange(token.range);
   }
 
   parseBinary(kind: NodeKind, left: Node, localPrecedence: Precedence, operatorPrecedence: Precedence): Node {
@@ -142,7 +142,7 @@ class ParserContext {
 
     var token = this.current;
     this.advance();
-    return createUnary(kind, value).withRange(spanRanges(value.range, token.range));
+    return createUnary(kind, value).withRange(spanRanges(value.range, token.range)).withInternalRange(token.range);
   }
 
   parseQuotedString(range: Range): string {
@@ -743,13 +743,15 @@ class ParserContext {
   }
 
   parseFunction(firstFlag: NodeFlag, parent: Node): Node {
+    var isOperator = false;
     var token = this.current;
     var nameRange: Range;
     var name: string;
 
-    // Support index operators
+    // Support custom operators
     if (parent != null && this.eat(TokenKind.OPERATOR)) {
       var end = this.current;
+      isOperator = true;
 
       if (this.eat(TokenKind.LEFT_BRACKET)) {
         if (!this.expect(TokenKind.RIGHT_BRACKET)) {
@@ -796,6 +798,7 @@ class ParserContext {
           this.eat(TokenKind.LESS_THAN_EQUAL) ||
           this.eat(TokenKind.LOGICAL_AND) ||
           this.eat(TokenKind.LOGICAL_OR) ||
+          this.eat(TokenKind.NOT) ||
           this.eat(TokenKind.NOT_EQUAL)) {
         nameRange = end.range;
         name = nameRange.toString();
@@ -840,6 +843,9 @@ class ParserContext {
     var node = createFunction(name);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
+    if (isOperator) {
+      node.flags = node.flags | NODE_FLAG_OPERATOR;
+    }
 
     if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {
       while (true) {

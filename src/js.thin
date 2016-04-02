@@ -232,7 +232,8 @@ class JsResult {
 
     else if (node.kind == NodeKind.DOT) {
       this.emitExpression(node.dotTarget(), Precedence.MEMBER);
-      this.emitSymbolAccess(node.symbol);
+      code.appendChar('.');
+      this.emitSymbolName(node.symbol);
     }
 
     else if (node.kind == NodeKind.HOOK) {
@@ -350,22 +351,6 @@ class JsResult {
     }
   }
 
-  emitSymbolAccess(symbol: Symbol): void {
-    var c = string_get(symbol.name, 0);
-    var code = this.code;
-
-    if (isAlpha(c)) {
-      code.appendChar('.');
-      this.emitSymbolName(symbol);
-    }
-
-    else {
-      code.appendChar('[');
-      StringBuilder_appendQuoted(code, symbol.name);
-      code.appendChar(']');
-    }
-  }
-
   emitSymbolName(symbol: Symbol): void {
     this.code.append(symbol.rename != null ? symbol.rename : symbol.name);
   }
@@ -386,8 +371,8 @@ class JsResult {
 
       if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
         this.emitSymbolName(symbol.parent());
-        code.append(".prototype");
-        this.emitSymbolAccess(symbol);
+        code.append(".prototype.");
+        this.emitSymbolName(symbol);
         code.append(" = function");
         needsSemicolon = true;
       }
