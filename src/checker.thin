@@ -250,6 +250,29 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
       }
     }
 
+    // Validate operator argument counts including "this"
+    else if (!isAlpha(string_get(symbol.name, 0))) {
+      if (string_equals(symbol.name, "~")) {
+        if (argumentCount != 1) {
+          context.log.error(symbol.range, "Operator '~' must not have any arguments");
+        }
+      }
+
+      else if (string_equals(symbol.name, "[]=")) {
+        if (argumentCount == 1) {
+          context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
+        }
+      }
+
+      else if (argumentCount != 2) {
+        context.log.error(symbol.range, StringBuilder_new()
+          .append("Operator '")
+          .append(symbol.name)
+          .append("' must have exactly one argument")
+          .finish());
+      }
+    }
+
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
 

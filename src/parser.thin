@@ -768,7 +768,8 @@ class ParserContext {
         }
       }
 
-      else if (this.eat(TokenKind.BITWISE_AND) ||
+      else if (
+          this.eat(TokenKind.BITWISE_AND) ||
           this.eat(TokenKind.BITWISE_OR) ||
           this.eat(TokenKind.BITWISE_XOR) ||
           this.eat(TokenKind.COMPLEMENT) ||
@@ -786,6 +787,30 @@ class ParserContext {
           this.eat(TokenKind.SHIFT_RIGHT)) {
         nameRange = end.range;
         name = nameRange.toString();
+      }
+
+      else if (
+          this.eat(TokenKind.ASSIGN) ||
+          this.eat(TokenKind.GREATER_THAN) ||
+          this.eat(TokenKind.GREATER_THAN_EQUAL) ||
+          this.eat(TokenKind.LESS_THAN_EQUAL) ||
+          this.eat(TokenKind.LOGICAL_AND) ||
+          this.eat(TokenKind.LOGICAL_OR) ||
+          this.eat(TokenKind.NOT_EQUAL)) {
+        nameRange = end.range;
+        name = nameRange.toString();
+
+        // Recover from an invalid operator name
+        this.log.error(nameRange, StringBuilder_new()
+          .append("The operator '")
+          .append(name)
+          .append("' is not overridable")
+          .append(
+            end.kind == TokenKind.NOT_EQUAL ? " (it is automatically derived from '==')" :
+            end.kind == TokenKind.GREATER_THAN || end.kind == TokenKind.GREATER_THAN_EQUAL ||
+            end.kind == TokenKind.LESS_THAN_EQUAL ? " (it is automatically derived from '<')" :
+            "")
+          .finish());
       }
 
       else {

@@ -988,6 +988,24 @@
         }
       }
 
+      else if (!isAlpha(__declare.string_get(symbol.name, 0))) {
+        if (__declare.string_equals(symbol.name, "~")) {
+          if (argumentCount !== 1) {
+            context.log.error(symbol.range, "Operator '~' must not have any arguments");
+          }
+        }
+
+        else if (__declare.string_equals(symbol.name, "[]=")) {
+          if (argumentCount === 1) {
+            context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
+          }
+        }
+
+        else if (argumentCount !== 2) {
+          context.log.error(symbol.range, StringBuilder_new().append("Operator '").append(symbol.name).append("' must have exactly one argument").finish());
+        }
+      }
+
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
 
@@ -5688,6 +5706,12 @@
       else if (this.eat(6) || this.eat(7) || this.eat(8) || this.eat(11) || this.eat(12) || this.eat(14) || this.eat(15) || this.eat(21) || this.eat(25) || this.eat(26) || this.eat(27) || this.eat(30) || this.eat(31) || this.eat(33) || this.eat(38) || this.eat(39)) {
         nameRange = end.range;
         name = nameRange.toString();
+      }
+
+      else if (this.eat(5) || this.eat(16) || this.eat(17) || this.eat(22) || this.eat(23) || this.eat(24) || this.eat(29)) {
+        nameRange = end.range;
+        name = nameRange.toString();
+        this.log.error(nameRange, StringBuilder_new().append("The operator '").append(name).append("' is not overridable").append(end.kind === 29 ? " (it is automatically derived from '==')" : end.kind === 16 || end.kind === 17 || end.kind === 22 ? " (it is automatically derived from '<')" : "").finish());
       }
 
       else {
