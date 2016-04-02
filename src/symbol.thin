@@ -76,6 +76,14 @@ class Symbol {
     return this.node != null && this.node.isUnsafe();
   }
 
+  isGetter(): bool {
+    return this.node.isGet();
+  }
+
+  isSetter(): bool {
+    return this.node.isSet();
+  }
+
   shouldConvertInstanceToGlobal(): bool {
     return (this.flags & SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL) != 0;
   }

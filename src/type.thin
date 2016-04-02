@@ -60,19 +60,7 @@ class Type {
     return this.symbol.name;
   }
 
-  findMember(name: string): Symbol {
-    var child = this.symbol.node.firstChild;
-
-    while (child != null) {
-      assert(child.kind == NodeKind.VARIABLE || child.kind == NodeKind.FUNCTION);
-
-      if (string_equals(child.symbol.name, name)) {
-        return child.symbol;
-      }
-
-      child = child.nextSibling;
-    }
-
-    return null;
+  findMember(name: string, hint: ScopeHint): Symbol {
+    return this.symbol.scope.findLocal(name, hint);
   }
 }

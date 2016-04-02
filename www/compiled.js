@@ -847,7 +847,7 @@
       symbol.name = node.stringValue;
       addScopeToSymbol(symbol, parentScope);
       linkSymbolToNode(symbol, node);
-      parentScope.define(context.log, symbol);
+      parentScope.define(context.log, symbol, 0);
       parentScope = symbol.scope;
     }
 
@@ -857,7 +857,7 @@
       symbol.name = node.stringValue;
       addScopeToSymbol(symbol, parentScope);
       linkSymbolToNode(symbol, node);
-      parentScope.define(context.log, symbol);
+      parentScope.define(context.log, symbol, symbol.isSetter() ? 1 : 0);
       parentScope = symbol.scope;
 
       if (symbol.kind === 4) {
@@ -874,7 +874,7 @@
       symbol.name = node.stringValue;
       symbol.scope = parentScope;
       linkSymbolToNode(symbol, node);
-      parentScope.define(context.log, symbol);
+      parentScope.define(context.log, symbol, 0);
     }
 
     else if (node.kind === 2) {
@@ -925,12 +925,12 @@
     symbol.state = 1;
     var node = symbol.node;
     forbidFlag(context, node, 2, "Unsupported flag 'export'");
-    forbidFlag(context, node, 8, "Unsupported flag 'get'");
     forbidFlag(context, node, 32, "Unsupported flag 'protected'");
-    forbidFlag(context, node, 128, "Unsupported flag 'set'");
     forbidFlag(context, node, 256, "Unsupported flag 'static'");
 
     if (symbol.kind === 0) {
+      forbidFlag(context, node, 8, "Cannot use 'get' on a class");
+      forbidFlag(context, node, 128, "Cannot use 'set' on a class");
       forbidFlag(context, node, 64, "Cannot use 'public' on a class");
       forbidFlag(context, node, 16, "Cannot use 'private' on a class");
       symbol.resolvedType = new Type();
@@ -938,6 +938,8 @@
     }
 
     else if (symbol.kind === 1) {
+      forbidFlag(context, node, 8, "Cannot use 'get' on an enum");
+      forbidFlag(context, node, 128, "Cannot use 'set' on an enum");
       forbidFlag(context, node, 64, "Cannot use 'public' on an enum");
       forbidFlag(context, node, 16, "Cannot use 'private' on an enum");
       symbol.resolvedType = new Type();
@@ -951,22 +953,39 @@
       var body = node.functionBody();
       var returnType = node.functionReturnType();
       resolveAsType(context, returnType, symbol.scope.parent);
-
-      if (symbol.kind !== 4) {
-        forbidFlag(context, node, 64, "Cannot use 'public' here");
-        forbidFlag(context, node, 16, "Cannot use 'private' here");
-      }
-
-      var offset = 0;
+      var argumentCount = 0;
       var child = node.firstChild;
 
       while (child !== returnType) {
         __declare.assert(child.kind === 1);
         __declare.assert(child.symbol.kind === 6);
         initializeSymbol(context, child.symbol);
-        child.symbol.offset = offset;
-        offset = offset + 1 | 0;
+        child.symbol.offset = argumentCount;
+        argumentCount = argumentCount + 1 | 0;
         child = child.nextSibling;
+      }
+
+      if (symbol.kind !== 4) {
+        forbidFlag(context, node, 8, "Cannot use 'get' here");
+        forbidFlag(context, node, 128, "Cannot use 'set' here");
+        forbidFlag(context, node, 64, "Cannot use 'public' here");
+        forbidFlag(context, node, 16, "Cannot use 'private' here");
+      }
+
+      else if (node.isGet()) {
+        forbidFlag(context, node, 128, "Cannot use both 'get' and 'set'");
+
+        if (argumentCount !== 1) {
+          context.log.error(symbol.range, "Getters must not have any arguments");
+        }
+      }
+
+      else if (node.isSet()) {
+        symbol.rename = StringBuilder_new().append("set_").append(symbol.name).finish();
+
+        if (argumentCount !== 2) {
+          context.log.error(symbol.range, "Setters must have exactly one argument");
+        }
       }
 
       symbol.resolvedType = new Type();
@@ -1001,7 +1020,7 @@
         if (shouldConvertInstanceToGlobal) {
           symbol.kind = 5;
           symbol.flags = symbol.flags | 4;
-          symbol.rename = StringBuilder_new().append(parent.name).appendChar(95).append(symbol.name).finish();
+          symbol.rename = StringBuilder_new().append(parent.name).appendChar(95).append(symbol.rename !== null ? symbol.rename : symbol.name).finish();
           __declare.assert(__declare.string_equals(node.firstChild.symbol.name, "this"));
           node.firstChild.symbol.rename = "__this";
         }
@@ -1018,6 +1037,8 @@
     }
 
     else if (isVariable(symbol.kind)) {
+      forbidFlag(context, node, 8, "Cannot use 'get' on a variable");
+      forbidFlag(context, node, 128, "Cannot use 'set' on a variable");
       var type = node.variableType();
       var value = node.variableValue();
 
@@ -1082,7 +1103,7 @@
         var scope = symbol.scope.parent;
 
         while (scope !== null) {
-          var shadowed = scope.findLocal(symbol.name);
+          var shadowed = scope.findLocal(symbol.name, 0);
 
           if (shadowed !== null) {
             context.log.error(node.internalRange, StringBuilder_new().append("The symbol '").append(symbol.name).append("' shadows another symbol with the same name in a parent scope").finish());
@@ -1284,8 +1305,14 @@
       }
     }
 
-    if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
-      context.log.error(range, StringBuilder_new().append("Must call function '").append(symbol.name).appendChar(39).finish());
+    if (isFunction(symbol.kind) && (symbol.isSetter() ? !node.isAssignTarget() : !node.isCallValue())) {
+      if (symbol.isSetter()) {
+        context.log.error(range, StringBuilder_new().append("Cannot use setter '").append(symbol.name).append("' here").finish());
+      }
+
+      else {
+        context.log.error(range, StringBuilder_new().append("Must call function '").append(symbol.name).appendChar(39).finish());
+      }
 
       return false;
     }
@@ -1416,7 +1443,7 @@
       var type = target.resolvedType;
 
       if (type !== context.errorType) {
-        var symbol = type.isClass() ? type.findMember("[]") : null;
+        var symbol = type.isClass() ? type.findMember("[]", 0) : null;
 
         if (symbol === null) {
           context.log.error(node.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
@@ -1454,7 +1481,7 @@
     }
 
     else if (node.kind === 30) {
-      var symbol = parentScope.findNested("this", 0);
+      var symbol = parentScope.findNested("this", 0, 0);
 
       if (symbol === null) {
         context.log.error(node.range, "Cannot use 'this' here");
@@ -1471,11 +1498,11 @@
 
     else if (node.kind === 24) {
       var name = node.stringValue;
-      var symbol = parentScope.findNested(name, 0);
+      var symbol = parentScope.findNested(name, 0, 0);
 
       if (symbol === null) {
         var builder = StringBuilder_new().append("No symbol named '").append(name).append("' here");
-        symbol = parentScope.findNested(name, 1);
+        symbol = parentScope.findNested(name, 0, 1);
 
         if (symbol !== null) {
           builder.append(", did you mean 'this.").append(symbol.name).append("'?");
@@ -1538,10 +1565,20 @@
           var name = node.stringValue;
 
           if (__declare.string_length(name) > 0) {
-            var symbol = target.resolvedType.findMember(name);
+            var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? 2 : 0);
 
             if (symbol === null) {
               context.log.error(node.internalRange, StringBuilder_new().append("No member named '").append(name).append("' on type '").append(target.resolvedType.toString()).appendChar(39).finish());
+            }
+
+            else if (symbol.isGetter()) {
+              target.remove();
+              node.kind = 18;
+              node.appendChild(createMemberReference(target, symbol));
+              node.resolvedType = null;
+              resolveAsExpression(context, node, parentScope);
+
+              return;
             }
 
             else if (isSymbolAccessAllowed(context, symbol, node, node.internalRange)) {
@@ -1692,7 +1729,7 @@
         var type = target.resolvedType;
 
         if (type !== context.errorType) {
-          var symbol = type.isClass() ? type.findMember("[]=") : null;
+          var symbol = type.isClass() ? type.findMember("[]=", 0) : null;
 
           if (symbol === null) {
             context.log.error(left.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
@@ -1721,6 +1758,16 @@
       }
 
       resolveAsExpression(context, left, parentScope);
+
+      if (left.symbol !== null && left.symbol.isSetter()) {
+        node.kind = 18;
+        node.internalRange = left.internalRange;
+        node.resolvedType = null;
+        resolveAsExpression(context, node, parentScope);
+
+        return;
+      }
+
       resolveAsExpression(context, right, parentScope);
       checkConversion(context, right, left.resolvedType, 0);
       checkStorage(context, left);
@@ -4077,6 +4124,14 @@
     return (this.flags & 5) !== 0;
   };
 
+  Node.prototype.isGet = function() {
+    return (this.flags & 8) !== 0;
+  };
+
+  Node.prototype.isSet = function() {
+    return (this.flags & 128) !== 0;
+  };
+
   Node.prototype.isPrivate = function() {
     return (this.flags & 16) !== 0;
   };
@@ -4243,6 +4298,14 @@
 
   Node.prototype.isType = function() {
     return this.kind === 31 || this.symbol !== null && isType(this.symbol.kind);
+  };
+
+  Node.prototype.isCallValue = function() {
+    return this.parent.kind === 18 && this === this.parent.callValue();
+  };
+
+  Node.prototype.isAssignTarget = function() {
+    return this.parent.kind === 41 && this === this.parent.binaryLeft();
   };
 
   Node.prototype.withRange = function(range) {
@@ -6373,26 +6436,33 @@
     this.lastSymbol = null;
   }
 
-  Scope.prototype.findLocal = function(name) {
+  Scope.prototype.findLocal = function(name, hint) {
     var symbol = this.firstSymbol;
+    var fallback = null;
 
     while (symbol !== null) {
       if (__declare.string_equals(symbol.name, name)) {
-        return symbol;
+        if (hint === 2 && symbol.isGetter()) {
+          fallback = symbol;
+        }
+
+        else if (hint !== 1 || !symbol.isGetter()) {
+          return symbol;
+        }
       }
 
       symbol = symbol.next;
     }
 
-    return null;
+    return fallback;
   };
 
-  Scope.prototype.findNested = function(name, mode) {
+  Scope.prototype.findNested = function(name, hint, mode) {
     var scope = this;
 
     while (scope !== null) {
       if (scope.symbol === null || scope.symbol.kind !== 0 || mode === 1) {
-        var local = scope.findLocal(name);
+        var local = scope.findLocal(name, hint);
 
         if (local !== null) {
           return local;
@@ -6405,8 +6475,8 @@
     return null;
   };
 
-  Scope.prototype.define = function(log, symbol) {
-    var existing = this.findLocal(symbol.name);
+  Scope.prototype.define = function(log, symbol, hint) {
+    var existing = this.findLocal(symbol.name, hint);
 
     if (existing !== null) {
       log.error(symbol.range, StringBuilder_new().append("Duplicate symbol '").append(symbol.name).append("'").finish());
@@ -6436,7 +6506,7 @@
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     symbol.state = 2;
-    this.define(log, symbol);
+    this.define(log, symbol, 0);
 
     return symbol.resolvedType;
   };
@@ -6580,6 +6650,14 @@
 
   Symbol.prototype.isUnsafe = function() {
     return this.node !== null && this.node.isUnsafe();
+  };
+
+  Symbol.prototype.isGetter = function() {
+    return this.node.isGet();
+  };
+
+  Symbol.prototype.isSetter = function() {
+    return this.node.isSet();
   };
 
   Symbol.prototype.shouldConvertInstanceToGlobal = function() {
@@ -6732,20 +6810,8 @@
     return this.symbol.name;
   };
 
-  Type.prototype.findMember = function(name) {
-    var child = this.symbol.node.firstChild;
-
-    while (child !== null) {
-      __declare.assert(child.kind === 1 || child.kind === 10);
-
-      if (__declare.string_equals(child.symbol.name, name)) {
-        return child.symbol;
-      }
-
-      child = child.nextSibling;
-    }
-
-    return null;
+  Type.prototype.findMember = function(name, hint) {
+    return this.symbol.scope.findLocal(name, hint);
   };
 
   function WasmWrappedType() {

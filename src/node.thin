@@ -185,6 +185,14 @@ class Node {
     return (this.flags & (NODE_FLAG_DECLARE | NODE_FLAG_EXTERN)) != 0;
   }
 
+  isGet(): bool {
+    return (this.flags & NODE_FLAG_GET) != 0;
+  }
+
+  isSet(): bool {
+    return (this.flags & NODE_FLAG_SET) != 0;
+  }
+
   isPrivate(): bool {
     return (this.flags & NODE_FLAG_PRIVATE) != 0;
   }
@@ -339,6 +347,14 @@ class Node {
 
   isType(): bool {
     return this.kind == NodeKind.TYPE || this.symbol != null && isType(this.symbol.kind);
+  }
+
+  isCallValue(): bool {
+    return this.parent.kind == NodeKind.CALL && this == this.parent.callValue();
+  }
+
+  isAssignTarget(): bool {
+    return this.parent.kind == NodeKind.ASSIGN && this == this.parent.binaryLeft();
   }
 
   withRange(range: Range): Node {

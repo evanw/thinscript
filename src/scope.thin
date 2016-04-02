@@ -3,28 +3,39 @@ enum FindNested {
   ALLOW_INSTANCE_ERRORS,
 }
 
+enum ScopeHint {
+  NORMAL,
+  NOT_GETTER,
+  PREFER_SETTER,
+}
+
 class Scope {
   parent: Scope;
   symbol: Symbol;
   firstSymbol: Symbol;
   lastSymbol: Symbol;
 
-  findLocal(name: string): Symbol {
+  findLocal(name: string, hint: ScopeHint): Symbol {
     var symbol = this.firstSymbol;
+    var fallback: Symbol = null;
     while (symbol != null) {
       if (string_equals(symbol.name, name)) {
-        return symbol;
+        if (hint == ScopeHint.PREFER_SETTER && symbol.isGetter()) {
+          fallback = symbol;
+        } else if (hint != ScopeHint.NOT_GETTER || !symbol.isGetter()) {
+          return symbol;
+        }
       }
       symbol = symbol.next;
     }
-    return null;
+    return fallback;
   }
 
-  findNested(name: string, mode: FindNested): Symbol {
+  findNested(name: string, hint: ScopeHint, mode: FindNested): Symbol {
     var scope = this;
     while (scope != null) {
       if (scope.symbol == null || scope.symbol.kind != SymbolKind.TYPE_CLASS || mode == FindNested.ALLOW_INSTANCE_ERRORS) {
-        var local = scope.findLocal(name);
+        var local = scope.findLocal(name, hint);
         if (local != null) {
           return local;
         }
@@ -34,8 +45,8 @@ class Scope {
     return null;
   }
 
-  define(log: Log, symbol: Symbol): bool {
-    var existing = this.findLocal(symbol.name);
+  define(log: Log, symbol: Symbol, hint: ScopeHint): bool {
+    var existing = this.findLocal(symbol.name, hint);
     if (existing != null) {
       log.error(symbol.range, StringBuilder_new()
         .append("Duplicate symbol '")
@@ -61,7 +72,7 @@ class Scope {
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     symbol.state = SymbolState.INITIALIZED;
-    this.define(log, symbol);
+    this.define(log, symbol, ScopeHint.NORMAL);
     return symbol.resolvedType;
   }
 

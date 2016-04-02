@@ -88,7 +88,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    parentScope.define(context.log, symbol);
+    parentScope.define(context.log, symbol, ScopeHint.NORMAL);
     parentScope = symbol.scope;
   }
 
@@ -101,7 +101,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     symbol.name = node.stringValue;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
-    parentScope.define(context.log, symbol);
+    parentScope.define(context.log, symbol, symbol.isSetter() ? ScopeHint.NOT_GETTER : ScopeHint.NORMAL);
     parentScope = symbol.scope;
 
     // All instance functions have a special "this" type
@@ -125,7 +125,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
     linkSymbolToNode(symbol, node);
-    parentScope.define(context.log, symbol);
+    parentScope.define(context.log, symbol, ScopeHint.NORMAL);
   }
 
   // Block
@@ -177,23 +177,27 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   // Most flags aren't supported yet
   var node = symbol.node;
   forbidFlag(context, node, NODE_FLAG_EXPORT, "Unsupported flag 'export'");
-  forbidFlag(context, node, NODE_FLAG_GET, "Unsupported flag 'get'");
   forbidFlag(context, node, NODE_FLAG_PROTECTED, "Unsupported flag 'protected'");
-  forbidFlag(context, node, NODE_FLAG_SET, "Unsupported flag 'set'");
   forbidFlag(context, node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class
   if (symbol.kind == SymbolKind.TYPE_CLASS) {
+    forbidFlag(context, node, NODE_FLAG_GET, "Cannot use 'get' on a class");
+    forbidFlag(context, node, NODE_FLAG_SET, "Cannot use 'set' on a class");
     forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' on a class");
     forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' on a class");
+
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
   }
 
   // Enum
   else if (symbol.kind == SymbolKind.TYPE_ENUM) {
+    forbidFlag(context, node, NODE_FLAG_GET, "Cannot use 'get' on an enum");
+    forbidFlag(context, node, NODE_FLAG_SET, "Cannot use 'set' on an enum");
     forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' on an enum");
     forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' on an enum");
+
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
@@ -207,20 +211,43 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     var returnType = node.functionReturnType();
     resolveAsType(context, returnType, symbol.scope.parent);
 
-    if (symbol.kind != SymbolKind.FUNCTION_INSTANCE) {
-      forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' here");
-      forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' here");
-    }
-
-    var offset = 0;
+    var argumentCount = 0;
     var child = node.firstChild;
     while (child != returnType) {
       assert(child.kind == NodeKind.VARIABLE);
       assert(child.symbol.kind == SymbolKind.VARIABLE_ARGUMENT);
       initializeSymbol(context, child.symbol);
-      child.symbol.offset = offset;
-      offset = offset + 1;
+      child.symbol.offset = argumentCount;
+      argumentCount = argumentCount + 1;
       child = child.nextSibling;
+    }
+
+    if (symbol.kind != SymbolKind.FUNCTION_INSTANCE) {
+      forbidFlag(context, node, NODE_FLAG_GET, "Cannot use 'get' here");
+      forbidFlag(context, node, NODE_FLAG_SET, "Cannot use 'set' here");
+      forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' here");
+      forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' here");
+    }
+
+    else if (node.isGet()) {
+      forbidFlag(context, node, NODE_FLAG_SET, "Cannot use both 'get' and 'set'");
+
+      // Validate argument count including "this"
+      if (argumentCount != 1) {
+        context.log.error(symbol.range, "Getters must not have any arguments");
+      }
+    }
+
+    else if (node.isSet()) {
+      symbol.rename = StringBuilder_new()
+        .append("set_")
+        .append(symbol.name)
+        .finish();
+
+      // Validate argument count including "this"
+      if (argumentCount != 2) {
+        context.log.error(symbol.range, "Setters must have exactly one argument");
+      }
     }
 
     symbol.resolvedType = new Type();
@@ -261,7 +288,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
         symbol.rename = StringBuilder_new()
           .append(parent.name)
           .appendChar('_')
-          .append(symbol.name)
+          .append(symbol.rename != null ? symbol.rename : symbol.name)
           .finish();
         assert(string_equals(node.firstChild.symbol.name, "this"));
         node.firstChild.symbol.rename = "__this";
@@ -281,6 +308,9 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
   // Variable
   else if (isVariable(symbol.kind)) {
+    forbidFlag(context, node, NODE_FLAG_GET, "Cannot use 'get' on a variable");
+    forbidFlag(context, node, NODE_FLAG_SET, "Cannot use 'set' on a variable");
+
     var type = node.variableType();
     var value = node.variableValue();
 
@@ -350,7 +380,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     if (symbol.scope.symbol == null) {
       var scope = symbol.scope.parent;
       while (scope != null) {
-        var shadowed = scope.findLocal(symbol.name);
+        var shadowed = scope.findLocal(symbol.name, ScopeHint.NORMAL);
         if (shadowed != null) {
           context.log.error(node.internalRange, StringBuilder_new()
             .append("The symbol '")
@@ -589,12 +619,23 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, node: Node
     }
   }
 
-  if (isFunction(symbol.kind) && (node.parent.kind != NodeKind.CALL || node != node.parent.callValue())) {
-    context.log.error(range, StringBuilder_new()
-      .append("Must call function '")
-      .append(symbol.name)
-      .appendChar('\'')
-      .finish());
+  if (isFunction(symbol.kind) && (symbol.isSetter() ? !node.isAssignTarget() : !node.isCallValue())) {
+    if (symbol.isSetter()) {
+      context.log.error(range, StringBuilder_new()
+        .append("Cannot use setter '")
+        .append(symbol.name)
+        .append("' here")
+        .finish());
+    }
+
+    else {
+      context.log.error(range, StringBuilder_new()
+        .append("Must call function '")
+        .append(symbol.name)
+        .appendChar('\'')
+        .finish());
+    }
+
     return false;
   }
 
@@ -719,7 +760,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var type = target.resolvedType;
 
     if (type != context.errorType) {
-      var symbol = type.isClass() ? type.findMember("[]") : null;
+      var symbol = type.isClass() ? type.findMember("[]", ScopeHint.NORMAL) : null;
 
       if (symbol == null) {
         context.log.error(node.internalRange, StringBuilder_new()
@@ -763,7 +804,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.THIS) {
-    var symbol = parentScope.findNested("this", FindNested.NORMAL);
+    var symbol = parentScope.findNested("this", ScopeHint.NORMAL, FindNested.NORMAL);
     if (symbol == null) {
       context.log.error(node.range, "Cannot use 'this' here");
     } else {
@@ -777,7 +818,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   else if (node.kind == NodeKind.NAME) {
     var name = node.stringValue;
-    var symbol = parentScope.findNested(name, FindNested.NORMAL);
+    var symbol = parentScope.findNested(name, ScopeHint.NORMAL, FindNested.NORMAL);
 
     if (symbol == null) {
       var builder = StringBuilder_new()
@@ -786,7 +827,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         .append("' here");
 
       // In JavaScript, "this." before instance symbols is required
-      symbol = parentScope.findNested(name, FindNested.ALLOW_INSTANCE_ERRORS);
+      symbol = parentScope.findNested(name, ScopeHint.NORMAL, FindNested.ALLOW_INSTANCE_ERRORS);
       if (symbol != null) {
         builder
           .append(", did you mean 'this.")
@@ -855,7 +896,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
         // Empty names are left over from parse errors that have already been reported
         if (string_length(name) > 0) {
-          var symbol = target.resolvedType.findMember(name);
+          var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? ScopeHint.PREFER_SETTER : ScopeHint.NORMAL);
 
           if (symbol == null) {
             context.log.error(node.internalRange, StringBuilder_new()
@@ -867,8 +908,19 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
               .finish());
           }
 
+          // Automatically call getters
+          else if (symbol.isGetter()) {
+            target.remove();
+            node.kind = NodeKind.CALL;
+            node.appendChild(createMemberReference(target, symbol));
+            node.resolvedType = null;
+            resolveAsExpression(context, node, parentScope);
+            return;
+          }
+
           else if (isSymbolAccessAllowed(context, symbol, node, node.internalRange)) {
             initializeSymbol(context, symbol);
+
             node.symbol = symbol;
             node.resolvedType = symbol.resolvedType;
 
@@ -1045,7 +1097,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       var type = target.resolvedType;
 
       if (type != context.errorType) {
-        var symbol = type.isClass() ? type.findMember("[]=") : null;
+        var symbol = type.isClass() ? type.findMember("[]=", ScopeHint.NORMAL) : null;
 
         if (symbol == null) {
           context.log.error(left.internalRange, StringBuilder_new()
@@ -1077,6 +1129,16 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
 
     resolveAsExpression(context, left, parentScope);
+
+    // Automatically call setters
+    if (left.symbol != null && left.symbol.isSetter()) {
+      node.kind = NodeKind.CALL;
+      node.internalRange = left.internalRange;
+      node.resolvedType = null;
+      resolveAsExpression(context, node, parentScope);
+      return;
+    }
+
     resolveAsExpression(context, right, parentScope);
     checkConversion(context, right, left.resolvedType, ConversionKind.IMPLICIT);
     checkStorage(context, left);
