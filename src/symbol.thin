@@ -34,6 +34,7 @@ enum SymbolState {
 
 const SYMBOL_FLAG_NATIVE_INTEGER = 1;
 const SYMBOL_FLAG_IS_UNSIGNED = 2;
+const SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL = 4;
 
 class Symbol {
   kind: SymbolKind;
@@ -47,6 +48,7 @@ class Symbol {
   flags: int;
   byteSize: int;
   maxAlignment: int;
+  rename: string;
 
   // The "offset" variable is used to store kind-specific information
   //
@@ -72,6 +74,10 @@ class Symbol {
 
   isUnsafe(): bool {
     return this.node != null && this.node.isUnsafe();
+  }
+
+  shouldConvertInstanceToGlobal(): bool {
+    return (this.flags & SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL) != 0;
   }
 
   parent(): Symbol {

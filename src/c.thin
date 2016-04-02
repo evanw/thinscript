@@ -119,7 +119,8 @@ class CResult {
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
       this.code.append(symbol.parent().name).appendChar('_');
     }
-    this.code.append(symbol.name);
+
+    this.code.append(symbol.rename != null ? symbol.rename : symbol.name);
   }
 
   emitExpression(node: Node, parentPrecedence: Precedence): void {
@@ -447,7 +448,7 @@ class CResult {
         var child = node.firstChild;
 
         this.emitNewlineBefore(node);
-        if (!node.isExtern() && !node.isDeclare()) {
+        if (!node.isDeclareOrExtern()) {
           code.append("static ");
         }
         this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
@@ -482,7 +483,7 @@ class CResult {
       if (node.kind == NodeKind.VARIABLE) {
         var value = node.variableValue();
         this.emitNewlineBefore(node);
-        if (!node.isExtern() && !node.isDeclare()) {
+        if (!node.isDeclareOrExtern()) {
           code.append("static ");
         }
         this.emitType(node.symbol.resolvedType, TypeMode.DECLARATION);
@@ -512,7 +513,7 @@ class CResult {
           var child = node.firstChild;
 
           this.emitNewlineBefore(node);
-          if (!node.isExtern() && !node.isDeclare()) {
+          if (!node.isDeclareOrExtern()) {
             code.append("static ");
           }
           this.emitType(returnType.resolvedType, TypeMode.DECLARATION);

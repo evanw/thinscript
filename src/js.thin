@@ -129,7 +129,7 @@ class JsResult {
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
         code.append("__declare.");
       }
-      code.append(symbol.name);
+      this.emitSymbolName(symbol);
     }
 
     else if (node.kind == NodeKind.NULL) {
@@ -356,7 +356,7 @@ class JsResult {
 
     if (isAlpha(c)) {
       code.appendChar('.');
-      code.append(symbol.name);
+      this.emitSymbolName(symbol);
     }
 
     else {
@@ -364,6 +364,10 @@ class JsResult {
       StringBuilder_appendQuoted(code, symbol.name);
       code.appendChar(']');
     }
+  }
+
+  emitSymbolName(symbol: Symbol): void {
+    this.code.append(symbol.rename != null ? symbol.rename : symbol.name);
   }
 
   emitStatement(node: Node): void {
@@ -381,7 +385,7 @@ class JsResult {
       this.emitIndent();
 
       if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
-        code.append(symbol.parent().name);
+        this.emitSymbolName(symbol.parent());
         code.append(".prototype");
         this.emitSymbolAccess(symbol);
         code.append(" = function");
@@ -390,16 +394,16 @@ class JsResult {
 
       else if (node.isExtern()) {
         code.append("var ");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
         code.append(" = __extern.");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
         code.append(" = function");
         needsSemicolon = true;
       }
 
       else {
         code.append("function ");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
       }
 
       code.appendChar('(');
@@ -409,7 +413,7 @@ class JsResult {
 
       while (child != returnType) {
         assert(child.kind == NodeKind.VARIABLE);
-        code.append(child.symbol.name);
+        this.emitSymbolName(child.symbol);
         child = child.nextSibling;
         if (child != returnType) {
           code.append(", ");
@@ -518,7 +522,7 @@ class JsResult {
 
       while (child != null) {
         var value = child.variableValue();
-        code.append(child.symbol.name);
+        this.emitSymbolName(child.symbol);
         child = child.nextSibling;
         if (child != null) {
           code.append(", ");
@@ -533,38 +537,36 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.CLASS) {
-      if (node.isDeclare()) {
-        return;
-      }
+      // Emit constructor
+      if (!node.isDeclare()) {
+        this.emitNewlineBefore(node);
+        this.emitIndent();
+        code.append("function ");
+        this.emitSymbolName(node.symbol);
+        code.append("() {\n");
+        this.indent = this.indent + 1;
 
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      code.append("function ");
-      code.append(node.symbol.name);
-      code.append("() {\n");
-      this.indent = this.indent + 1;
-
-      // Emit constructor body
-      var child = node.firstChild;
-      while (child != null) {
-        if (child.kind == NodeKind.VARIABLE) {
-          this.emitIndent();
-          code.append("this.");
-          code.append(child.symbol.name);
-          code.append(" = ");
-          this.emitExpression(child.variableValue(), Precedence.LOWEST);
-          code.append(";\n");
+        var argument = node.firstChild;
+        while (argument != null) {
+          if (argument.kind == NodeKind.VARIABLE) {
+            this.emitIndent();
+            code.append("this.");
+            this.emitSymbolName(argument.symbol);
+            code.append(" = ");
+            this.emitExpression(argument.variableValue(), Precedence.LOWEST);
+            code.append(";\n");
+          }
+          argument = argument.nextSibling;
         }
-        child = child.nextSibling;
-      }
 
-      this.indent = this.indent - 1;
-      this.emitIndent();
-      code.append("}\n");
-      this.emitNewlineAfter(node);
+        this.indent = this.indent - 1;
+        this.emitIndent();
+        code.append("}\n");
+        this.emitNewlineAfter(node);
+      }
 
       // Emit instance functions
-      child = node.firstChild;
+      var child = node.firstChild;
       while (child != null) {
         if (child.kind == NodeKind.FUNCTION) {
           this.emitStatement(child);
@@ -578,7 +580,7 @@ class JsResult {
         this.emitNewlineBefore(node);
         this.emitIndent();
         code.append("__extern.");
-        code.append(node.symbol.name);
+        this.emitSymbolName(node.symbol);
         code.append(" = {\n");
         this.indent = this.indent + 1;
 
@@ -587,7 +589,7 @@ class JsResult {
         while (child != null) {
           assert(child.kind == NodeKind.VARIABLE);
           this.emitIndent();
-          code.append(child.symbol.name);
+          this.emitSymbolName(child.symbol);
           code.append(": ");
           code.append(string_intToString(child.symbol.offset));
           child = child.nextSibling;

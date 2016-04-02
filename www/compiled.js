@@ -193,7 +193,7 @@
       this.code.append(symbol.parent().name).appendChar(95);
     }
 
-    this.code.append(symbol.name);
+    this.code.append(symbol.rename !== null ? symbol.rename : symbol.name);
   };
 
   CResult.prototype.emitExpression = function(node, parentPrecedence) {
@@ -639,7 +639,7 @@
         var child = node.firstChild;
         this.emitNewlineBefore(node);
 
-        if (!node.isExtern() && !node.isDeclare()) {
+        if (!node.isDeclareOrExtern()) {
           code.append("static ");
         }
 
@@ -677,7 +677,7 @@
         var value = node.variableValue();
         this.emitNewlineBefore(node);
 
-        if (!node.isExtern() && !node.isDeclare()) {
+        if (!node.isDeclareOrExtern()) {
           code.append("static ");
         }
 
@@ -709,7 +709,7 @@
           var child = node.firstChild;
           this.emitNewlineBefore(node);
 
-          if (!node.isExtern() && !node.isDeclare()) {
+          if (!node.isDeclareOrExtern()) {
             code.append("static ");
           }
 
@@ -973,19 +973,37 @@
       symbol.resolvedType.symbol = symbol;
 
       if (symbol.kind === 4) {
+        var parent = symbol.parent();
+        var shouldConvertInstanceToGlobal = false;
         forbidFlag(context, node, 4, "Cannot use 'extern' on an instance function");
         forbidFlag(context, node, 1, "Cannot use 'declare' on an instance function");
 
-        if (symbol.parent().node.isDeclare()) {
-          node.flags = node.flags | 1;
+        if (parent.node.isDeclare()) {
+          if (body === null) {
+            node.flags = node.flags | 1;
+          }
 
-          if (body !== null) {
-            context.log.error(body.range, "Cannot implement a function on a declared class");
+          else {
+            shouldConvertInstanceToGlobal = true;
           }
         }
 
-        else if (body === null) {
-          context.log.error(node.lastChild.range, "Must implement this function");
+        else {
+          if (body === null) {
+            context.log.error(node.lastChild.range, "Must implement this function");
+          }
+
+          if (parent.node.isExtern()) {
+            node.flags = node.flags | 4;
+          }
+        }
+
+        if (shouldConvertInstanceToGlobal) {
+          symbol.kind = 5;
+          symbol.flags = symbol.flags | 4;
+          symbol.rename = StringBuilder_new().append(parent.name).appendChar(95).append(symbol.name).finish();
+          __declare.assert(__declare.string_equals(node.firstChild.symbol.name, "this"));
+          node.firstChild.symbol.rename = "__this";
         }
       }
 
@@ -1555,6 +1573,17 @@
 
         else {
           initializeSymbol(context, symbol);
+
+          if (symbol.shouldConvertInstanceToGlobal()) {
+            var target = value.dotTarget();
+            var name = createSymbolReference(symbol);
+            target.remove();
+            node.insertChildBefore(value, name.withRange(value.internalRange));
+            node.insertChildBefore(value, target);
+            value.remove();
+            value = name;
+          }
+
           var returnType = symbol.node.functionReturnType();
           var argumentVariable = symbol.node.functionFirstArgumentIgnoringThis();
           var argumentValue = value.nextSibling;
@@ -2176,7 +2205,7 @@
         code.append("__declare.");
       }
 
-      code.append(symbol.name);
+      this.emitSymbolName(symbol);
     }
 
     else if (node.kind === 26) {
@@ -2469,7 +2498,7 @@
 
     if (isAlpha(c)) {
       code.appendChar(46);
-      code.append(symbol.name);
+      this.emitSymbolName(symbol);
     }
 
     else {
@@ -2477,6 +2506,10 @@
       StringBuilder_appendQuoted(code, symbol.name);
       code.appendChar(93);
     }
+  };
+
+  JsResult.prototype.emitSymbolName = function(symbol) {
+    this.code.append(symbol.rename !== null ? symbol.rename : symbol.name);
   };
 
   JsResult.prototype.emitStatement = function(node) {
@@ -2495,7 +2528,7 @@
       this.emitIndent();
 
       if (symbol.kind === 4) {
-        code.append(symbol.parent().name);
+        this.emitSymbolName(symbol.parent());
         code.append(".prototype");
         this.emitSymbolAccess(symbol);
         code.append(" = function");
@@ -2504,16 +2537,16 @@
 
       else if (node.isExtern()) {
         code.append("var ");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
         code.append(" = __extern.");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
         code.append(" = function");
         needsSemicolon = true;
       }
 
       else {
         code.append("function ");
-        code.append(symbol.name);
+        this.emitSymbolName(symbol);
       }
 
       code.appendChar(40);
@@ -2522,7 +2555,7 @@
 
       while (child !== returnType) {
         __declare.assert(child.kind === 1);
-        code.append(child.symbol.name);
+        this.emitSymbolName(child.symbol);
         child = child.nextSibling;
 
         if (child !== returnType) {
@@ -2646,7 +2679,7 @@
 
       while (child !== null) {
         var value = child.variableValue();
-        code.append(child.symbol.name);
+        this.emitSymbolName(child.symbol);
         child = child.nextSibling;
 
         if (child !== null) {
@@ -2663,36 +2696,35 @@
     }
 
     else if (node.kind === 4) {
-      if (node.isDeclare()) {
-        return;
-      }
+      if (!node.isDeclare()) {
+        this.emitNewlineBefore(node);
+        this.emitIndent();
+        code.append("function ");
+        this.emitSymbolName(node.symbol);
+        code.append("() {\n");
+        this.indent = this.indent + 1 | 0;
+        var argument = node.firstChild;
 
-      this.emitNewlineBefore(node);
-      this.emitIndent();
-      code.append("function ");
-      code.append(node.symbol.name);
-      code.append("() {\n");
-      this.indent = this.indent + 1 | 0;
-      var child = node.firstChild;
+        while (argument !== null) {
+          if (argument.kind === 1) {
+            this.emitIndent();
+            code.append("this.");
+            this.emitSymbolName(argument.symbol);
+            code.append(" = ");
+            this.emitExpression(argument.variableValue(), 0);
+            code.append(";\n");
+          }
 
-      while (child !== null) {
-        if (child.kind === 1) {
-          this.emitIndent();
-          code.append("this.");
-          code.append(child.symbol.name);
-          code.append(" = ");
-          this.emitExpression(child.variableValue(), 0);
-          code.append(";\n");
+          argument = argument.nextSibling;
         }
 
-        child = child.nextSibling;
+        this.indent = this.indent - 1 | 0;
+        this.emitIndent();
+        code.append("}\n");
+        this.emitNewlineAfter(node);
       }
 
-      this.indent = this.indent - 1 | 0;
-      this.emitIndent();
-      code.append("}\n");
-      this.emitNewlineAfter(node);
-      child = node.firstChild;
+      var child = node.firstChild;
 
       while (child !== null) {
         if (child.kind === 10) {
@@ -2708,7 +2740,7 @@
         this.emitNewlineBefore(node);
         this.emitIndent();
         code.append("__extern.");
-        code.append(node.symbol.name);
+        this.emitSymbolName(node.symbol);
         code.append(" = {\n");
         this.indent = this.indent + 1 | 0;
         var child = node.firstChild;
@@ -2716,7 +2748,7 @@
         while (child !== null) {
           __declare.assert(child.kind === 1);
           this.emitIndent();
-          code.append(child.symbol.name);
+          this.emitSymbolName(child.symbol);
           code.append(": ");
           code.append(__declare.string_intToString(child.symbol.offset));
           child = child.nextSibling;
@@ -4039,6 +4071,10 @@
     return (this.flags & 4) !== 0;
   };
 
+  Node.prototype.isDeclareOrExtern = function() {
+    return (this.flags & 5) !== 0;
+  };
+
   Node.prototype.isPrivate = function() {
     return (this.flags & 16) !== 0;
   };
@@ -4700,14 +4736,18 @@
     return node;
   }
 
-  function createMemberReference(value, symbol) {
-    __declare.assert(isExpression(value));
-    var node = new Node();
-    node.kind = 20;
-    node.stringValue = symbol.name;
+  function createSymbolReference(symbol) {
+    var node = createName(symbol.name);
     node.symbol = symbol;
     node.resolvedType = symbol.resolvedType;
-    node.appendChild(value);
+
+    return node;
+  }
+
+  function createMemberReference(value, symbol) {
+    var node = createDot(value, symbol.name);
+    node.symbol = symbol;
+    node.resolvedType = symbol.resolvedType;
 
     return node;
   }
@@ -6528,6 +6568,7 @@
     this.flags = 0;
     this.byteSize = 0;
     this.maxAlignment = 0;
+    this.rename = null;
     this.offset = 0;
   }
 
@@ -6537,6 +6578,10 @@
 
   Symbol.prototype.isUnsafe = function() {
     return this.node !== null && this.node.isUnsafe();
+  };
+
+  Symbol.prototype.shouldConvertInstanceToGlobal = function() {
+    return (this.flags & 4) !== 0;
   };
 
   Symbol.prototype.parent = function() {

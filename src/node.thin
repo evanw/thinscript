@@ -181,6 +181,10 @@ class Node {
     return (this.flags & NODE_FLAG_EXTERN) != 0;
   }
 
+  isDeclareOrExtern(): bool {
+    return (this.flags & (NODE_FLAG_DECLARE | NODE_FLAG_EXTERN)) != 0;
+  }
+
   isPrivate(): bool {
     return (this.flags & NODE_FLAG_PRIVATE) != 0;
   }
@@ -774,14 +778,17 @@ function createDot(value: Node, name: string): Node {
   return node;
 }
 
-function createMemberReference(value: Node, symbol: Symbol): Node {
-  assert(isExpression(value));
-  var node = new Node();
-  node.kind = NodeKind.DOT;
-  node.stringValue = symbol.name;
+function createSymbolReference(symbol: Symbol): Node {
+  var node = createName(symbol.name);
   node.symbol = symbol;
   node.resolvedType = symbol.resolvedType;
-  node.appendChild(value);
+  return node;
+}
+
+function createMemberReference(value: Node, symbol: Symbol): Node {
+  var node = createDot(value, symbol.name);
+  node.symbol = symbol;
+  node.resolvedType = symbol.resolvedType;
   return node;
 }
 

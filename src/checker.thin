@@ -227,22 +227,44 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     symbol.resolvedType.symbol = symbol;
 
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+      var parent = symbol.parent();
+      var shouldConvertInstanceToGlobal = false;
+
       forbidFlag(context, node, NODE_FLAG_EXTERN, "Cannot use 'extern' on an instance function");
       forbidFlag(context, node, NODE_FLAG_DECLARE, "Cannot use 'declare' on an instance function");
 
       // Functions inside declared classes are automatically declared
-      if (symbol.parent().node.isDeclare()) {
-        node.flags = node.flags | NODE_FLAG_DECLARE;
-
-        // Prevent declared functions on declared classes for simplicity
-        if (body != null) {
-          context.log.error(body.range, "Cannot implement a function on a declared class");
+      if (parent.node.isDeclare()) {
+        if (body == null) {
+          node.flags = node.flags | NODE_FLAG_DECLARE;
+        } else {
+          shouldConvertInstanceToGlobal = true;
         }
       }
 
       // Require implementations for functions not on declared classes
-      else if (body == null) {
-        context.log.error(node.lastChild.range, "Must implement this function");
+      else {
+        if (body == null) {
+          context.log.error(node.lastChild.range, "Must implement this function");
+        }
+
+        // Functions inside extern classes are automatically extern
+        if (parent.node.isExtern()) {
+          node.flags = node.flags | NODE_FLAG_EXTERN;
+        }
+      }
+
+      // Rewrite this symbol as a global function instead of an instance function
+      if (shouldConvertInstanceToGlobal) {
+        symbol.kind = SymbolKind.FUNCTION_GLOBAL;
+        symbol.flags = symbol.flags | SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL;
+        symbol.rename = StringBuilder_new()
+          .append(parent.name)
+          .appendChar('_')
+          .append(symbol.name)
+          .finish();
+        assert(string_equals(node.firstChild.symbol.name, "this"));
+        node.firstChild.symbol.rename = "__this";
       }
     }
 
@@ -881,6 +903,16 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       else {
         initializeSymbol(context, symbol);
+
+        if (symbol.shouldConvertInstanceToGlobal()) {
+          var target = value.dotTarget();
+          var name = createSymbolReference(symbol);
+          target.remove();
+          node.insertChildBefore(value, name.withRange(value.internalRange));
+          node.insertChildBefore(value, target);
+          value.remove();
+          value = name;
+        }
 
         var returnType = symbol.node.functionReturnType();
         var argumentVariable = symbol.node.functionFirstArgumentIgnoringThis();
