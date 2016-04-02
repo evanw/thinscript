@@ -499,9 +499,16 @@ function resolveAsExpression(context: CheckContext, node: Node, parentScope: Sco
   assert(isExpression(node));
   resolve(context, node, parentScope);
 
-  if (node.resolvedType != context.errorType && node.isType()) {
-    context.log.error(node.range, "Expected expression but found type");
-    node.resolvedType = context.errorType;
+  if (node.resolvedType != context.errorType) {
+    if (node.isType()) {
+      context.log.error(node.range, "Expected expression but found type");
+      node.resolvedType = context.errorType;
+    }
+
+    else if (node.resolvedType == context.voidType && node.parent.kind != NodeKind.EXPRESSION) {
+      context.log.error(node.range, "This expression does not return a value");
+      node.resolvedType = context.errorType;
+    }
   }
 }
 
@@ -1390,7 +1397,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
             (rightType != context.nullType || !leftType.isReference(context)) &&
             (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
             (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-          context.log.error(node.range, StringBuilder_new()
+          context.log.error(node.internalRange, StringBuilder_new()
             .append("Cannot compare type '")
             .append(leftType.toString())
             .append("' with type '")

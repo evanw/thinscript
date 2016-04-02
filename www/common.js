@@ -151,7 +151,7 @@ function compileWebAssembly(code) {
       exports.Compiler_callAddInput(compiler, nameString, contentsString);
     });
 
-    exports.Compiler_callFinish(compiler);
+    var success = exports.Compiler_callFinish(compiler);
 
     var wasm = exports.Compiler_wasm(compiler);
     var wasmData = wasm && stdlib.ints[wasm >> 2];
@@ -167,6 +167,7 @@ function compileWebAssembly(code) {
       js: stdlib.extractLengthPrefixedString(exports.Compiler_js(compiler)) || '',
       c: stdlib.extractLengthPrefixedString(exports.Compiler_c(compiler)) || '',
       totalTime: totalTime,
+      success: success,
     };
   };
 }
@@ -193,7 +194,7 @@ function compileJavaScript(code) {
       });
     }
 
-    exports.Compiler_callFinish(compiler);
+    var success = exports.Compiler_callFinish(compiler);
     var wasm = exports.Compiler_wasm(compiler);
 
     var after = now();
@@ -206,6 +207,7 @@ function compileJavaScript(code) {
       js: exports.Compiler_js(compiler),
       c: exports.Compiler_c(compiler),
       totalTime: totalTime,
+      success: success,
     };
   };
 }

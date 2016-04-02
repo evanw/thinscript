@@ -1193,9 +1193,16 @@
     __declare.assert(isExpression(node));
     resolve(context, node, parentScope);
 
-    if (node.resolvedType !== context.errorType && node.isType()) {
-      context.log.error(node.range, "Expected expression but found type");
-      node.resolvedType = context.errorType;
+    if (node.resolvedType !== context.errorType) {
+      if (node.isType()) {
+        context.log.error(node.range, "Expected expression but found type");
+        node.resolvedType = context.errorType;
+      }
+
+      else if (node.resolvedType === context.voidType && node.parent.kind !== 9) {
+        context.log.error(node.range, "This expression does not return a value");
+        node.resolvedType = context.errorType;
+      }
     }
   }
 
@@ -1998,7 +2005,7 @@
           node.resolvedType = context.boolType;
 
           if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-            context.log.error(node.range, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
+            context.log.error(node.internalRange, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
           }
         }
 

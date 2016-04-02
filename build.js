@@ -7,16 +7,12 @@ function compile(compiler, sources) {
   var compiled = compileJavaScript(compiler);
 
   var compilerJS = compiled(sources, CompileTarget.JAVASCRIPT, ['TERMINAL']);
-  if (compilerJS.log) {
-    process.stdout.write(compilerJS.log);
-    process.exit(1);
-  }
+  if (compilerJS.log) process.stdout.write(compilerJS.log);
+  if (!compilerJS.success) process.exit(1);
 
   var compilerWASM = compiled(sources, CompileTarget.WEBASSEMBLY);
-  if (compilerWASM.log) {
-    process.stdout.write(compilerWASM.log);
-    process.exit(1);
-  }
+  if (compilerWASM.log) process.stdout.write(compilerWASM.log);
+  if (!compilerWASM.success) process.exit(1);
 
   return {
     wasm: compilerWASM.wasm,
