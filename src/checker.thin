@@ -550,6 +550,11 @@ function canConvert(context: CheckContext, node: Node, to: Type, kind: Conversio
   else if (from.isInteger() && to.isInteger()) {
     var mask = to.integerBitMask();
 
+    // Allow implicit conversions between enums and int
+    if (from.isEnum() && to == from.underlyingType(context)) {
+      return true;
+    }
+
     // Only allow lossless conversions implicitly
     if (kind == ConversionKind.EXPLICIT || from.symbol.byteSize < to.symbol.byteSize ||
         node.kind == NodeKind.INT && (to.isUnsigned()
@@ -1316,11 +1321,19 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // TODO: Fix this
     else if (leftType.isInteger() && node.kind != NodeKind.EQUAL && node.kind != NodeKind.NOT_EQUAL) {
-      if (node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER ||
-          node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
-          node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
-        var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
-        if (commonType == context.uintType) {
+      if (node.kind == NodeKind.ADD ||
+          node.kind == NodeKind.SUBTRACT ||
+          node.kind == NodeKind.MULTIPLY ||
+          node.kind == NodeKind.DIVIDE ||
+          node.kind == NodeKind.REMAINDER ||
+          node.kind == NodeKind.BITWISE_AND ||
+          node.kind == NodeKind.BITWISE_OR ||
+          node.kind == NodeKind.BITWISE_XOR ||
+          node.kind == NodeKind.SHIFT_LEFT ||
+          node.kind == NodeKind.SHIFT_RIGHT) {
+        var isUnsigned = binaryHasUnsignedArguments(node);
+        var commonType = isUnsigned ? context.uintType : context.intType;
+        if (isUnsigned) {
           node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
         }
         checkConversion(context, left, commonType, ConversionKind.IMPLICIT);
@@ -1340,7 +1353,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           else if (node.kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
           else if (node.kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
           else if (node.kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
-          else if (node.kind == NodeKind.SHIFT_RIGHT) output = inputLeft >> inputRight;
+          else if (node.kind == NodeKind.SHIFT_RIGHT) output = isUnsigned ? ((inputLeft as uint) >> (inputRight as uint)) as int : inputLeft >> inputRight;
           else if (node.kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
           else return;
           node.becomeIntegerConstant(output);
@@ -1392,7 +1405,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         node.resolvedType = context.boolType;
 
         if (leftType != context.errorType && rightType != context.errorType && leftType != rightType &&
-            !canConvert(context, right, leftType, ConversionKind.IMPLICIT) && !canConvert(context, left, rightType, ConversionKind.IMPLICIT)) {
+            !canConvert(context, right, leftType, ConversionKind.IMPLICIT) &&
+            !canConvert(context, left, rightType, ConversionKind.IMPLICIT)) {
           context.log.error(node.internalRange, StringBuilder_new()
             .append("Cannot compare type '")
             .append(leftType.toString())

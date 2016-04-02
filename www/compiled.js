@@ -1239,6 +1239,10 @@
     else if (from.isInteger() && to.isInteger()) {
       var mask = to.integerBitMask();
 
+      if (from.isEnum() && to === from.underlyingType(context)) {
+        return true;
+      }
+
       if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 23 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
         return true;
       }
@@ -1906,9 +1910,10 @@
 
       else if (leftType.isInteger() && node.kind !== 46 && node.kind !== 55) {
         if (node.kind === 40 || node.kind === 59 || node.kind === 54 || node.kind === 45 || node.kind === 56 || node.kind === 42 || node.kind === 43 || node.kind === 44 || node.kind === 57 || node.kind === 58) {
-          var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+          var isUnsigned = binaryHasUnsignedArguments(node);
+          var commonType = isUnsigned ? context.uintType : context.intType;
 
-          if (commonType === context.uintType) {
+          if (isUnsigned) {
             node.flags = node.flags | 4096;
           }
 
@@ -1954,7 +1959,7 @@
             }
 
             else if (node.kind === 58) {
-              output = inputLeft >> inputRight;
+              output = isUnsigned ? inputLeft >>> 0 >>> (inputRight >>> 0) | 0 : inputLeft >> inputRight;
             }
 
             else if (node.kind === 59) {
