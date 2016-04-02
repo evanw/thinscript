@@ -944,23 +944,23 @@
     symbol.state = 1;
     var node = symbol.node;
     forbidFlag(context, node, 2, "Unsupported flag 'export'");
-    forbidFlag(context, node, 64, "Unsupported flag 'protected'");
-    forbidFlag(context, node, 512, "Unsupported flag 'static'");
+    forbidFlag(context, node, 128, "Unsupported flag 'protected'");
+    forbidFlag(context, node, 1024, "Unsupported flag 'static'");
 
     if (symbol.kind === 0) {
       forbidFlag(context, node, 8, "Cannot use 'get' on a class");
-      forbidFlag(context, node, 256, "Cannot use 'set' on a class");
-      forbidFlag(context, node, 128, "Cannot use 'public' on a class");
-      forbidFlag(context, node, 32, "Cannot use 'private' on a class");
+      forbidFlag(context, node, 512, "Cannot use 'set' on a class");
+      forbidFlag(context, node, 256, "Cannot use 'public' on a class");
+      forbidFlag(context, node, 64, "Cannot use 'private' on a class");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
     }
 
     else if (symbol.kind === 1) {
       forbidFlag(context, node, 8, "Cannot use 'get' on an enum");
-      forbidFlag(context, node, 256, "Cannot use 'set' on an enum");
-      forbidFlag(context, node, 128, "Cannot use 'public' on an enum");
-      forbidFlag(context, node, 32, "Cannot use 'private' on an enum");
+      forbidFlag(context, node, 512, "Cannot use 'set' on an enum");
+      forbidFlag(context, node, 256, "Cannot use 'public' on an enum");
+      forbidFlag(context, node, 64, "Cannot use 'private' on an enum");
       symbol.resolvedType = new Type();
       symbol.resolvedType.symbol = symbol;
       var underlyingSymbol = symbol.resolvedType.underlyingType(context).symbol;
@@ -986,13 +986,13 @@
 
       if (symbol.kind !== 4) {
         forbidFlag(context, node, 8, "Cannot use 'get' here");
-        forbidFlag(context, node, 256, "Cannot use 'set' here");
-        forbidFlag(context, node, 128, "Cannot use 'public' here");
-        forbidFlag(context, node, 32, "Cannot use 'private' here");
+        forbidFlag(context, node, 512, "Cannot use 'set' here");
+        forbidFlag(context, node, 256, "Cannot use 'public' here");
+        forbidFlag(context, node, 64, "Cannot use 'private' here");
       }
 
       else if (node.isGet()) {
-        forbidFlag(context, node, 256, "Cannot use both 'get' and 'set'");
+        forbidFlag(context, node, 512, "Cannot use both 'get' and 'set'");
 
         if (argumentCount !== 1) {
           context.log.error(symbol.range, "Getters must not have any arguments");
@@ -1081,13 +1081,13 @@
 
     else if (isVariable(symbol.kind)) {
       forbidFlag(context, node, 8, "Cannot use 'get' on a variable");
-      forbidFlag(context, node, 256, "Cannot use 'set' on a variable");
+      forbidFlag(context, node, 512, "Cannot use 'set' on a variable");
       var type = node.variableType();
       var value = node.variableValue();
 
       if (symbol.kind !== 9) {
-        forbidFlag(context, node, 128, "Cannot use 'public' here");
-        forbidFlag(context, node, 32, "Cannot use 'private' here");
+        forbidFlag(context, node, 256, "Cannot use 'public' here");
+        forbidFlag(context, node, 64, "Cannot use 'private' here");
       }
 
       if (type !== null) {
@@ -1216,41 +1216,42 @@
     }
   }
 
-  function checkConversion(context, node, to, kind) {
+  function canConvert(context, node, to, kind) {
     var from = node.resolvedType;
-    var canCast = false;
     __declare.assert(isExpression(node));
     __declare.assert(from !== null);
     __declare.assert(to !== null);
 
     if (from === to || from === context.errorType || to === context.errorType) {
-      return;
+      return true;
     }
 
     else if (from === context.nullType && to.isReference(context)) {
-      return;
+      return true;
     }
 
     else if (context.isUnsafeAllowed && (from.isReference(context) || to.isReference(context))) {
       if (kind === 1) {
-        return;
+        return true;
       }
-
-      canCast = true;
     }
 
     else if (from.isInteger() && to.isInteger()) {
       var mask = to.integerBitMask();
 
-      if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 23 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= ~mask >> 1 && node.intValue <= (mask >>> 1 | 0))) {
-        return;
+      if (kind === 1 || from.symbol.byteSize < to.symbol.byteSize || node.kind === 23 && (to.isUnsigned() ? node.intValue >= 0 && node.intValue >>> 0 <= mask : node.intValue >= (~mask | 0) >> 1 && node.intValue <= (mask >>> 1 | 0))) {
+        return true;
       }
-
-      canCast = true;
     }
 
-    context.log.error(node.range, StringBuilder_new().append("Cannot convert from type '").append(from.toString()).append("' to type '").append(to.toString()).append(canCast ? "' without a cast" : "'").finish());
-    node.resolvedType = context.errorType;
+    return false;
+  }
+
+  function checkConversion(context, node, to, kind) {
+    if (!canConvert(context, node, to, kind)) {
+      context.log.error(node.range, StringBuilder_new().append("Cannot convert from type '").append(node.resolvedType.toString()).append("' to type '").append(to.toString()).append(kind === 0 && canConvert(context, node, to, 1) ? "' without a cast" : "'").finish());
+      node.resolvedType = context.errorType;
+    }
   }
 
   function checkStorage(context, target) {
@@ -1472,7 +1473,7 @@
     }
 
     else if (node.kind === 23) {
-      node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
+      node.resolvedType = node.intValue < 0 && !node.isPositive() ? context.uintType : context.intType;
     }
 
     else if (node.kind === 29) {
@@ -1853,7 +1854,7 @@
       }
 
       else if (value.resolvedType.isInteger()) {
-        node.resolvedType = context.intType;
+        node.resolvedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
 
         if (value.kind === 23) {
           var input = value.intValue;
@@ -1908,7 +1909,7 @@
           var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
           if (commonType === context.uintType) {
-            node.flags = node.flags | 2048;
+            node.flags = node.flags | 4096;
           }
 
           checkConversion(context, left, commonType, 0);
@@ -1976,7 +1977,7 @@
           var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
           if (expectedType === context.uintType) {
-            node.flags = node.flags | 2048;
+            node.flags = node.flags | 4096;
           }
 
           checkConversion(context, left, expectedType, 0);
@@ -2004,7 +2005,7 @@
         else if (node.kind === 46 || node.kind === 55) {
           node.resolvedType = context.boolType;
 
-          if (leftType !== context.errorType && rightType !== context.errorType && (leftType === rightType ? leftType === context.voidType : (leftType !== context.nullType || !rightType.isReference(context)) && (rightType !== context.nullType || !leftType.isReference(context)) && (!leftType.isUnsigned() || !right.isNonNegativeInteger()) && (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
+          if (leftType !== context.errorType && rightType !== context.errorType && leftType !== rightType && !canConvert(context, right, leftType, 0) && !canConvert(context, left, rightType, 0)) {
             context.log.error(node.internalRange, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
           }
         }
@@ -4197,23 +4198,27 @@
   };
 
   Node.prototype.isSet = function() {
-    return (this.flags & 256) !== 0;
+    return (this.flags & 512) !== 0;
   };
 
   Node.prototype.isOperator = function() {
     return (this.flags & 16) !== 0;
   };
 
-  Node.prototype.isPrivate = function() {
+  Node.prototype.isPositive = function() {
     return (this.flags & 32) !== 0;
   };
 
+  Node.prototype.isPrivate = function() {
+    return (this.flags & 64) !== 0;
+  };
+
   Node.prototype.isUnsafe = function() {
-    return (this.flags & 1024) !== 0;
+    return (this.flags & 2048) !== 0;
   };
 
   Node.prototype.isUnsignedOperator = function() {
-    return (this.flags & 2048) !== 0;
+    return (this.flags & 4096) !== 0;
   };
 
   Node.prototype.childCount = function() {
@@ -5668,7 +5673,7 @@
         var isSet = __declare.string_equals(text, "set");
 
         if (isGet || isSet) {
-          childFlags = appendFlag(childFlags, isGet ? 8 : 256, childName.range);
+          childFlags = appendFlag(childFlags, isGet ? 8 : 512, childName.range);
           childName = this.current;
           this.advance();
         }
@@ -5970,23 +5975,23 @@
       }
 
       else if (this.eat(62)) {
-        flag = 32;
-      }
-
-      else if (this.eat(63)) {
         flag = 64;
       }
 
-      else if (this.eat(64)) {
+      else if (this.eat(63)) {
         flag = 128;
       }
 
+      else if (this.eat(64)) {
+        flag = 256;
+      }
+
       else if (this.eat(67)) {
-        flag = 512;
+        flag = 1024;
       }
 
       else if (this.eat(70)) {
-        flag = 1024;
+        flag = 2048;
       }
 
       else {
@@ -6018,7 +6023,7 @@
       return null;
     }
 
-    node.flags = node.flags | 1024;
+    node.flags = node.flags | 2048;
 
     return node.withRange(spanRanges(token.range, node.range));
   };
@@ -6156,6 +6161,7 @@
     }
 
     node.intValue = value | 0;
+    node.flags = 32;
 
     return true;
   };

@@ -1146,6 +1146,7 @@ class ParserContext {
     }
 
     node.intValue = value as int;
+    node.flags = NODE_FLAG_POSITIVE;
     return true;
   }
 }

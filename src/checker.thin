@@ -522,9 +522,8 @@ function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): v
   }
 }
 
-function checkConversion(context: CheckContext, node: Node, to: Type, kind: ConversionKind): void {
+function canConvert(context: CheckContext, node: Node, to: Type, kind: ConversionKind): bool {
   var from = node.resolvedType;
-  var canCast = false;
 
   assert(isExpression(node));
   assert(from != null);
@@ -532,21 +531,19 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
 
   // Early-out if the types are identical or errors
   if (from == to || from == context.errorType || to == context.errorType) {
-    return;
+    return true;
   }
 
   // Allow conversions from null
   else if (from == context.nullType && to.isReference(context)) {
-    return;
+    return true;
   }
 
   // Allow explicit conversions between references in unsafe mode
   else if (context.isUnsafeAllowed && (from.isReference(context) || to.isReference(context))) {
     if (kind == ConversionKind.EXPLICIT) {
-      return;
+      return true;
     }
-
-    canCast = true;
   }
 
   // Check integer conversions
@@ -558,23 +555,24 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
         node.kind == NodeKind.INT && (to.isUnsigned()
           ? node.intValue >= 0 && node.intValue as uint <= mask
           : node.intValue >= (~mask as int >> 1) && node.intValue <= (mask >> 1) as int)) {
-      return;
+      return true;
     }
-
-    canCast = true;
   }
 
-  // All other conversions are an error
-  context.log.error(node.range, StringBuilder_new()
-    .append("Cannot convert from type '")
-    .append(from.toString())
-    .append("' to type '")
-    .append(to.toString())
-    .append(canCast ? "' without a cast" : "'")
-    .finish());
+  return false;
+}
 
-  // Prevent further errors
-  node.resolvedType = context.errorType;
+function checkConversion(context: CheckContext, node: Node, to: Type, kind: ConversionKind): void {
+  if (!canConvert(context, node, to, kind)) {
+    context.log.error(node.range, StringBuilder_new()
+      .append("Cannot convert from type '")
+      .append(node.resolvedType.toString())
+      .append("' to type '")
+      .append(to.toString())
+      .append(kind == ConversionKind.IMPLICIT && canConvert(context, node, to, ConversionKind.EXPLICIT) ? "' without a cast" : "'")
+      .finish());
+    node.resolvedType = context.errorType;
+  }
 }
 
 function checkStorage(context: CheckContext, target: Node): void {
@@ -817,7 +815,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (node.kind == NodeKind.INT) {
-    node.resolvedType = node.intValue < 0 ? context.uintType : context.intType;
+    // Use the positive flag to differentiate between -2147483648 and 2147483648
+    node.resolvedType = node.intValue < 0 && !node.isPositive() ? context.uintType : context.intType;
   }
 
   else if (node.kind == NodeKind.STRING) {
@@ -1260,7 +1259,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // Special-case integer types
     else if (value.resolvedType.isInteger()) {
-      node.resolvedType = context.intType;
+      node.resolvedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
 
       // Automatically fold constants
       if (value.kind == NodeKind.INT) {
@@ -1392,11 +1391,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
         node.resolvedType = context.boolType;
 
-        if (leftType != context.errorType && rightType != context.errorType && (leftType == rightType ? leftType == context.voidType :
-            (leftType != context.nullType || !rightType.isReference(context)) &&
-            (rightType != context.nullType || !leftType.isReference(context)) &&
-            (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
-            (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
+        if (leftType != context.errorType && rightType != context.errorType && leftType != rightType &&
+            !canConvert(context, right, leftType, ConversionKind.IMPLICIT) && !canConvert(context, left, rightType, ConversionKind.IMPLICIT)) {
           context.log.error(node.internalRange, StringBuilder_new()
             .append("Cannot compare type '")
             .append(leftType.toString())
