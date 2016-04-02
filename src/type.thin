@@ -61,6 +61,6 @@ class Type {
   }
 
   findMember(name: string, hint: ScopeHint): Symbol {
-    return this.symbol.scope.findLocal(name, hint);
+    return this.symbol != null && this.symbol.scope != null ? this.symbol.scope.findLocal(name, hint) : null;
   }
 }

@@ -286,7 +286,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     }
 
     // Validate operator argument counts including "this"
-    else if (!isAlpha(string_get(symbol.name, 0))) {
+    else if (node.isOperator()) {
       if (string_equals(symbol.name, "~") || string_equals(symbol.name, "++") || string_equals(symbol.name, "--")) {
         if (argumentCount != 1) {
           context.log.error(symbol.range, StringBuilder_new()
@@ -1217,135 +1217,6 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = left.resolvedType;
   }
 
-  else if (
-      node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER ||
-      node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
-      node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
-    var left = node.binaryLeft();
-    var right = node.binaryRight();
-
-    resolveAsExpression(context, left, parentScope);
-    resolveAsExpression(context, right, parentScope);
-
-    var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
-    if (commonType == context.uintType) {
-      node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
-    }
-    checkConversion(context, left, commonType, ConversionKind.IMPLICIT);
-    checkConversion(context, right, commonType, ConversionKind.IMPLICIT);
-    node.resolvedType = commonType;
-
-    // Automatically fold constants
-    if (left.kind == NodeKind.INT && right.kind == NodeKind.INT) {
-      var inputLeft = left.intValue;
-      var inputRight = right.intValue;
-      var output = 0;
-      if (node.kind == NodeKind.ADD) output = inputLeft + inputRight;
-      else if (node.kind == NodeKind.BITWISE_AND) output = inputLeft & inputRight;
-      else if (node.kind == NodeKind.BITWISE_OR) output = inputLeft | inputRight;
-      else if (node.kind == NodeKind.BITWISE_XOR) output = inputLeft ^ inputRight;
-      else if (node.kind == NodeKind.DIVIDE) output = inputLeft / inputRight;
-      else if (node.kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
-      else if (node.kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
-      else if (node.kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
-      else if (node.kind == NodeKind.SHIFT_RIGHT) output = inputLeft >> inputRight;
-      else if (node.kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
-      else return;
-      node.becomeIntegerConstant(output);
-    }
-
-    else {
-      simplifyBinary(node);
-    }
-  }
-
-  else if (
-      node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
-      node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
-    var left = node.binaryLeft();
-    var right = node.binaryRight();
-    resolveAsExpression(context, left, parentScope);
-    resolveAsExpression(context, right, parentScope);
-    var leftType = left.resolvedType;
-    var rightType = right.resolvedType;
-    var expectedType =
-      leftType == rightType && leftType.isEnum() ? leftType :
-      binaryHasUnsignedArguments(node) ? context.uintType :
-      context.intType;
-    if (expectedType == context.uintType) {
-      node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
-    }
-    checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
-    checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
-    node.resolvedType = context.boolType;
-  }
-
-  else if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
-    var left = node.binaryLeft();
-    var right = node.binaryRight();
-    resolveAsExpression(context, left, parentScope);
-    resolveAsExpression(context, right, parentScope);
-    checkConversion(context, left, context.boolType, ConversionKind.IMPLICIT);
-    checkConversion(context, right, context.boolType, ConversionKind.IMPLICIT);
-    node.resolvedType = context.boolType;
-  }
-
-  else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
-    var left = node.binaryLeft();
-    var right = node.binaryRight();
-    resolveAsExpression(context, left, parentScope);
-    resolveAsExpression(context, right, parentScope);
-    node.resolvedType = context.boolType;
-
-    var leftType = left.resolvedType;
-    var rightType = right.resolvedType;
-
-    if (leftType != context.errorType && rightType != context.errorType && (leftType == rightType ? leftType == context.voidType :
-        (leftType != context.nullType || !rightType.isReference(context)) &&
-        (rightType != context.nullType || !leftType.isReference(context)) &&
-        (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
-        (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
-      context.log.error(node.range, StringBuilder_new()
-        .append("Cannot compare type '")
-        .append(leftType.toString())
-        .append("' with type '")
-        .append(rightType.toString())
-        .appendChar('\'')
-        .finish());
-    }
-  }
-
-  else if (node.kind == NodeKind.COMPLEMENT || node.kind == NodeKind.NEGATIVE || node.kind == NodeKind.POSITIVE) {
-    var value = node.unaryValue();
-    resolveAsExpression(context, value, parentScope);
-    var expectedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
-    checkConversion(context, value, expectedType, ConversionKind.IMPLICIT);
-    node.resolvedType = node.kind == NodeKind.NEGATIVE ? context.intType : expectedType;
-
-    // Automatically fold constants
-    if (value.kind == NodeKind.INT) {
-      var input = value.intValue;
-      var output = input;
-      if (node.kind == NodeKind.COMPLEMENT) output = ~input;
-      else if (node.kind == NodeKind.NEGATIVE) output = -input;
-      node.becomeIntegerConstant(output);
-    }
-  }
-
-  else if (node.kind == NodeKind.EXPONENT ||
-      node.kind == NodeKind.POSTFIX_DECREMENT || node.kind == NodeKind.POSTFIX_INCREMENT ||
-      node.kind == NodeKind.PREFIX_DECREMENT || node.kind == NodeKind.PREFIX_INCREMENT) {
-    resolveChildrenAsExpressions(context, node, parentScope);
-    context.log.error(node.internalRange, "This operator is currently unsupported");
-  }
-
-  else if (node.kind == NodeKind.NOT) {
-    var value = node.unaryValue();
-    resolveAsExpression(context, value, parentScope);
-    checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
-    node.resolvedType = context.boolType;
-  }
-
   else if (node.kind == NodeKind.NEW) {
     var type = node.newType();
     resolveAsType(context, type, parentScope);
@@ -1367,6 +1238,177 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     // TODO: Constructors
     if (type.nextSibling != null) {
       context.log.error(node.internalRange, "Constructors with arguments are not supported yet");
+    }
+  }
+
+  else if (isUnary(node.kind)) {
+    var value = node.unaryValue();
+    resolveAsExpression(context, value, parentScope);
+
+    // Operator "!" is hard-coded
+    if (node.kind == NodeKind.NOT) {
+      checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
+      node.resolvedType = context.boolType;
+    }
+
+    // Special-case integer types
+    else if (value.resolvedType.isInteger()) {
+      node.resolvedType = context.intType;
+
+      // Automatically fold constants
+      if (value.kind == NodeKind.INT) {
+        var input = value.intValue;
+        var output = input;
+        if (node.kind == NodeKind.COMPLEMENT) output = ~input;
+        else if (node.kind == NodeKind.NEGATIVE) output = -input;
+        node.becomeIntegerConstant(output);
+      }
+    }
+
+    // Support custom operators
+    else if (value.resolvedType != context.errorType) {
+      var name = node.internalRange.toString();
+      var symbol = value.resolvedType.findMember(name, ScopeHint.NOT_BINARY);
+
+      // Automatically call the function
+      if (symbol != null) {
+        value.remove();
+        node.appendChild(createMemberReference(value, symbol).withRange(node.range).withInternalRange(node.internalRange));
+        node.kind = NodeKind.CALL;
+        node.resolvedType = null;
+        resolveAsExpression(context, node, parentScope);
+      }
+
+      else {
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("Cannot use unary operator '")
+          .append(name)
+          .append("' with type '")
+          .append(value.resolvedType.toString())
+          .appendChar('\'')
+          .finish());
+      }
+    }
+  }
+
+  else if (isBinary(node.kind)) {
+    var left = node.binaryLeft();
+    var right = node.binaryRight();
+
+    resolveAsExpression(context, left, parentScope);
+    resolveAsExpression(context, right, parentScope);
+
+    var leftType = left.resolvedType;
+    var rightType = right.resolvedType;
+
+    // Operators "&&" and "||" are hard-coded
+    if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
+      checkConversion(context, left, context.boolType, ConversionKind.IMPLICIT);
+      checkConversion(context, right, context.boolType, ConversionKind.IMPLICIT);
+      node.resolvedType = context.boolType;
+    }
+
+    // TODO: Fix this
+    else if (leftType.isInteger() && node.kind != NodeKind.EQUAL && node.kind != NodeKind.NOT_EQUAL) {
+      if (node.kind == NodeKind.ADD || node.kind == NodeKind.SUBTRACT || node.kind == NodeKind.MULTIPLY || node.kind == NodeKind.DIVIDE || node.kind == NodeKind.REMAINDER ||
+          node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR ||
+          node.kind == NodeKind.SHIFT_LEFT || node.kind == NodeKind.SHIFT_RIGHT) {
+        var commonType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+        if (commonType == context.uintType) {
+          node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
+        }
+        checkConversion(context, left, commonType, ConversionKind.IMPLICIT);
+        checkConversion(context, right, commonType, ConversionKind.IMPLICIT);
+        node.resolvedType = commonType;
+
+        // Automatically fold constants
+        if (left.kind == NodeKind.INT && right.kind == NodeKind.INT) {
+          var inputLeft = left.intValue;
+          var inputRight = right.intValue;
+          var output = 0;
+          if (node.kind == NodeKind.ADD) output = inputLeft + inputRight;
+          else if (node.kind == NodeKind.BITWISE_AND) output = inputLeft & inputRight;
+          else if (node.kind == NodeKind.BITWISE_OR) output = inputLeft | inputRight;
+          else if (node.kind == NodeKind.BITWISE_XOR) output = inputLeft ^ inputRight;
+          else if (node.kind == NodeKind.DIVIDE) output = inputLeft / inputRight;
+          else if (node.kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
+          else if (node.kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
+          else if (node.kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
+          else if (node.kind == NodeKind.SHIFT_RIGHT) output = inputLeft >> inputRight;
+          else if (node.kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
+          else return;
+          node.becomeIntegerConstant(output);
+        }
+
+        else {
+          simplifyBinary(node);
+        }
+      }
+
+      else if (
+          node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
+          node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
+        var expectedType =
+          leftType == rightType && leftType.isEnum() ? leftType :
+          binaryHasUnsignedArguments(node) ? context.uintType :
+          context.intType;
+
+        if (expectedType == context.uintType) {
+          node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
+        }
+
+        checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
+        checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
+        node.resolvedType = context.boolType;
+      }
+
+      else {
+        context.log.error(node.internalRange, "This operator is not currently supported");
+      }
+    }
+
+    // Support custom operators
+    else if (leftType != context.errorType) {
+      var name = node.internalRange.toString();
+      var symbol = leftType.findMember(name, ScopeHint.NOT_UNARY);
+
+      // Automatically call the function
+      if (symbol != null) {
+        left.remove();
+        node.insertChildBefore(right, createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange));
+        node.kind = NodeKind.CALL;
+        node.resolvedType = null;
+        resolveAsExpression(context, node, parentScope);
+      }
+
+      // Automatically implement equality operators
+      else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
+        node.resolvedType = context.boolType;
+
+        if (leftType != context.errorType && rightType != context.errorType && (leftType == rightType ? leftType == context.voidType :
+            (leftType != context.nullType || !rightType.isReference(context)) &&
+            (rightType != context.nullType || !leftType.isReference(context)) &&
+            (!leftType.isUnsigned() || !right.isNonNegativeInteger()) &&
+            (!rightType.isUnsigned() || !left.isNonNegativeInteger()))) {
+          context.log.error(node.range, StringBuilder_new()
+            .append("Cannot compare type '")
+            .append(leftType.toString())
+            .append("' with type '")
+            .append(rightType.toString())
+            .appendChar('\'')
+            .finish());
+        }
+      }
+
+      else {
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("Cannot use binary operator '")
+          .append(name)
+          .append("' with type '")
+          .append(leftType.toString())
+          .appendChar('\'')
+          .finish());
+      }
     }
   }
 
