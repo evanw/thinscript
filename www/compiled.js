@@ -870,7 +870,7 @@
         }
 
         else {
-          symbol.rename = __declare.string_equals(symbol.name, "~") ? "op_complement" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : null;
+          symbol.rename = __declare.string_equals(symbol.name, "~") ? "op_complement" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, ">") ? "op_greaterThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : null;
         }
       }
 
@@ -1376,7 +1376,8 @@
   }
 
   function resolve(context, node, parentScope) {
-    __declare.assert(node.kind === 0 || parentScope !== null);
+    var kind = node.kind;
+    __declare.assert(kind === 0 || parentScope !== null);
 
     if (node.resolvedType !== null) {
       return;
@@ -1384,11 +1385,11 @@
 
     node.resolvedType = context.errorType;
 
-    if (node.kind === 0) {
+    if (kind === 0) {
       resolveChildren(context, node, node.scope);
     }
 
-    else if (node.kind === 4) {
+    else if (kind === 4) {
       var oldEnclosingClass = context.enclosingClass;
       initializeSymbol(context, node.symbol);
       context.enclosingClass = node.symbol;
@@ -1397,12 +1398,12 @@
       context.enclosingClass = oldEnclosingClass;
     }
 
-    else if (node.kind === 8) {
+    else if (kind === 8) {
       initializeSymbol(context, node.symbol);
       resolveChildren(context, node, node.scope);
     }
 
-    else if (node.kind === 10) {
+    else if (kind === 10) {
       var body = node.functionBody();
       initializeSymbol(context, node.symbol);
 
@@ -1417,7 +1418,7 @@
       }
     }
 
-    else if (node.kind === 1) {
+    else if (kind === 1) {
       var symbol = node.symbol;
       initializeSymbol(context, symbol);
       var value = node.variableValue();
@@ -1442,7 +1443,7 @@
       }
     }
 
-    else if (node.kind === 3 || node.kind === 6) {
+    else if (kind === 3 || kind === 6) {
       var found = false;
       var n = node;
 
@@ -1461,7 +1462,7 @@
       }
     }
 
-    else if (node.kind === 2) {
+    else if (kind === 2) {
       var oldUnsafeAllowed = context.isUnsafeAllowed;
 
       if (node.isUnsafe()) {
@@ -1472,27 +1473,27 @@
       context.isUnsafeAllowed = oldUnsafeAllowed;
     }
 
-    else if (node.kind === 5 || node.kind === 14) {
+    else if (kind === 5 || kind === 14) {
       resolveChildren(context, node, parentScope);
     }
 
-    else if (node.kind === 23) {
+    else if (kind === 23) {
       node.resolvedType = node.intValue < 0 && !node.isPositive() ? context.uintType : context.intType;
     }
 
-    else if (node.kind === 29) {
+    else if (kind === 29) {
       node.resolvedType = context.stringType;
     }
 
-    else if (node.kind === 17) {
+    else if (kind === 17) {
       node.resolvedType = context.boolType;
     }
 
-    else if (node.kind === 26) {
+    else if (kind === 26) {
       node.resolvedType = context.nullType;
     }
 
-    else if (node.kind === 22) {
+    else if (kind === 22) {
       resolveChildrenAsExpressions(context, node, parentScope);
       var target = node.indexTarget();
       var type = target.resolvedType;
@@ -1515,7 +1516,7 @@
       }
     }
 
-    else if (node.kind === 16) {
+    else if (kind === 16) {
       var type = node.alignOfType();
       resolveAsType(context, type, parentScope);
       node.resolvedType = context.intType;
@@ -1525,7 +1526,7 @@
       }
     }
 
-    else if (node.kind === 28) {
+    else if (kind === 28) {
       var type = node.sizeOfType();
       resolveAsType(context, type, parentScope);
       node.resolvedType = context.intType;
@@ -1535,7 +1536,7 @@
       }
     }
 
-    else if (node.kind === 30) {
+    else if (kind === 30) {
       var symbol = parentScope.findNested("this", 0, 0);
 
       if (symbol === null) {
@@ -1547,11 +1548,11 @@
       }
     }
 
-    else if (node.kind === 27) {
+    else if (kind === 27) {
       node.resolvedType = context.errorType;
     }
 
-    else if (node.kind === 24) {
+    else if (kind === 24) {
       var name = node.stringValue;
       var symbol = parentScope.findNested(name, 0, 0);
 
@@ -1595,7 +1596,7 @@
       }
     }
 
-    else if (node.kind === 19) {
+    else if (kind === 19) {
       var value = node.castValue();
       var type = node.castType();
       resolveAsExpression(context, value, parentScope);
@@ -1611,7 +1612,7 @@
       }
     }
 
-    else if (node.kind === 20) {
+    else if (kind === 20) {
       var target = node.dotTarget();
       resolve(context, target, parentScope);
 
@@ -1654,7 +1655,7 @@
       }
     }
 
-    else if (node.kind === 18) {
+    else if (kind === 18) {
       var value = node.callValue();
       resolveAsExpression(context, value, parentScope);
 
@@ -1707,7 +1708,7 @@
       }
     }
 
-    else if (node.kind === 12) {
+    else if (kind === 12) {
       var value = node.returnValue();
 
       if (value !== null) {
@@ -1729,14 +1730,14 @@
       }
     }
 
-    else if (node.kind === 7) {
+    else if (kind === 7) {
     }
 
-    else if (node.kind === 9) {
+    else if (kind === 9) {
       resolveAsExpression(context, node.expressionValue(), parentScope);
     }
 
-    else if (node.kind === 15) {
+    else if (kind === 15) {
       var value = node.whileValue();
       var body = node.whileBody();
       resolveAsExpression(context, value, parentScope);
@@ -1744,7 +1745,7 @@
       resolve(context, body, parentScope);
     }
 
-    else if (node.kind === 11) {
+    else if (kind === 11) {
       var value = node.ifValue();
       var yes = node.ifTrue();
       var no = node.ifFalse();
@@ -1757,7 +1758,7 @@
       }
     }
 
-    else if (node.kind === 21) {
+    else if (kind === 21) {
       var value = node.hookValue();
       var yes = node.hookTrue();
       var no = node.hookFalse();
@@ -1774,7 +1775,7 @@
       node.resolvedType = commonType;
     }
 
-    else if (node.kind === 41) {
+    else if (kind === 41) {
       var left = node.binaryLeft();
       var right = node.binaryRight();
 
@@ -1829,7 +1830,7 @@
       node.resolvedType = left.resolvedType;
     }
 
-    else if (node.kind === 25) {
+    else if (kind === 25) {
       var type = node.newType();
       resolveAsType(context, type, parentScope);
 
@@ -1848,11 +1849,11 @@
       }
     }
 
-    else if (isUnary(node.kind)) {
+    else if (isUnary(kind)) {
       var value = node.unaryValue();
       resolveAsExpression(context, value, parentScope);
 
-      if (node.kind === 34) {
+      if (kind === 34) {
         checkConversion(context, value, context.boolType, 0);
         node.resolvedType = context.boolType;
       }
@@ -1864,11 +1865,11 @@
           var input = value.intValue;
           var output = input;
 
-          if (node.kind === 32) {
+          if (kind === 32) {
             output = ~input;
           }
 
-          else if (node.kind === 33) {
+          else if (kind === 33) {
             output = -input;
           }
 
@@ -1894,7 +1895,7 @@
       }
     }
 
-    else if (isBinary(node.kind)) {
+    else if (isBinary(kind)) {
       var left = node.binaryLeft();
       var right = node.binaryRight();
       resolveAsExpression(context, left, parentScope);
@@ -1902,14 +1903,14 @@
       var leftType = left.resolvedType;
       var rightType = right.resolvedType;
 
-      if (node.kind === 53 || node.kind === 52) {
+      if (kind === 53 || kind === 52) {
         checkConversion(context, left, context.boolType, 0);
         checkConversion(context, right, context.boolType, 0);
         node.resolvedType = context.boolType;
       }
 
-      else if (leftType.isInteger() && node.kind !== 46 && node.kind !== 55) {
-        if (node.kind === 40 || node.kind === 59 || node.kind === 54 || node.kind === 45 || node.kind === 56 || node.kind === 42 || node.kind === 43 || node.kind === 44 || node.kind === 57 || node.kind === 58) {
+      else if (leftType.isInteger() && kind !== 46 && kind !== 55) {
+        if (kind === 40 || kind === 59 || kind === 54 || kind === 45 || kind === 56 || kind === 42 || kind === 43 || kind === 44 || kind === 57 || kind === 58) {
           var isUnsigned = binaryHasUnsignedArguments(node);
           var commonType = isUnsigned ? context.uintType : context.intType;
 
@@ -1926,43 +1927,43 @@
             var inputRight = right.intValue;
             var output = 0;
 
-            if (node.kind === 40) {
+            if (kind === 40) {
               output = inputLeft + inputRight | 0;
             }
 
-            else if (node.kind === 42) {
+            else if (kind === 42) {
               output = inputLeft & inputRight;
             }
 
-            else if (node.kind === 43) {
+            else if (kind === 43) {
               output = inputLeft | inputRight;
             }
 
-            else if (node.kind === 44) {
+            else if (kind === 44) {
               output = inputLeft ^ inputRight;
             }
 
-            else if (node.kind === 45) {
+            else if (kind === 45) {
               output = inputLeft / inputRight | 0;
             }
 
-            else if (node.kind === 54) {
+            else if (kind === 54) {
               output = __imul(inputLeft, inputRight);
             }
 
-            else if (node.kind === 56) {
+            else if (kind === 56) {
               output = inputLeft % inputRight | 0;
             }
 
-            else if (node.kind === 57) {
+            else if (kind === 57) {
               output = inputLeft << inputRight;
             }
 
-            else if (node.kind === 58) {
+            else if (kind === 58) {
               output = isUnsigned ? inputLeft >>> 0 >>> (inputRight >>> 0) | 0 : inputLeft >> inputRight;
             }
 
-            else if (node.kind === 59) {
+            else if (kind === 59) {
               output = inputLeft - inputRight | 0;
             }
 
@@ -1978,15 +1979,18 @@
           }
         }
 
-        else if (node.kind === 50 || node.kind === 51 || node.kind === 48 || node.kind === 49) {
-          var expectedType = leftType === rightType && leftType.isEnum() ? leftType : binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
+        else if (kind === 50 || kind === 51 || kind === 48 || kind === 49) {
+          var expectedType = binaryHasUnsignedArguments(node) ? context.uintType : context.intType;
 
           if (expectedType === context.uintType) {
             node.flags = node.flags | 4096;
           }
 
-          checkConversion(context, left, expectedType, 0);
-          checkConversion(context, right, expectedType, 0);
+          if (leftType !== rightType) {
+            checkConversion(context, left, expectedType, 0);
+            checkConversion(context, right, expectedType, 0);
+          }
+
           node.resolvedType = context.boolType;
         }
 
@@ -1997,17 +2001,31 @@
 
       else if (leftType !== context.errorType) {
         var name = node.internalRange.toString();
-        var symbol = leftType.findMember(name, 4);
+        var symbol = leftType.findMember(kind === 55 ? "==" : kind === 51 ? ">" : kind === 49 ? "<" : name, 4);
 
         if (symbol !== null) {
           left.remove();
-          node.insertChildBefore(right, createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange));
-          node.kind = 18;
+          right.remove();
+          left = createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange);
+
+          if (kind === 55 || kind === 51 || kind === 49) {
+            var call = createCall(left);
+            call.appendChild(right);
+            node.kind = 34;
+            node.appendChild(call.withRange(node.range).withInternalRange(node.range));
+          }
+
+          else {
+            node.appendChild(left);
+            node.appendChild(right);
+            node.kind = 18;
+          }
+
           node.resolvedType = null;
           resolveAsExpression(context, node, parentScope);
         }
 
-        else if (node.kind === 46 || node.kind === 55) {
+        else if (kind === 46 || kind === 55) {
           node.resolvedType = context.boolType;
 
           if (leftType !== context.errorType && rightType !== context.errorType && leftType !== rightType && !canConvert(context, right, leftType, 0) && !canConvert(context, left, rightType, 0)) {
@@ -5750,16 +5768,16 @@
         isOperator = true;
       }
 
-      else if (this.eat(6) || this.eat(7) || this.eat(8) || this.eat(11) || this.eat(12) || this.eat(14) || this.eat(15) || this.eat(21) || this.eat(25) || this.eat(26) || this.eat(27) || this.eat(30) || this.eat(31) || this.eat(33) || this.eat(38) || this.eat(39)) {
+      else if (this.eat(6) || this.eat(7) || this.eat(8) || this.eat(11) || this.eat(12) || this.eat(14) || this.eat(15) || this.eat(21) || this.eat(16) || this.eat(25) || this.eat(26) || this.eat(27) || this.eat(30) || this.eat(31) || this.eat(33) || this.eat(38) || this.eat(39)) {
         nameRange = end.range;
         name = nameRange.toString();
         isOperator = true;
       }
 
-      else if (this.eat(5) || this.eat(16) || this.eat(17) || this.eat(22) || this.eat(23) || this.eat(24) || this.eat(28) || this.eat(29)) {
+      else if (this.eat(5) || this.eat(17) || this.eat(22) || this.eat(23) || this.eat(24) || this.eat(28) || this.eat(29)) {
         nameRange = end.range;
         name = nameRange.toString();
-        this.log.error(nameRange, StringBuilder_new().append("The operator '").append(name).append("' is not overridable").append(end.kind === 29 ? " (it is automatically derived from '==')" : end.kind === 16 || end.kind === 17 || end.kind === 22 ? " (it is automatically derived from '<')" : "").finish());
+        this.log.error(nameRange, StringBuilder_new().append("The operator '").append(name).append("' cannot be implemented").append(end.kind === 29 ? " (it is automatically derived from '==')" : end.kind === 22 ? " (it is automatically derived from '>')" : end.kind === 17 ? " (it is automatically derived from '<')" : "").finish());
       }
 
       else {

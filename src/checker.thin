@@ -120,6 +120,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
           string_equals(symbol.name, "^") ? "op_xor" :
           string_equals(symbol.name, "==") ? "op_equals" :
           string_equals(symbol.name, "<") ? "op_lessThan" :
+          string_equals(symbol.name, ">") ? "op_greaterThan" :
           string_equals(symbol.name, "<<") ? "op_shiftLeft" :
           string_equals(symbol.name, ">>") ? "op_shiftRight" :
           string_equals(symbol.name, "++") ? "op_increment" :
@@ -725,7 +726,8 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, node: Node
 }
 
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
-  assert(node.kind == NodeKind.GLOBAL || parentScope != null);
+  var kind = node.kind;
+  assert(kind == NodeKind.GLOBAL || parentScope != null);
 
   if (node.resolvedType != null) {
     return;
@@ -733,11 +735,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   node.resolvedType = context.errorType;
 
-  if (node.kind == NodeKind.GLOBAL) {
+  if (kind == NodeKind.GLOBAL) {
     resolveChildren(context, node, node.scope);
   }
 
-  else if (node.kind == NodeKind.CLASS) {
+  else if (kind == NodeKind.CLASS) {
     var oldEnclosingClass = context.enclosingClass;
     initializeSymbol(context, node.symbol);
     context.enclosingClass = node.symbol;
@@ -746,12 +748,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     context.enclosingClass = oldEnclosingClass;
   }
 
-  else if (node.kind == NodeKind.ENUM) {
+  else if (kind == NodeKind.ENUM) {
     initializeSymbol(context, node.symbol);
     resolveChildren(context, node, node.scope);
   }
 
-  else if (node.kind == NodeKind.FUNCTION) {
+  else if (kind == NodeKind.FUNCTION) {
     var body = node.functionBody();
     initializeSymbol(context, node.symbol);
 
@@ -766,7 +768,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.VARIABLE) {
+  else if (kind == NodeKind.VARIABLE) {
     var symbol = node.symbol;
     initializeSymbol(context, symbol);
 
@@ -793,7 +795,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.BREAK || node.kind == NodeKind.CONTINUE) {
+  else if (kind == NodeKind.BREAK || kind == NodeKind.CONTINUE) {
     var found = false;
     var n = node;
     while (n != null) {
@@ -808,35 +810,35 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.BLOCK) {
+  else if (kind == NodeKind.BLOCK) {
     var oldUnsafeAllowed = context.isUnsafeAllowed;
     if (node.isUnsafe()) context.isUnsafeAllowed = true;
     resolveChildren(context, node, node.scope);
     context.isUnsafeAllowed = oldUnsafeAllowed;
   }
 
-  else if (node.kind == NodeKind.CONSTANTS || node.kind == NodeKind.VARIABLES) {
+  else if (kind == NodeKind.CONSTANTS || kind == NodeKind.VARIABLES) {
     resolveChildren(context, node, parentScope);
   }
 
-  else if (node.kind == NodeKind.INT) {
+  else if (kind == NodeKind.INT) {
     // Use the positive flag to differentiate between -2147483648 and 2147483648
     node.resolvedType = node.intValue < 0 && !node.isPositive() ? context.uintType : context.intType;
   }
 
-  else if (node.kind == NodeKind.STRING) {
+  else if (kind == NodeKind.STRING) {
     node.resolvedType = context.stringType;
   }
 
-  else if (node.kind == NodeKind.BOOL) {
+  else if (kind == NodeKind.BOOL) {
     node.resolvedType = context.boolType;
   }
 
-  else if (node.kind == NodeKind.NULL) {
+  else if (kind == NodeKind.NULL) {
     node.resolvedType = context.nullType;
   }
 
-  else if (node.kind == NodeKind.INDEX) {
+  else if (kind == NodeKind.INDEX) {
     resolveChildrenAsExpressions(context, node, parentScope);
 
     var target = node.indexTarget();
@@ -866,7 +868,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.ALIGN_OF) {
+  else if (kind == NodeKind.ALIGN_OF) {
     var type = node.alignOfType();
     resolveAsType(context, type, parentScope);
     node.resolvedType = context.intType;
@@ -876,7 +878,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.SIZE_OF) {
+  else if (kind == NodeKind.SIZE_OF) {
     var type = node.sizeOfType();
     resolveAsType(context, type, parentScope);
     node.resolvedType = context.intType;
@@ -886,7 +888,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.THIS) {
+  else if (kind == NodeKind.THIS) {
     var symbol = parentScope.findNested("this", ScopeHint.NORMAL, FindNested.NORMAL);
     if (symbol == null) {
       context.log.error(node.range, "Cannot use 'this' here");
@@ -895,11 +897,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.PARSE_ERROR) {
+  else if (kind == NodeKind.PARSE_ERROR) {
     node.resolvedType = context.errorType;
   }
 
-  else if (node.kind == NodeKind.NAME) {
+  else if (kind == NodeKind.NAME) {
     var name = node.stringValue;
     var symbol = parentScope.findNested(name, ScopeHint.NORMAL, FindNested.NORMAL);
 
@@ -949,7 +951,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.CAST) {
+  else if (kind == NodeKind.CAST) {
     var value = node.castValue();
     var type = node.castType();
     resolveAsExpression(context, value, parentScope);
@@ -968,7 +970,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.DOT) {
+  else if (kind == NodeKind.DOT) {
     var target = node.dotTarget();
     resolve(context, target, parentScope);
 
@@ -1025,7 +1027,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.CALL) {
+  else if (kind == NodeKind.CALL) {
     var value = node.callValue();
     resolveAsExpression(context, value, parentScope);
 
@@ -1094,7 +1096,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.RETURN) {
+  else if (kind == NodeKind.RETURN) {
     var value = node.returnValue();
 
     if (value != null) {
@@ -1120,14 +1122,14 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.EMPTY) {
+  else if (kind == NodeKind.EMPTY) {
   }
 
-  else if (node.kind == NodeKind.EXPRESSION) {
+  else if (kind == NodeKind.EXPRESSION) {
     resolveAsExpression(context, node.expressionValue(), parentScope);
   }
 
-  else if (node.kind == NodeKind.WHILE) {
+  else if (kind == NodeKind.WHILE) {
     var value = node.whileValue();
     var body = node.whileBody();
     resolveAsExpression(context, value, parentScope);
@@ -1135,7 +1137,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolve(context, body, parentScope);
   }
 
-  else if (node.kind == NodeKind.IF) {
+  else if (kind == NodeKind.IF) {
     var value = node.ifValue();
     var yes = node.ifTrue();
     var no = node.ifFalse();
@@ -1147,7 +1149,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (node.kind == NodeKind.HOOK) {
+  else if (kind == NodeKind.HOOK) {
     var value = node.hookValue();
     var yes = node.hookTrue();
     var no = node.hookFalse();
@@ -1169,7 +1171,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = commonType;
   }
 
-  else if (node.kind == NodeKind.ASSIGN) {
+  else if (kind == NodeKind.ASSIGN) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
 
@@ -1228,7 +1230,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = left.resolvedType;
   }
 
-  else if (node.kind == NodeKind.NEW) {
+  else if (kind == NodeKind.NEW) {
     var type = node.newType();
     resolveAsType(context, type, parentScope);
 
@@ -1252,12 +1254,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (isUnary(node.kind)) {
+  else if (isUnary(kind)) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
 
     // Operator "!" is hard-coded
-    if (node.kind == NodeKind.NOT) {
+    if (kind == NodeKind.NOT) {
       checkConversion(context, value, context.boolType, ConversionKind.IMPLICIT);
       node.resolvedType = context.boolType;
     }
@@ -1270,8 +1272,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       if (value.kind == NodeKind.INT) {
         var input = value.intValue;
         var output = input;
-        if (node.kind == NodeKind.COMPLEMENT) output = ~input;
-        else if (node.kind == NodeKind.NEGATIVE) output = -input;
+        if (kind == NodeKind.COMPLEMENT) output = ~input;
+        else if (kind == NodeKind.NEGATIVE) output = -input;
         node.becomeIntegerConstant(output);
       }
     }
@@ -1302,7 +1304,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
-  else if (isBinary(node.kind)) {
+  else if (isBinary(kind)) {
     var left = node.binaryLeft();
     var right = node.binaryRight();
 
@@ -1313,24 +1315,25 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var rightType = right.resolvedType;
 
     // Operators "&&" and "||" are hard-coded
-    if (node.kind == NodeKind.LOGICAL_OR || node.kind == NodeKind.LOGICAL_AND) {
+    if (kind == NodeKind.LOGICAL_OR || kind == NodeKind.LOGICAL_AND) {
       checkConversion(context, left, context.boolType, ConversionKind.IMPLICIT);
       checkConversion(context, right, context.boolType, ConversionKind.IMPLICIT);
       node.resolvedType = context.boolType;
     }
 
-    // TODO: Fix this
-    else if (leftType.isInteger() && node.kind != NodeKind.EQUAL && node.kind != NodeKind.NOT_EQUAL) {
-      if (node.kind == NodeKind.ADD ||
-          node.kind == NodeKind.SUBTRACT ||
-          node.kind == NodeKind.MULTIPLY ||
-          node.kind == NodeKind.DIVIDE ||
-          node.kind == NodeKind.REMAINDER ||
-          node.kind == NodeKind.BITWISE_AND ||
-          node.kind == NodeKind.BITWISE_OR ||
-          node.kind == NodeKind.BITWISE_XOR ||
-          node.kind == NodeKind.SHIFT_LEFT ||
-          node.kind == NodeKind.SHIFT_RIGHT) {
+    // Operators for integers are hard-coded
+    else if (leftType.isInteger() && kind != NodeKind.EQUAL && kind != NodeKind.NOT_EQUAL) {
+      // Arithmetic operators
+      if (kind == NodeKind.ADD ||
+          kind == NodeKind.SUBTRACT ||
+          kind == NodeKind.MULTIPLY ||
+          kind == NodeKind.DIVIDE ||
+          kind == NodeKind.REMAINDER ||
+          kind == NodeKind.BITWISE_AND ||
+          kind == NodeKind.BITWISE_OR ||
+          kind == NodeKind.BITWISE_XOR ||
+          kind == NodeKind.SHIFT_LEFT ||
+          kind == NodeKind.SHIFT_RIGHT) {
         var isUnsigned = binaryHasUnsignedArguments(node);
         var commonType = isUnsigned ? context.uintType : context.intType;
         if (isUnsigned) {
@@ -1345,16 +1348,16 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           var inputLeft = left.intValue;
           var inputRight = right.intValue;
           var output = 0;
-          if (node.kind == NodeKind.ADD) output = inputLeft + inputRight;
-          else if (node.kind == NodeKind.BITWISE_AND) output = inputLeft & inputRight;
-          else if (node.kind == NodeKind.BITWISE_OR) output = inputLeft | inputRight;
-          else if (node.kind == NodeKind.BITWISE_XOR) output = inputLeft ^ inputRight;
-          else if (node.kind == NodeKind.DIVIDE) output = inputLeft / inputRight;
-          else if (node.kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
-          else if (node.kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
-          else if (node.kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
-          else if (node.kind == NodeKind.SHIFT_RIGHT) output = isUnsigned ? ((inputLeft as uint) >> (inputRight as uint)) as int : inputLeft >> inputRight;
-          else if (node.kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
+          if (kind == NodeKind.ADD) output = inputLeft + inputRight;
+          else if (kind == NodeKind.BITWISE_AND) output = inputLeft & inputRight;
+          else if (kind == NodeKind.BITWISE_OR) output = inputLeft | inputRight;
+          else if (kind == NodeKind.BITWISE_XOR) output = inputLeft ^ inputRight;
+          else if (kind == NodeKind.DIVIDE) output = inputLeft / inputRight;
+          else if (kind == NodeKind.MULTIPLY) output = inputLeft * inputRight;
+          else if (kind == NodeKind.REMAINDER) output = inputLeft % inputRight;
+          else if (kind == NodeKind.SHIFT_LEFT) output = inputLeft << inputRight;
+          else if (kind == NodeKind.SHIFT_RIGHT) output = isUnsigned ? ((inputLeft as uint) >> (inputRight as uint)) as int : inputLeft >> inputRight;
+          else if (kind == NodeKind.SUBTRACT) output = inputLeft - inputRight;
           else return;
           node.becomeIntegerConstant(output);
         }
@@ -1364,11 +1367,13 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         }
       }
 
+      // Comparison operators
       else if (
-          node.kind == NodeKind.LESS_THAN || node.kind == NodeKind.LESS_THAN_EQUAL ||
-          node.kind == NodeKind.GREATER_THAN || node.kind == NodeKind.GREATER_THAN_EQUAL) {
+          kind == NodeKind.LESS_THAN ||
+          kind == NodeKind.LESS_THAN_EQUAL ||
+          kind == NodeKind.GREATER_THAN ||
+          kind == NodeKind.GREATER_THAN_EQUAL) {
         var expectedType =
-          leftType == rightType && leftType.isEnum() ? leftType :
           binaryHasUnsignedArguments(node) ? context.uintType :
           context.intType;
 
@@ -1376,8 +1381,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
         }
 
-        checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
-        checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
+        if (leftType != rightType) {
+          checkConversion(context, left, expectedType, ConversionKind.IMPLICIT);
+          checkConversion(context, right, expectedType, ConversionKind.IMPLICIT);
+        }
+
         node.resolvedType = context.boolType;
       }
 
@@ -1389,19 +1397,40 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     // Support custom operators
     else if (leftType != context.errorType) {
       var name = node.internalRange.toString();
-      var symbol = leftType.findMember(name, ScopeHint.NOT_UNARY);
+      var symbol = leftType.findMember(
+        kind == NodeKind.NOT_EQUAL ? "==" :
+        kind == NodeKind.LESS_THAN_EQUAL ? ">" :
+        kind == NodeKind.GREATER_THAN_EQUAL ? "<" :
+        name,
+        ScopeHint.NOT_UNARY);
 
       // Automatically call the function
       if (symbol != null) {
         left.remove();
-        node.insertChildBefore(right, createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange));
-        node.kind = NodeKind.CALL;
+        right.remove();
+        left = createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange);
+
+        if (kind == NodeKind.NOT_EQUAL ||
+            kind == NodeKind.LESS_THAN_EQUAL ||
+            kind == NodeKind.GREATER_THAN_EQUAL) {
+          var call = createCall(left);
+          call.appendChild(right);
+          node.kind = NodeKind.NOT;
+          node.appendChild(call.withRange(node.range).withInternalRange(node.range));
+        }
+
+        else {
+          node.appendChild(left);
+          node.appendChild(right);
+          node.kind = NodeKind.CALL;
+        }
+
         node.resolvedType = null;
         resolveAsExpression(context, node, parentScope);
       }
 
       // Automatically implement equality operators
-      else if (node.kind == NodeKind.EQUAL || node.kind == NodeKind.NOT_EQUAL) {
+      else if (kind == NodeKind.EQUAL || kind == NodeKind.NOT_EQUAL) {
         node.resolvedType = context.boolType;
 
         if (leftType != context.errorType && rightType != context.errorType && leftType != rightType &&

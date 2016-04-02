@@ -780,6 +780,7 @@ class ParserContext {
           this.eat(TokenKind.EQUAL) ||
           this.eat(TokenKind.EXPONENT) ||
           this.eat(TokenKind.LESS_THAN) ||
+          this.eat(TokenKind.GREATER_THAN) ||
           this.eat(TokenKind.MINUS) ||
           this.eat(TokenKind.MINUS_MINUS) ||
           this.eat(TokenKind.MULTIPLY) ||
@@ -795,7 +796,6 @@ class ParserContext {
 
       else if (
           this.eat(TokenKind.ASSIGN) ||
-          this.eat(TokenKind.GREATER_THAN) ||
           this.eat(TokenKind.GREATER_THAN_EQUAL) ||
           this.eat(TokenKind.LESS_THAN_EQUAL) ||
           this.eat(TokenKind.LOGICAL_AND) ||
@@ -809,11 +809,11 @@ class ParserContext {
         this.log.error(nameRange, StringBuilder_new()
           .append("The operator '")
           .append(name)
-          .append("' is not overridable")
+          .append("' cannot be implemented")
           .append(
             end.kind == TokenKind.NOT_EQUAL ? " (it is automatically derived from '==')" :
-            end.kind == TokenKind.GREATER_THAN || end.kind == TokenKind.GREATER_THAN_EQUAL ||
-            end.kind == TokenKind.LESS_THAN_EQUAL ? " (it is automatically derived from '<')" :
+            end.kind == TokenKind.LESS_THAN_EQUAL ? " (it is automatically derived from '>')" :
+            end.kind == TokenKind.GREATER_THAN_EQUAL ? " (it is automatically derived from '<')" :
             "")
           .finish());
       }
