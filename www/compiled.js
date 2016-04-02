@@ -1267,7 +1267,7 @@
     return leftType.isUnsigned() && rightType.isUnsigned() || leftType.isUnsigned() && right.isNonNegativeInteger() || left.isNonNegativeInteger() && rightType.isUnsigned();
   }
 
-  function isSymbolAccessAllowed(context, symbol, range) {
+  function isSymbolAccessAllowed(context, symbol, node, range) {
     if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
       context.log.error(range, StringBuilder_new().append("Cannot use symbol '").append(symbol.name).append("' outside an unsafe block").finish());
 
@@ -1282,6 +1282,12 @@
 
         return false;
       }
+    }
+
+    if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
+      context.log.error(range, StringBuilder_new().append("Must call function '").append(symbol.name).appendChar(39).finish());
+
+      return false;
     }
 
     return true;
@@ -1490,11 +1496,7 @@
         context.log.error(node.range, StringBuilder_new().append("Cyclic reference to symbol '").append(name).append("' here").finish());
       }
 
-      else if (isFunction(symbol.kind) && (node.parent.kind !== 18 || node !== node.parent.callValue())) {
-        context.log.error(node.range, "Bare function references are not allowed");
-      }
-
-      else if (isSymbolAccessAllowed(context, symbol, node.range)) {
+      else if (isSymbolAccessAllowed(context, symbol, node, node.range)) {
         initializeSymbol(context, symbol);
         node.symbol = symbol;
         node.resolvedType = symbol.resolvedType;
@@ -1542,7 +1544,7 @@
               context.log.error(node.internalRange, StringBuilder_new().append("No member named '").append(name).append("' on type '").append(target.resolvedType.toString()).appendChar(39).finish());
             }
 
-            else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
+            else if (isSymbolAccessAllowed(context, symbol, node, node.internalRange)) {
               initializeSymbol(context, symbol);
               node.symbol = symbol;
               node.resolvedType = symbol.resolvedType;

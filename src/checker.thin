@@ -566,7 +566,7 @@ function binaryHasUnsignedArguments(node: Node): bool {
     left.isNonNegativeInteger() && rightType.isUnsigned();
 }
 
-function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Range): bool {
+function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, node: Node, range: Range): bool {
   if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
     context.log.error(range, StringBuilder_new()
       .append("Cannot use symbol '")
@@ -587,6 +587,15 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, range: Ran
         .finish());
       return false;
     }
+  }
+
+  if (isFunction(symbol.kind) && (node.parent.kind != NodeKind.CALL || node != node.parent.callValue())) {
+    context.log.error(range, StringBuilder_new()
+      .append("Must call function '")
+      .append(symbol.name)
+      .appendChar('\'')
+      .finish());
+    return false;
   }
 
   return true;
@@ -800,11 +809,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         .finish());
     }
 
-    else if (isFunction(symbol.kind) && (node.parent.kind != NodeKind.CALL || node != node.parent.callValue())) {
-      context.log.error(node.range, "Bare function references are not allowed");
-    }
-
-    else if (isSymbolAccessAllowed(context, symbol, node.range)) {
+    else if (isSymbolAccessAllowed(context, symbol, node, node.range)) {
       initializeSymbol(context, symbol);
       node.symbol = symbol;
       node.resolvedType = symbol.resolvedType;
@@ -862,7 +867,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
               .finish());
           }
 
-          else if (isSymbolAccessAllowed(context, symbol, node.internalRange)) {
+          else if (isSymbolAccessAllowed(context, symbol, node, node.internalRange)) {
             initializeSymbol(context, symbol);
             node.symbol = symbol;
             node.resolvedType = symbol.resolvedType;
