@@ -23,7 +23,7 @@ class Scope {
     var symbol = this.firstSymbol;
     var fallback: Symbol = null;
     while (symbol != null) {
-      if (string_equals(symbol.name, name)) {
+      if (symbol.name == name) {
         if (hint == ScopeHint.PREFER_GETTER && symbol.isSetter() ||
             hint == ScopeHint.PREFER_SETTER && symbol.isGetter()) {
           fallback = symbol;

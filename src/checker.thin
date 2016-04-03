@@ -81,33 +81,33 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope, mode:
       SymbolKind.FUNCTION_GLOBAL;
     symbol.name = node.stringValue;
     if (node.isOperator()) {
-      if (string_equals(symbol.name, "+") || string_equals(symbol.name, "-")) {
+      if (symbol.name == "+" || symbol.name == "-") {
         if (node.firstChild == node.functionReturnType()) {
           symbol.flags = SYMBOL_FLAG_IS_UNARY_OPERATOR;
-          symbol.rename = string_equals(symbol.name, "+") ? "op_positive" : "op_negative";
+          symbol.rename = symbol.name == "+" ? "op_positive" : "op_negative";
         } else {
           symbol.flags = SYMBOL_FLAG_IS_BINARY_OPERATOR;
-          symbol.rename = string_equals(symbol.name, "+") ? "op_add" : "op_subtract";
+          symbol.rename = symbol.name == "+" ? "op_add" : "op_subtract";
         }
       } else {
         symbol.rename =
-          string_equals(symbol.name, "%") ? "op_remainder" :
-          string_equals(symbol.name, "&") ? "op_and" :
-          string_equals(symbol.name, "*") ? "op_multiply" :
-          string_equals(symbol.name, "**") ? "op_exponent" :
-          string_equals(symbol.name, "++") ? "op_increment" :
-          string_equals(symbol.name, "--") ? "op_decrement" :
-          string_equals(symbol.name, "/") ? "op_divide" :
-          string_equals(symbol.name, "<") ? "op_lessThan" :
-          string_equals(symbol.name, "<<") ? "op_shiftLeft" :
-          string_equals(symbol.name, "==") ? "op_equals" :
-          string_equals(symbol.name, ">") ? "op_greaterThan" :
-          string_equals(symbol.name, ">>") ? "op_shiftRight" :
-          string_equals(symbol.name, "[]") ? "op_get" :
-          string_equals(symbol.name, "[]=") ? "op_set" :
-          string_equals(symbol.name, "^") ? "op_xor" :
-          string_equals(symbol.name, "|") ? "op_or" :
-          string_equals(symbol.name, "~") ? "op_complement" :
+          symbol.name == "%" ? "op_remainder" :
+          symbol.name == "&" ? "op_and" :
+          symbol.name == "*" ? "op_multiply" :
+          symbol.name == "**" ? "op_exponent" :
+          symbol.name == "++" ? "op_increment" :
+          symbol.name == "--" ? "op_decrement" :
+          symbol.name == "/" ? "op_divide" :
+          symbol.name == "<" ? "op_lessThan" :
+          symbol.name == "<<" ? "op_shiftLeft" :
+          symbol.name == "==" ? "op_equals" :
+          symbol.name == ">" ? "op_greaterThan" :
+          symbol.name == ">>" ? "op_shiftRight" :
+          symbol.name == "[]" ? "op_get" :
+          symbol.name == "[]=" ? "op_set" :
+          symbol.name == "^" ? "op_xor" :
+          symbol.name == "|" ? "op_or" :
+          symbol.name == "~" ? "op_complement" :
           null;
       }
     }
@@ -293,7 +293,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     // Validate operator argument counts including "this"
     else if (node.isOperator()) {
-      if (string_equals(symbol.name, "~") || string_equals(symbol.name, "++") || string_equals(symbol.name, "--")) {
+      if (symbol.name == "~" || symbol.name == "++" || symbol.name == "--") {
         if (argumentCount != 1) {
           context.log.error(symbol.range, StringBuilder_new()
             .append("Operator '")
@@ -303,7 +303,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
         }
       }
 
-      else if (string_equals(symbol.name, "+") || string_equals(symbol.name, "-")) {
+      else if (symbol.name == "+" || symbol.name == "-") {
         if (argumentCount > 2) {
           context.log.error(symbol.range, StringBuilder_new()
             .append("Operator '")
@@ -313,7 +313,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
         }
       }
 
-      else if (string_equals(symbol.name, "[]=")) {
+      else if (symbol.name == "[]=") {
         if (argumentCount < 2) {
           context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
         }
@@ -368,7 +368,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
           .appendChar('_')
           .append(symbol.rename != null ? symbol.rename : symbol.name)
           .finish();
-        assert(string_equals(node.firstChild.symbol.name, "this"));
+        assert(node.firstChild.symbol.name == "this");
         node.firstChild.symbol.rename = "__this";
       }
     }
@@ -925,8 +925,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       }
 
       // People may try to use types from TypeScript
-      else if (string_equals(name, "number")) builder.append(", did you mean 'int'?");
-      else if (string_equals(name, "boolean")) builder.append(", did you mean 'bool'?");
+      else if (name == "number") builder.append(", did you mean 'int'?");
+      else if (name == "boolean") builder.append(", did you mean 'bool'?");
 
       context.log.error(node.range, builder.finish());
     }

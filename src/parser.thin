@@ -671,7 +671,7 @@ class ParserContext {
       var text = childName.range.toString();
 
       // Support operator definitions
-      if (string_equals(text, "operator") && !this.peek(TokenKind.LEFT_PARENTHESIS) && !this.peek(TokenKind.IDENTIFIER)) {
+      if (text == "operator" && !this.peek(TokenKind.LEFT_PARENTHESIS) && !this.peek(TokenKind.IDENTIFIER)) {
         childName.kind = TokenKind.OPERATOR;
         this.current = childName;
         if (this.parseFunction(childFlags, node) == null) {
@@ -682,8 +682,8 @@ class ParserContext {
 
       // Is there another identifier after the first one?
       else if (this.peek(TokenKind.IDENTIFIER)) {
-        var isGet = string_equals(text, "get");
-        var isSet = string_equals(text, "set");
+        var isGet = text == "get";
+        var isSet = text == "set";
 
         // The "get" and "set" flags are contextual
         if (isGet || isSet) {

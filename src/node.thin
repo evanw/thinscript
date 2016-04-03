@@ -601,19 +601,19 @@ class Node {
     if (value.kind == NodeKind.DOT && symbol.node.isOperator() && symbol.node.isDeclare()) {
       var binaryKind = NodeKind.NULL;
 
-      if (string_equals(symbol.name, "%")) binaryKind = NodeKind.REMAINDER;
-      else if (string_equals(symbol.name, "&")) binaryKind = NodeKind.BITWISE_AND;
-      else if (string_equals(symbol.name, "*")) binaryKind = NodeKind.MULTIPLY;
-      else if (string_equals(symbol.name, "**")) binaryKind = NodeKind.EXPONENT;
-      else if (string_equals(symbol.name, "/")) binaryKind = NodeKind.DIVIDE;
-      else if (string_equals(symbol.name, "<")) binaryKind = NodeKind.LESS_THAN;
-      else if (string_equals(symbol.name, "<<")) binaryKind = NodeKind.SHIFT_LEFT;
-      else if (string_equals(symbol.name, "==")) binaryKind = NodeKind.EQUAL;
-      else if (string_equals(symbol.name, ">")) binaryKind = NodeKind.GREATER_THAN;
-      else if (string_equals(symbol.name, ">>")) binaryKind = NodeKind.SHIFT_RIGHT;
-      else if (string_equals(symbol.name, "[]")) binaryKind = NodeKind.INDEX;
-      else if (string_equals(symbol.name, "^")) binaryKind = NodeKind.BITWISE_XOR;
-      else if (string_equals(symbol.name, "|")) binaryKind = NodeKind.BITWISE_OR;
+      if (symbol.name == "%") binaryKind = NodeKind.REMAINDER;
+      else if (symbol.name == "&") binaryKind = NodeKind.BITWISE_AND;
+      else if (symbol.name == "*") binaryKind = NodeKind.MULTIPLY;
+      else if (symbol.name == "**") binaryKind = NodeKind.EXPONENT;
+      else if (symbol.name == "/") binaryKind = NodeKind.DIVIDE;
+      else if (symbol.name == "<") binaryKind = NodeKind.LESS_THAN;
+      else if (symbol.name == "<<") binaryKind = NodeKind.SHIFT_LEFT;
+      else if (symbol.name == "==") binaryKind = NodeKind.EQUAL;
+      else if (symbol.name == ">") binaryKind = NodeKind.GREATER_THAN;
+      else if (symbol.name == ">>") binaryKind = NodeKind.SHIFT_RIGHT;
+      else if (symbol.name == "[]") binaryKind = NodeKind.INDEX;
+      else if (symbol.name == "^") binaryKind = NodeKind.BITWISE_XOR;
+      else if (symbol.name == "|") binaryKind = NodeKind.BITWISE_OR;
 
       if (binaryKind != NodeKind.NULL) {
         this.kind = binaryKind;
@@ -622,7 +622,7 @@ class Node {
         return true;
       }
 
-      else if (string_equals(symbol.name, "[]=")) {
+      else if (symbol.name == "[]=") {
         this.kind = NodeKind.ASSIGN;
         var target = createIndex(value.remove().dotTarget().remove());
         target.appendChild(this.firstChild.remove());

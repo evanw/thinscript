@@ -73,7 +73,7 @@ class Preprocessor {
   isDefined(name: string): bool {
     var flag = this.firstFlag;
     while (flag != null) {
-      if (string_equals(flag.name, name)) {
+      if (flag.name == name) {
         return flag.isDefined;
       }
       flag = flag.next;
@@ -141,7 +141,7 @@ class Preprocessor {
         }
 
         // Help out people trying to use this like C
-        if (this.eat(TokenKind.FALSE) || this.eat(TokenKind.INT) && string_equals(this.previous.range.toString(), "0")) {
+        if (this.eat(TokenKind.FALSE) || this.eat(TokenKind.INT) && this.previous.range.toString() == "0") {
           this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
         }
 
@@ -276,7 +276,7 @@ class Preprocessor {
       var name = this.previous.range.toString();
 
       // Recover from a C-style define operator
-      if (this.peek(TokenKind.LEFT_PARENTHESIS) && string_equals(name, "defined")) {
+      if (this.peek(TokenKind.LEFT_PARENTHESIS) && name == "defined") {
         isDefinedOperator = true;
       }
 
@@ -315,7 +315,7 @@ class Preprocessor {
 
     // Recover from a C-style boolean
     if (this.eat(TokenKind.INT)) {
-      var isTrue = !string_equals(this.previous.range.toString(), "0");
+      var isTrue = this.previous.range.toString() != "0";
       this.log.error(this.previous.range, StringBuilder_new()
         .append("Unexpected integer (did you mean '")
         .append(isTrue ? "true" : "false")

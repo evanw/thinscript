@@ -112,7 +112,6 @@ function main() {
   global.string_length = function(x) { return x.length; };
   global.string_get = function(x, i) { return x.charCodeAt(i); };
   global.string_slice = function(x, a, b) { return x.slice(a, b); };
-  global.string_equals = function(a, b) { return a === b; };
   global.string_intToString = function(x) { return (x | 0).toString(); };
   global.string_uintToString = function(x) { return (x >>> 0).toString(); };
   global.StringBuilder_append = function(a, b) { return a + b; };

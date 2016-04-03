@@ -41,7 +41,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
   declare function string_length(text: string): int;
   declare function string_get(text: string, index: int): int;
-  declare function string_equals(a: string, b: string): bool;
   declare function string_slice(text: string, start: int, end: int): string;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
@@ -100,43 +99,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
     assert(index as uint < string_length(text) as uint);
     unsafe {
       return ((text as int + index + 4) as BytePtr).value;
-    }
-  }
-
-  function string_equals(a: string, b: string): bool {
-    unsafe {
-      var length = (a as UIntPtr).value;
-
-      // Check the length first
-      if (length != (b as UIntPtr).value) {
-        return false;
-      }
-
-      // Check the content next
-      var ai = a as uint + 4;
-      var bi = b as uint + 4;
-      var an = ai + (length & ~3 as uint);
-
-      // Compare 32-bit values for speed
-      while (ai < an) {
-        if ((ai as UIntPtr).value != (bi as UIntPtr).value) {
-          return false;
-        }
-        ai = ai + 4;
-        bi = bi + 4;
-      }
-
-      // Compare trailing 8-bit values
-      an = ai + length % 4;
-      while (ai < an) {
-        if ((ai as BytePtr).value != (bi as BytePtr).value) {
-          return false;
-        }
-        ai = ai + 1;
-        bi = bi + 1;
-      }
-
-      return true;
     }
   }
 
@@ -253,7 +215,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
   declare function string_length(text: string): int;
   declare function string_get(text: string, index: int): int;
-  declare function string_equals(a: string, b: string): bool;
   declare function string_slice(text: string, start: int, end: int): string;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;

@@ -54,10 +54,6 @@ function loadStdlibForJavaScript() {
       return self.charCodeAt(index);
     },
 
-    string_equals: function(a, b) {
-      return a === b;
-    },
-
     string_slice: function(text, start, end) {
       return text.slice(start, end);
     },

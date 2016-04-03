@@ -849,20 +849,20 @@
       symbol.name = node.stringValue;
 
       if (node.isOperator()) {
-        if (__declare.string_equals(symbol.name, "+") || __declare.string_equals(symbol.name, "-")) {
+        if (symbol.name === "+" || symbol.name === "-") {
           if (node.firstChild === node.functionReturnType()) {
             symbol.flags = 8;
-            symbol.rename = __declare.string_equals(symbol.name, "+") ? "op_positive" : "op_negative";
+            symbol.rename = symbol.name === "+" ? "op_positive" : "op_negative";
           }
 
           else {
             symbol.flags = 2;
-            symbol.rename = __declare.string_equals(symbol.name, "+") ? "op_add" : "op_subtract";
+            symbol.rename = symbol.name === "+" ? "op_add" : "op_subtract";
           }
         }
 
         else {
-          symbol.rename = __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, ">") ? "op_greaterThan" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "~") ? "op_complement" : null;
+          symbol.rename = symbol.name === "%" ? "op_remainder" : symbol.name === "&" ? "op_and" : symbol.name === "*" ? "op_multiply" : symbol.name === "**" ? "op_exponent" : symbol.name === "++" ? "op_increment" : symbol.name === "--" ? "op_decrement" : symbol.name === "/" ? "op_divide" : symbol.name === "<" ? "op_lessThan" : symbol.name === "<<" ? "op_shiftLeft" : symbol.name === "==" ? "op_equals" : symbol.name === ">" ? "op_greaterThan" : symbol.name === ">>" ? "op_shiftRight" : symbol.name === "[]" ? "op_get" : symbol.name === "[]=" ? "op_set" : symbol.name === "^" ? "op_xor" : symbol.name === "|" ? "op_or" : symbol.name === "~" ? "op_complement" : null;
         }
       }
 
@@ -1024,19 +1024,19 @@
       }
 
       else if (node.isOperator()) {
-        if (__declare.string_equals(symbol.name, "~") || __declare.string_equals(symbol.name, "++") || __declare.string_equals(symbol.name, "--")) {
+        if (symbol.name === "~" || symbol.name === "++" || symbol.name === "--") {
           if (argumentCount !== 1) {
             context.log.error(symbol.range, StringBuilder_new().append("Operator '").append(symbol.name).append("' must not have any arguments").finish());
           }
         }
 
-        else if (__declare.string_equals(symbol.name, "+") || __declare.string_equals(symbol.name, "-")) {
+        else if (symbol.name === "+" || symbol.name === "-") {
           if (argumentCount > 2) {
             context.log.error(symbol.range, StringBuilder_new().append("Operator '").append(symbol.name).append("' must have at most one argument").finish());
           }
         }
 
-        else if (__declare.string_equals(symbol.name, "[]=")) {
+        else if (symbol.name === "[]=") {
           if (argumentCount < 2) {
             context.log.error(symbol.range, "Operator '[]=' must have at least one argument");
           }
@@ -1080,7 +1080,7 @@
           symbol.kind = 5;
           symbol.flags = symbol.flags | 1;
           symbol.rename = StringBuilder_new().append(parent.name).appendChar(95).append(symbol.rename !== null ? symbol.rename : symbol.name).finish();
-          __declare.assert(__declare.string_equals(node.firstChild.symbol.name, "this"));
+          __declare.assert(node.firstChild.symbol.name === "this");
           node.firstChild.symbol.rename = "__this";
         }
       }
@@ -1581,11 +1581,11 @@
           builder.append(", did you mean 'this.").append(symbol.name).append("'?");
         }
 
-        else if (__declare.string_equals(name, "number")) {
+        else if (name === "number") {
           builder.append(", did you mean 'int'?");
         }
 
-        else if (__declare.string_equals(name, "boolean")) {
+        else if (name === "boolean") {
           builder.append(", did you mean 'bool'?");
         }
 
@@ -3439,142 +3439,142 @@
           var text = __declare.string_slice(contents, start, i);
 
           if (length === 2) {
-            if (__declare.string_equals(text, "as")) {
+            if (text === "as") {
               kind = 41;
             }
 
-            else if (__declare.string_equals(text, "if")) {
+            else if (text === "if") {
               kind = 54;
             }
           }
 
           else if (length === 3) {
-            if (__declare.string_equals(text, "let")) {
+            if (text === "let") {
               kind = 58;
             }
 
-            else if (__declare.string_equals(text, "new")) {
+            else if (text === "new") {
               kind = 59;
             }
 
-            else if (__declare.string_equals(text, "var")) {
+            else if (text === "var") {
               kind = 71;
             }
           }
 
           else if (length === 4) {
-            if (__declare.string_equals(text, "else")) {
+            if (text === "else") {
               kind = 47;
             }
 
-            else if (__declare.string_equals(text, "enum")) {
+            else if (text === "enum") {
               kind = 48;
             }
 
-            else if (__declare.string_equals(text, "null")) {
+            else if (text === "null") {
               kind = 60;
             }
 
-            else if (__declare.string_equals(text, "this")) {
+            else if (text === "this") {
               kind = 68;
             }
 
-            else if (__declare.string_equals(text, "true")) {
+            else if (text === "true") {
               kind = 69;
             }
           }
 
           else if (length === 5) {
-            if (__declare.string_equals(text, "break")) {
+            if (text === "break") {
               kind = 42;
             }
 
-            else if (__declare.string_equals(text, "class")) {
+            else if (text === "class") {
               kind = 43;
             }
 
-            else if (__declare.string_equals(text, "const")) {
+            else if (text === "const") {
               kind = 44;
             }
 
-            else if (__declare.string_equals(text, "false")) {
+            else if (text === "false") {
               kind = 52;
             }
 
-            else if (__declare.string_equals(text, "while")) {
+            else if (text === "while") {
               kind = 72;
             }
           }
 
           else if (length === 6) {
-            if (__declare.string_equals(text, "export")) {
+            if (text === "export") {
               kind = 49;
             }
 
-            else if (__declare.string_equals(text, "extern")) {
+            else if (text === "extern") {
               kind = 51;
             }
 
-            else if (__declare.string_equals(text, "import")) {
+            else if (text === "import") {
               kind = 56;
             }
 
-            else if (__declare.string_equals(text, "public")) {
+            else if (text === "public") {
               kind = 64;
             }
 
-            else if (__declare.string_equals(text, "return")) {
+            else if (text === "return") {
               kind = 65;
             }
 
-            else if (__declare.string_equals(text, "sizeof")) {
+            else if (text === "sizeof") {
               kind = 66;
             }
 
-            else if (__declare.string_equals(text, "static")) {
+            else if (text === "static") {
               kind = 67;
             }
 
-            else if (__declare.string_equals(text, "unsafe")) {
+            else if (text === "unsafe") {
               kind = 70;
             }
           }
 
           else if (length === 7) {
-            if (__declare.string_equals(text, "alignof")) {
+            if (text === "alignof") {
               kind = 40;
             }
 
-            else if (__declare.string_equals(text, "declare")) {
+            else if (text === "declare") {
               kind = 46;
             }
 
-            else if (__declare.string_equals(text, "extends")) {
+            else if (text === "extends") {
               kind = 50;
             }
 
-            else if (__declare.string_equals(text, "private")) {
+            else if (text === "private") {
               kind = 62;
             }
           }
 
-          else if (__declare.string_equals(text, "continue")) {
+          else if (text === "continue") {
             kind = 45;
           }
 
-          else if (__declare.string_equals(text, "function")) {
+          else if (text === "function") {
             kind = 53;
           }
 
-          else if (__declare.string_equals(text, "implements")) {
+          else if (text === "implements") {
             kind = 55;
           }
 
-          else if (__declare.string_equals(text, "interface")) {
+          else if (text === "interface") {
             kind = 57;
           }
 
-          else if (__declare.string_equals(text, "protected")) {
+          else if (text === "protected") {
             kind = 63;
           }
         }
@@ -3871,39 +3871,39 @@
 
         var text = __declare.string_slice(contents, start, i);
 
-        if (__declare.string_equals(text, "#define")) {
+        if (text === "#define") {
           kind = 73;
         }
 
-        else if (__declare.string_equals(text, "#elif")) {
+        else if (text === "#elif") {
           kind = 74;
         }
 
-        else if (__declare.string_equals(text, "#else")) {
+        else if (text === "#else") {
           kind = 75;
         }
 
-        else if (__declare.string_equals(text, "#endif")) {
+        else if (text === "#endif") {
           kind = 76;
         }
 
-        else if (__declare.string_equals(text, "#error")) {
+        else if (text === "#error") {
           kind = 77;
         }
 
-        else if (__declare.string_equals(text, "#if")) {
+        else if (text === "#if") {
           kind = 78;
         }
 
-        else if (__declare.string_equals(text, "#undef")) {
+        else if (text === "#undef") {
           kind = 81;
         }
 
-        else if (__declare.string_equals(text, "#warning")) {
+        else if (text === "#warning") {
           kind = 82;
         }
 
-        else if (start === 0 && __declare.string_equals(text, "#") && i < limit && __declare.string_get(contents, i) === 33) {
+        else if (start === 0 && text === "#" && i < limit && __declare.string_get(contents, i) === 33) {
           while (i < limit && __declare.string_get(contents, i) !== 10) {
             i = i + 1 | 0;
           }
@@ -3914,17 +3914,17 @@
         else {
           var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar(39);
 
-          if (__declare.string_equals(text, "#ifdef")) {
+          if (text === "#ifdef") {
             builder.append(", did you mean '#if'?");
             kind = 78;
           }
 
-          else if (__declare.string_equals(text, "#elsif") || __declare.string_equals(text, "#elseif")) {
+          else if (text === "#elsif" || text === "#elseif") {
             builder.append(", did you mean '#elif'?");
             kind = 74;
           }
 
-          else if (__declare.string_equals(text, "#end")) {
+          else if (text === "#end") {
             builder.append(", did you mean '#endif'?");
             kind = 76;
           }
@@ -4002,7 +4002,7 @@
   }
 
   function library() {
-    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class string {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n#endif\n";
+    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n\n  declare class string {\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n  }\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n#else\n\n  declare class string {\n    operator == (other: string): bool;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {
@@ -4792,55 +4792,55 @@
     if (value.kind === 21 && symbol.node.isOperator() && symbol.node.isDeclare()) {
       var binaryKind = 27;
 
-      if (__declare.string_equals(symbol.name, "%")) {
+      if (symbol.name === "%") {
         binaryKind = 57;
       }
 
-      else if (__declare.string_equals(symbol.name, "&")) {
+      else if (symbol.name === "&") {
         binaryKind = 43;
       }
 
-      else if (__declare.string_equals(symbol.name, "*")) {
+      else if (symbol.name === "*") {
         binaryKind = 55;
       }
 
-      else if (__declare.string_equals(symbol.name, "**")) {
+      else if (symbol.name === "**") {
         binaryKind = 48;
       }
 
-      else if (__declare.string_equals(symbol.name, "/")) {
+      else if (symbol.name === "/") {
         binaryKind = 46;
       }
 
-      else if (__declare.string_equals(symbol.name, "<")) {
+      else if (symbol.name === "<") {
         binaryKind = 51;
       }
 
-      else if (__declare.string_equals(symbol.name, "<<")) {
+      else if (symbol.name === "<<") {
         binaryKind = 58;
       }
 
-      else if (__declare.string_equals(symbol.name, "==")) {
+      else if (symbol.name === "==") {
         binaryKind = 47;
       }
 
-      else if (__declare.string_equals(symbol.name, ">")) {
+      else if (symbol.name === ">") {
         binaryKind = 49;
       }
 
-      else if (__declare.string_equals(symbol.name, ">>")) {
+      else if (symbol.name === ">>") {
         binaryKind = 59;
       }
 
-      else if (__declare.string_equals(symbol.name, "[]")) {
+      else if (symbol.name === "[]") {
         binaryKind = 23;
       }
 
-      else if (__declare.string_equals(symbol.name, "^")) {
+      else if (symbol.name === "^") {
         binaryKind = 45;
       }
 
-      else if (__declare.string_equals(symbol.name, "|")) {
+      else if (symbol.name === "|") {
         binaryKind = 44;
       }
 
@@ -4852,7 +4852,7 @@
         return true;
       }
 
-      else if (__declare.string_equals(symbol.name, "[]=")) {
+      else if (symbol.name === "[]=") {
         this.kind = 42;
         var target = createIndex(value.remove().dotTarget().remove());
         target.appendChild(this.firstChild.remove());
@@ -5915,7 +5915,7 @@
 
       var text = childName.range.toString();
 
-      if (__declare.string_equals(text, "operator") && !this.peek(20) && !this.peek(2)) {
+      if (text === "operator" && !this.peek(20) && !this.peek(2)) {
         childName.kind = 61;
         this.current = childName;
 
@@ -5927,8 +5927,8 @@
       }
 
       else if (this.peek(2)) {
-        var isGet = __declare.string_equals(text, "get");
-        var isSet = __declare.string_equals(text, "set");
+        var isGet = text === "get";
+        var isSet = text === "set";
 
         if (isGet || isSet) {
           childFlags = appendFlag(childFlags, isGet ? 8 : 512, childName.range);
@@ -6498,7 +6498,7 @@
     var flag = this.firstFlag;
 
     while (flag !== null) {
-      if (__declare.string_equals(flag.name, name)) {
+      if (flag.name === name) {
         return flag.isDefined;
       }
 
@@ -6551,7 +6551,7 @@
           this.define(this.previous.range.toString(), current.kind === 73);
         }
 
-        if (this.eat(52) || this.eat(3) && __declare.string_equals(this.previous.range.toString(), "0")) {
+        if (this.eat(52) || this.eat(3) && this.previous.range.toString() === "0") {
           this.log.error(this.previous.range, "Use '#undef' to turn a preprocessor flag off");
         }
 
@@ -6666,7 +6666,7 @@
     if (this.eat(2)) {
       var name = this.previous.range.toString();
 
-      if (this.peek(20) && __declare.string_equals(name, "defined")) {
+      if (this.peek(20) && name === "defined") {
         isDefinedOperator = true;
       }
 
@@ -6709,7 +6709,7 @@
     }
 
     if (this.eat(3)) {
-      var isTrue = !__declare.string_equals(this.previous.range.toString(), "0");
+      var isTrue = this.previous.range.toString() !== "0";
       this.log.error(this.previous.range, StringBuilder_new().append("Unexpected integer (did you mean '").append(isTrue ? "true" : "false").append("')?").finish());
 
       return isTrue ? 1 : 0;
@@ -6807,7 +6807,7 @@
     var fallback = null;
 
     while (symbol !== null) {
-      if (__declare.string_equals(symbol.name, name)) {
+      if (symbol.name === name) {
         if (hint === 5 && symbol.isSetter() || hint === 6 && symbol.isGetter()) {
           fallback = symbol;
         }
@@ -7552,12 +7552,12 @@
           __declare.assert(false);
         }
 
-        if (__declare.string_equals(symbol.name, "currentHeapPointer")) {
+        if (symbol.name === "currentHeapPointer") {
           __declare.assert(this.currentHeapPointer === -1);
           this.currentHeapPointer = symbol.offset;
         }
 
-        else if (__declare.string_equals(symbol.name, "originalHeapPointer")) {
+        else if (symbol.name === "originalHeapPointer") {
           __declare.assert(this.originalHeapPointer === -1);
           this.originalHeapPointer = symbol.offset;
         }
@@ -7603,7 +7603,7 @@
       symbol.offset = this.functionCount;
       var fn = this.allocateFunction(symbol.name, signatureIndex, body);
 
-      if (symbol.kind === 5 && __declare.string_equals(symbol.name, "malloc")) {
+      if (symbol.kind === 5 && symbol.name === "malloc") {
         __declare.assert(this.mallocFunctionIndex === -1);
         this.mallocFunctionIndex = symbol.offset;
       }

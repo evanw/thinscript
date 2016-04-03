@@ -261,56 +261,56 @@ function tokenize(source: Source, log: Log): Token {
         var text = string_slice(contents, start, i);
 
         if (length == 2) {
-          if (string_equals(text, "as")) kind = TokenKind.AS; else
-          if (string_equals(text, "if")) kind = TokenKind.IF;
+          if (text == "as") kind = TokenKind.AS; else
+          if (text == "if") kind = TokenKind.IF;
         }
 
         else if (length == 3) {
-          if (string_equals(text, "let")) kind = TokenKind.LET; else
-          if (string_equals(text, "new")) kind = TokenKind.NEW; else
-          if (string_equals(text, "var")) kind = TokenKind.VAR;
+          if (text == "let") kind = TokenKind.LET; else
+          if (text == "new") kind = TokenKind.NEW; else
+          if (text == "var") kind = TokenKind.VAR;
         }
 
         else if (length == 4) {
-          if (string_equals(text, "else")) kind = TokenKind.ELSE; else
-          if (string_equals(text, "enum")) kind = TokenKind.ENUM; else
-          if (string_equals(text, "null")) kind = TokenKind.NULL; else
-          if (string_equals(text, "this")) kind = TokenKind.THIS; else
-          if (string_equals(text, "true")) kind = TokenKind.TRUE;
+          if (text == "else") kind = TokenKind.ELSE; else
+          if (text == "enum") kind = TokenKind.ENUM; else
+          if (text == "null") kind = TokenKind.NULL; else
+          if (text == "this") kind = TokenKind.THIS; else
+          if (text == "true") kind = TokenKind.TRUE;
         }
 
         else if (length == 5) {
-          if (string_equals(text, "break")) kind = TokenKind.BREAK; else
-          if (string_equals(text, "class")) kind = TokenKind.CLASS; else
-          if (string_equals(text, "const")) kind = TokenKind.CONST; else
-          if (string_equals(text, "false")) kind = TokenKind.FALSE; else
-          if (string_equals(text, "while")) kind = TokenKind.WHILE;
+          if (text == "break") kind = TokenKind.BREAK; else
+          if (text == "class") kind = TokenKind.CLASS; else
+          if (text == "const") kind = TokenKind.CONST; else
+          if (text == "false") kind = TokenKind.FALSE; else
+          if (text == "while") kind = TokenKind.WHILE;
         }
 
         else if (length == 6) {
-          if (string_equals(text, "export")) kind = TokenKind.EXPORT; else
-          if (string_equals(text, "extern")) kind = TokenKind.EXTERN; else
-          if (string_equals(text, "import")) kind = TokenKind.IMPORT; else
-          if (string_equals(text, "public")) kind = TokenKind.PUBLIC; else
-          if (string_equals(text, "return")) kind = TokenKind.RETURN; else
-          if (string_equals(text, "sizeof")) kind = TokenKind.SIZEOF; else
-          if (string_equals(text, "static")) kind = TokenKind.STATIC; else
-          if (string_equals(text, "unsafe")) kind = TokenKind.UNSAFE;
+          if (text == "export") kind = TokenKind.EXPORT; else
+          if (text == "extern") kind = TokenKind.EXTERN; else
+          if (text == "import") kind = TokenKind.IMPORT; else
+          if (text == "public") kind = TokenKind.PUBLIC; else
+          if (text == "return") kind = TokenKind.RETURN; else
+          if (text == "sizeof") kind = TokenKind.SIZEOF; else
+          if (text == "static") kind = TokenKind.STATIC; else
+          if (text == "unsafe") kind = TokenKind.UNSAFE;
         }
 
         else if (length == 7) {
-          if (string_equals(text, "alignof")) kind = TokenKind.ALIGNOF; else
-          if (string_equals(text, "declare")) kind = TokenKind.DECLARE; else
-          if (string_equals(text, "extends")) kind = TokenKind.EXTENDS; else
-          if (string_equals(text, "private")) kind = TokenKind.PRIVATE;
+          if (text == "alignof") kind = TokenKind.ALIGNOF; else
+          if (text == "declare") kind = TokenKind.DECLARE; else
+          if (text == "extends") kind = TokenKind.EXTENDS; else
+          if (text == "private") kind = TokenKind.PRIVATE;
         }
 
         else {
-          if (string_equals(text, "continue")) kind = TokenKind.CONTINUE; else
-          if (string_equals(text, "function")) kind = TokenKind.FUNCTION; else
-          if (string_equals(text, "implements")) kind = TokenKind.IMPLEMENTS; else
-          if (string_equals(text, "interface")) kind = TokenKind.INTERFACE; else
-          if (string_equals(text, "protected")) kind = TokenKind.PROTECTED;
+          if (text == "continue") kind = TokenKind.CONTINUE; else
+          if (text == "function") kind = TokenKind.FUNCTION; else
+          if (text == "implements") kind = TokenKind.IMPLEMENTS; else
+          if (text == "interface") kind = TokenKind.INTERFACE; else
+          if (text == "protected") kind = TokenKind.PROTECTED;
         }
       }
     }
@@ -578,17 +578,17 @@ function tokenize(source: Source, log: Log): Token {
 
       var text = string_slice(contents, start, i);
 
-      if (string_equals(text, "#define")) kind = TokenKind.PREPROCESSOR_DEFINE;
-      else if (string_equals(text, "#elif")) kind = TokenKind.PREPROCESSOR_ELIF;
-      else if (string_equals(text, "#else")) kind = TokenKind.PREPROCESSOR_ELSE;
-      else if (string_equals(text, "#endif")) kind = TokenKind.PREPROCESSOR_ENDIF;
-      else if (string_equals(text, "#error")) kind = TokenKind.PREPROCESSOR_ERROR;
-      else if (string_equals(text, "#if")) kind = TokenKind.PREPROCESSOR_IF;
-      else if (string_equals(text, "#undef")) kind = TokenKind.PREPROCESSOR_UNDEF;
-      else if (string_equals(text, "#warning")) kind = TokenKind.PREPROCESSOR_WARNING;
+      if (text == "#define") kind = TokenKind.PREPROCESSOR_DEFINE;
+      else if (text == "#elif") kind = TokenKind.PREPROCESSOR_ELIF;
+      else if (text == "#else") kind = TokenKind.PREPROCESSOR_ELSE;
+      else if (text == "#endif") kind = TokenKind.PREPROCESSOR_ENDIF;
+      else if (text == "#error") kind = TokenKind.PREPROCESSOR_ERROR;
+      else if (text == "#if") kind = TokenKind.PREPROCESSOR_IF;
+      else if (text == "#undef") kind = TokenKind.PREPROCESSOR_UNDEF;
+      else if (text == "#warning") kind = TokenKind.PREPROCESSOR_WARNING;
 
       // Allow a shebang at the start of the file
-      else if (start == 0 && string_equals(text, "#") && i < limit && string_get(contents, i) == '!') {
+      else if (start == 0 && text == "#" && i < limit && string_get(contents, i) == '!') {
         while (i < limit && string_get(contents, i) != '\n') {
           i = i + 1;
         }
@@ -599,19 +599,19 @@ function tokenize(source: Source, log: Log): Token {
         var builder = StringBuilder_new().append("Invalid preprocessor token '").append(text).appendChar('\'');
 
         // Check for #if typos
-        if (string_equals(text, "#ifdef")) {
+        if (text == "#ifdef") {
           builder.append(", did you mean '#if'?");
           kind = TokenKind.PREPROCESSOR_IF;
         }
 
         // Check for #elif typos
-        else if (string_equals(text, "#elsif") || string_equals(text, "#elseif")) {
+        else if (text == "#elsif" || text == "#elseif") {
           builder.append(", did you mean '#elif'?");
           kind = TokenKind.PREPROCESSOR_ELIF;
         }
 
         // Check for #endif typos
-        else if (string_equals(text, "#end")) {
+        else if (text == "#end") {
           builder.append(", did you mean '#endif'?");
           kind = TokenKind.PREPROCESSOR_ENDIF;
         }

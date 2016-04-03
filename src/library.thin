@@ -5,11 +5,53 @@ declare class byte {}
 declare class int {}
 declare class sbyte {}
 declare class short {}
-declare class string {}
 declare class uint {}
 declare class ushort {}
 
 #if WASM
+
+  declare class string {
+    operator == (other: string): bool {
+      unsafe {
+        if (this as uint == other as uint) return true;
+        if (this as uint == 0 || other as uint == 0) return false;
+
+        var length = (this as UIntPtr).value;
+
+        // Check the length first
+        if (length != (other as UIntPtr).value) {
+          return false;
+        }
+
+        // Check the content next
+        var ai = this as uint + 4;
+        var bi = other as uint + 4;
+        var an = ai + (length & ~3 as uint);
+
+        // Compare 32-bit values for speed (4-byte alignment is manditory)
+        while (ai < an) {
+          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {
+            return false;
+          }
+          ai = ai + 4;
+          bi = bi + 4;
+        }
+
+        // Compare trailing 8-bit values
+        an = ai + length % 4;
+        while (ai < an) {
+          if ((ai as BytePtr).value != (bi as BytePtr).value) {
+            return false;
+          }
+          ai = ai + 1;
+          bi = bi + 1;
+        }
+      }
+
+      return true;
+    }
+  }
+
   // Cast to these to read from and write to arbitrary locations in memory
   unsafe class BytePtr { value: byte; }
   unsafe class UShortPtr { value: ushort; }
@@ -37,6 +79,13 @@ declare class ushort {}
 
     return offset;
   }
+
+#else
+
+  declare class string {
+    operator == (other: string): bool;
+  }
+
 #endif
 `;
 }
