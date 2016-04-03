@@ -83,6 +83,16 @@ function isBinary(kind: NodeKind): bool {
   return kind >= NodeKind.ADD && kind <= NodeKind.SUBTRACT;
 }
 
+function invertedBinaryKind(kind: NodeKind): NodeKind {
+  if (kind == NodeKind.EQUAL) return NodeKind.NOT_EQUAL;
+  if (kind == NodeKind.NOT_EQUAL) return NodeKind.EQUAL;
+  if (kind == NodeKind.GREATER_THAN) return NodeKind.LESS_THAN_EQUAL;
+  if (kind == NodeKind.GREATER_THAN_EQUAL) return NodeKind.LESS_THAN;
+  if (kind == NodeKind.LESS_THAN) return NodeKind.GREATER_THAN_EQUAL;
+  if (kind == NodeKind.LESS_THAN_EQUAL) return NodeKind.GREATER_THAN;
+  return kind;
+}
+
 function isExpression(node: Node): bool {
   return node.kind >= NodeKind.ALIGN_OF && node.kind <= NodeKind.SUBTRACT;
 }
@@ -168,6 +178,44 @@ class Node {
   resolvedType: Type;
   symbol: Symbol;
   scope: Scope;
+
+  become(node: Node): void {
+    assert(node != this);
+    assert(node.parent == null);
+
+    this.kind = node.kind;
+    this.flags = node.flags;
+    this.firstFlag = node.firstFlag;
+    this.range = node.range;
+    this.internalRange = node.internalRange;
+    this.intValue = node.intValue;
+    this.stringValue = node.stringValue;
+    this.resolvedType = node.resolvedType;
+    this.symbol = node.symbol;
+    this.scope = node.scope;
+  }
+
+  becomeSymbolReference(symbol: Symbol): void {
+    this.kind = NodeKind.NAME;
+    this.symbol = symbol;
+    this.stringValue = symbol.name;
+    this.resolvedType = symbol.resolvedType;
+    this.removeChildren();
+  }
+
+  becomeIntegerConstant(value: int): void {
+    this.kind = NodeKind.INT;
+    this.symbol = null;
+    this.intValue = value;
+    this.removeChildren();
+  }
+
+  becomeBooleanConstant(value: bool): void {
+    this.kind = NodeKind.BOOL;
+    this.symbol = null;
+    this.intValue = value ? 1 : 0;
+    this.removeChildren();
+  }
 
   isNegativeInteger(): bool {
     return this.kind == NodeKind.INT && this.intValue < 0;
@@ -273,7 +321,7 @@ class Node {
     after.previousSibling = before;
   }
 
-  remove(): void {
+  remove(): Node {
     assert(this.parent != null);
 
     if (this.previousSibling != null) {
@@ -295,6 +343,7 @@ class Node {
     this.parent = null;
     this.previousSibling = null;
     this.nextSibling = null;
+    return this;
   }
 
   removeChildren(): void {
@@ -333,28 +382,6 @@ class Node {
     this.parent = null;
     this.previousSibling = null;
     this.nextSibling = null;
-  }
-
-  becomeSymbolReference(symbol: Symbol): void {
-    this.kind = NodeKind.NAME;
-    this.symbol = symbol;
-    this.stringValue = symbol.name;
-    this.resolvedType = symbol.resolvedType;
-    this.removeChildren();
-  }
-
-  becomeIntegerConstant(value: int): void {
-    this.kind = NodeKind.INT;
-    this.symbol = null;
-    this.intValue = value;
-    this.removeChildren();
-  }
-
-  becomeBooleanConstant(value: bool): void {
-    this.kind = NodeKind.BOOL;
-    this.symbol = null;
-    this.intValue = value ? 1 : 0;
-    this.removeChildren();
   }
 
   isType(): bool {
@@ -561,6 +588,50 @@ class Node {
     assert(this.childCount() == 2 || this.childCount() == 3);
     assert(this.firstChild.nextSibling.nextSibling == null || this.firstChild.nextSibling.nextSibling.kind == NodeKind.BLOCK);
     return this.firstChild.nextSibling.nextSibling;
+  }
+
+  expandCallIntoOperatorTree(): bool {
+    if (this.kind != NodeKind.CALL) {
+      return false;
+    }
+
+    var value = this.callValue();
+    var symbol = value.symbol;
+
+    if (value.kind == NodeKind.DOT && symbol.node.isOperator() && symbol.node.isDeclare()) {
+      var binaryKind = NodeKind.NULL;
+
+      if (string_equals(symbol.name, "%")) binaryKind = NodeKind.REMAINDER;
+      else if (string_equals(symbol.name, "&")) binaryKind = NodeKind.BITWISE_AND;
+      else if (string_equals(symbol.name, "*")) binaryKind = NodeKind.MULTIPLY;
+      else if (string_equals(symbol.name, "**")) binaryKind = NodeKind.EXPONENT;
+      else if (string_equals(symbol.name, "/")) binaryKind = NodeKind.DIVIDE;
+      else if (string_equals(symbol.name, "<")) binaryKind = NodeKind.LESS_THAN;
+      else if (string_equals(symbol.name, "<<")) binaryKind = NodeKind.SHIFT_LEFT;
+      else if (string_equals(symbol.name, "==")) binaryKind = NodeKind.EQUAL;
+      else if (string_equals(symbol.name, ">")) binaryKind = NodeKind.GREATER_THAN;
+      else if (string_equals(symbol.name, ">>")) binaryKind = NodeKind.SHIFT_RIGHT;
+      else if (string_equals(symbol.name, "[]")) binaryKind = NodeKind.INDEX;
+      else if (string_equals(symbol.name, "^")) binaryKind = NodeKind.BITWISE_XOR;
+      else if (string_equals(symbol.name, "|")) binaryKind = NodeKind.BITWISE_OR;
+
+      if (binaryKind != NodeKind.NULL) {
+        this.kind = binaryKind;
+        value.remove();
+        this.insertChildBefore(this.firstChild, value.dotTarget().remove());
+        return true;
+      }
+
+      else if (string_equals(symbol.name, "[]=")) {
+        this.kind = NodeKind.ASSIGN;
+        var target = createIndex(value.remove().dotTarget().remove());
+        target.appendChild(this.firstChild.remove());
+        this.insertChildBefore(this.firstChild, target);
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 

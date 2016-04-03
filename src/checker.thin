@@ -91,23 +91,23 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope, mode:
         }
       } else {
         symbol.rename =
-          string_equals(symbol.name, "~") ? "op_complement" :
-          string_equals(symbol.name, "*") ? "op_multiply" :
-          string_equals(symbol.name, "/") ? "op_divide" :
           string_equals(symbol.name, "%") ? "op_remainder" :
-          string_equals(symbol.name, "**") ? "op_exponent" :
           string_equals(symbol.name, "&") ? "op_and" :
-          string_equals(symbol.name, "|") ? "op_or" :
-          string_equals(symbol.name, "^") ? "op_xor" :
-          string_equals(symbol.name, "==") ? "op_equals" :
-          string_equals(symbol.name, "<") ? "op_lessThan" :
-          string_equals(symbol.name, ">") ? "op_greaterThan" :
-          string_equals(symbol.name, "<<") ? "op_shiftLeft" :
-          string_equals(symbol.name, ">>") ? "op_shiftRight" :
+          string_equals(symbol.name, "*") ? "op_multiply" :
+          string_equals(symbol.name, "**") ? "op_exponent" :
           string_equals(symbol.name, "++") ? "op_increment" :
           string_equals(symbol.name, "--") ? "op_decrement" :
+          string_equals(symbol.name, "/") ? "op_divide" :
+          string_equals(symbol.name, "<") ? "op_lessThan" :
+          string_equals(symbol.name, "<<") ? "op_shiftLeft" :
+          string_equals(symbol.name, "==") ? "op_equals" :
+          string_equals(symbol.name, ">") ? "op_greaterThan" :
+          string_equals(symbol.name, ">>") ? "op_shiftRight" :
           string_equals(symbol.name, "[]") ? "op_get" :
           string_equals(symbol.name, "[]=") ? "op_set" :
+          string_equals(symbol.name, "^") ? "op_xor" :
+          string_equals(symbol.name, "|") ? "op_or" :
+          string_equals(symbol.name, "~") ? "op_complement" :
           null;
       }
     }
@@ -617,8 +617,7 @@ function simplifyBinary(node: Node): void {
   if ((node.kind == NodeKind.ADD || node.kind == NodeKind.MULTIPLY ||
       node.kind == NodeKind.BITWISE_AND || node.kind == NodeKind.BITWISE_OR || node.kind == NodeKind.BITWISE_XOR) &&
       left.kind == NodeKind.INT && right.kind != NodeKind.INT) {
-    left.remove();
-    node.appendChild(left);
+    node.appendChild(left.remove());
     left = node.binaryLeft();
     right = node.binaryRight();
   }
@@ -659,10 +658,8 @@ function simplifyBinary(node: Node): void {
 
   // Flip addition with negation into subtraction
   else if (node.kind == NodeKind.ADD && right.kind == NodeKind.NEGATIVE) {
-    var value = right.unaryValue();
     node.kind = NodeKind.SUBTRACT;
-    value.remove();
-    right.replaceWith(value);
+    right.replaceWith(right.unaryValue().remove());
   }
 
   // Flip addition with negative constants into subtraction
@@ -1002,9 +999,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
           // Automatically call getters
           else if (symbol.isGetter()) {
-            target.remove();
             node.kind = NodeKind.CALL;
-            node.appendChild(createMemberReference(target, symbol));
+            node.appendChild(createMemberReference(target.remove(), symbol));
             node.resolvedType = null;
             resolveAsExpression(context, node, parentScope);
             return;
@@ -1054,11 +1050,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
         initializeSymbol(context, symbol);
 
         if (symbol.shouldConvertInstanceToGlobal()) {
-          var target = value.dotTarget();
           var name = createSymbolReference(symbol);
-          target.remove();
           node.insertChildBefore(value, name.withRange(value.internalRange));
-          node.insertChildBefore(value, target);
+          node.insertChildBefore(value, value.dotTarget().remove());
           value.remove();
           value = name;
         }
@@ -1207,9 +1201,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
           target.remove();
           left.remove();
           while (left.lastChild != null) {
-            var value = left.lastChild;
-            value.remove();
-            node.insertChildBefore(node.firstChild, value);
+            node.insertChildBefore(node.firstChild, left.lastChild.remove());
           }
           node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
           node.internalRange = spanRanges(left.internalRange, right.range);
@@ -1292,8 +1284,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       // Automatically call the function
       if (symbol != null) {
-        value.remove();
-        node.appendChild(createMemberReference(value, symbol).withRange(node.range).withInternalRange(node.internalRange));
+        node.appendChild(createMemberReference(value.remove(), symbol).withRange(node.range).withInternalRange(node.internalRange));
         node.kind = NodeKind.CALL;
         node.resolvedType = null;
         resolveAsExpression(context, node, parentScope);
@@ -1413,9 +1404,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
       // Automatically call the function
       if (symbol != null) {
-        left.remove();
+        left = createMemberReference(left.remove(), symbol).withRange(node.range).withInternalRange(node.internalRange);
         right.remove();
-        left = createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange);
 
         if (kind == NodeKind.NOT_EQUAL ||
             kind == NodeKind.LESS_THAN_EQUAL ||

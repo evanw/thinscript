@@ -862,7 +862,7 @@
         }
 
         else {
-          symbol.rename = __declare.string_equals(symbol.name, "~") ? "op_complement" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, ">") ? "op_greaterThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : null;
+          symbol.rename = __declare.string_equals(symbol.name, "%") ? "op_remainder" : __declare.string_equals(symbol.name, "&") ? "op_and" : __declare.string_equals(symbol.name, "*") ? "op_multiply" : __declare.string_equals(symbol.name, "**") ? "op_exponent" : __declare.string_equals(symbol.name, "++") ? "op_increment" : __declare.string_equals(symbol.name, "--") ? "op_decrement" : __declare.string_equals(symbol.name, "/") ? "op_divide" : __declare.string_equals(symbol.name, "<") ? "op_lessThan" : __declare.string_equals(symbol.name, "<<") ? "op_shiftLeft" : __declare.string_equals(symbol.name, "==") ? "op_equals" : __declare.string_equals(symbol.name, ">") ? "op_greaterThan" : __declare.string_equals(symbol.name, ">>") ? "op_shiftRight" : __declare.string_equals(symbol.name, "[]") ? "op_get" : __declare.string_equals(symbol.name, "[]=") ? "op_set" : __declare.string_equals(symbol.name, "^") ? "op_xor" : __declare.string_equals(symbol.name, "|") ? "op_or" : __declare.string_equals(symbol.name, "~") ? "op_complement" : null;
         }
       }
 
@@ -1302,8 +1302,7 @@
     var right = node.binaryRight();
 
     if ((node.kind === 41 || node.kind === 55 || node.kind === 43 || node.kind === 44 || node.kind === 45) && left.kind === 24 && right.kind !== 24) {
-      left.remove();
-      node.appendChild(left);
+      node.appendChild(left.remove());
       left = node.binaryLeft();
       right = node.binaryRight();
     }
@@ -1338,10 +1337,8 @@
     }
 
     else if (node.kind === 41 && right.kind === 34) {
-      var value = right.unaryValue();
       node.kind = 60;
-      value.remove();
-      right.replaceWith(value);
+      right.replaceWith(right.unaryValue().remove());
     }
 
     else if (node.kind === 41 && right.isNegativeInteger()) {
@@ -1648,9 +1645,8 @@
             }
 
             else if (symbol.isGetter()) {
-              target.remove();
               node.kind = 19;
-              node.appendChild(createMemberReference(target, symbol));
+              node.appendChild(createMemberReference(target.remove(), symbol));
               node.resolvedType = null;
               resolveAsExpression(context, node, parentScope);
 
@@ -1690,11 +1686,9 @@
           initializeSymbol(context, symbol);
 
           if (symbol.shouldConvertInstanceToGlobal()) {
-            var target = value.dotTarget();
             var name = createSymbolReference(symbol);
-            target.remove();
             node.insertChildBefore(value, name.withRange(value.internalRange));
-            node.insertChildBefore(value, target);
+            node.insertChildBefore(value, value.dotTarget().remove());
             value.remove();
             value = name;
           }
@@ -1818,9 +1812,7 @@
             left.remove();
 
             while (left.lastChild !== null) {
-              var value = left.lastChild;
-              value.remove();
-              node.insertChildBefore(node.firstChild, value);
+              node.insertChildBefore(node.firstChild, left.lastChild.remove());
             }
 
             node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
@@ -1902,8 +1894,7 @@
         var symbol = value.resolvedType.findMember(name, 1);
 
         if (symbol !== null) {
-          value.remove();
-          node.appendChild(createMemberReference(value, symbol).withRange(node.range).withInternalRange(node.internalRange));
+          node.appendChild(createMemberReference(value.remove(), symbol).withRange(node.range).withInternalRange(node.internalRange));
           node.kind = 19;
           node.resolvedType = null;
           resolveAsExpression(context, node, parentScope);
@@ -2024,9 +2015,8 @@
         var symbol = leftType.findMember(kind === 56 ? "==" : kind === 52 ? ">" : kind === 50 ? "<" : name, 4);
 
         if (symbol !== null) {
-          left.remove();
+          left = createMemberReference(left.remove(), symbol).withRange(node.range).withInternalRange(node.internalRange);
           right.remove();
-          left = createMemberReference(left, symbol).withRange(node.range).withInternalRange(node.internalRange);
 
           if (kind === 56 || kind === 52 || kind === 50) {
             var call = createCall(left);
@@ -2388,7 +2378,6 @@
 
   JsResult.prototype.emitExpression = function(node, parentPrecedence) {
     var code = this.code;
-    __declare.assert(node.resolvedType !== null);
 
     if (node.kind === 25) {
       var symbol = node.symbol;
@@ -2510,42 +2499,25 @@
       }
     }
 
+    else if (node.kind === 23) {
+      var value = node.indexTarget();
+      this.emitExpression(value, 14);
+      code.appendChar(91);
+      this.emitCommaSeparatedExpressions(value.nextSibling, null);
+      code.appendChar(93);
+    }
+
     else if (node.kind === 19) {
-      var value = node.callValue();
-      var symbol = value.symbol;
-      var isDeclaredInstance = value.kind === 21 && symbol.node.isDeclare();
-
-      if (isDeclaredInstance && __declare.string_equals(symbol.name, "[]")) {
-        this.emitExpression(value.dotTarget(), 14);
-        code.appendChar(91);
-        this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        code.appendChar(93);
-      }
-
-      else if (isDeclaredInstance && __declare.string_equals(symbol.name, "[]=")) {
-        if (parentPrecedence > 1) {
-          code.appendChar(40);
-        }
-
-        this.emitExpression(value.dotTarget(), 14);
-        code.appendChar(91);
-        this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
-        code.append("] = ");
-        this.emitExpression(node.lastChild, 1);
-
-        if (parentPrecedence > 1) {
-          code.appendChar(41);
-        }
+      if (node.expandCallIntoOperatorTree()) {
+        this.emitExpression(node, parentPrecedence);
       }
 
       else {
+        var value = node.callValue();
         this.emitExpression(value, 14);
-
-        if (!isDeclaredInstance || !symbol.isGetter()) {
-          code.appendChar(40);
-          this.emitCommaSeparatedExpressions(value.nextSibling, null);
-          code.appendChar(41);
-        }
+        code.appendChar(40);
+        this.emitCommaSeparatedExpressions(value.nextSibling, null);
+        code.appendChar(41);
       }
     }
 
@@ -2555,16 +2527,27 @@
       code.append("()");
     }
 
+    else if (node.kind === 35) {
+      var value = node.unaryValue();
+      value.expandCallIntoOperatorTree();
+      var invertedKind = invertedBinaryKind(value.kind);
+
+      if (invertedKind !== value.kind) {
+        value.kind = invertedKind;
+        this.emitExpression(value, parentPrecedence);
+      }
+
+      else {
+        this.emitUnary(node, parentPrecedence, "!");
+      }
+    }
+
     else if (node.kind === 33) {
       this.emitUnary(node, parentPrecedence, "~");
     }
 
     else if (node.kind === 34) {
       this.emitUnary(node, parentPrecedence, "-");
-    }
-
-    else if (node.kind === 35) {
-      this.emitUnary(node, parentPrecedence, "!");
     }
 
     else if (node.kind === 36) {
@@ -4171,6 +4154,34 @@
     return kind >= 41 && kind <= 60;
   }
 
+  function invertedBinaryKind(kind) {
+    if (kind === 47) {
+      return 56;
+    }
+
+    if (kind === 56) {
+      return 47;
+    }
+
+    if (kind === 49) {
+      return 52;
+    }
+
+    if (kind === 50) {
+      return 51;
+    }
+
+    if (kind === 51) {
+      return 50;
+    }
+
+    if (kind === 52) {
+      return 49;
+    }
+
+    return kind;
+  }
+
   function isExpression(node) {
     return node.kind >= 17 && node.kind <= 60;
   }
@@ -4245,6 +4256,43 @@
     this.symbol = null;
     this.scope = null;
   }
+
+  Node.prototype.become = function(node) {
+    __declare.assert(node !== this);
+    __declare.assert(node.parent === null);
+    this.kind = node.kind;
+    this.flags = node.flags;
+    this.firstFlag = node.firstFlag;
+    this.range = node.range;
+    this.internalRange = node.internalRange;
+    this.intValue = node.intValue;
+    this.stringValue = node.stringValue;
+    this.resolvedType = node.resolvedType;
+    this.symbol = node.symbol;
+    this.scope = node.scope;
+  };
+
+  Node.prototype.becomeSymbolReference = function(symbol) {
+    this.kind = 25;
+    this.symbol = symbol;
+    this.stringValue = symbol.name;
+    this.resolvedType = symbol.resolvedType;
+    this.removeChildren();
+  };
+
+  Node.prototype.becomeIntegerConstant = function(value) {
+    this.kind = 24;
+    this.symbol = null;
+    this.intValue = value;
+    this.removeChildren();
+  };
+
+  Node.prototype.becomeBooleanConstant = function(value) {
+    this.kind = 18;
+    this.symbol = null;
+    this.intValue = value ? 1 : 0;
+    this.removeChildren();
+  };
 
   Node.prototype.isNegativeInteger = function() {
     return this.kind === 24 && this.intValue < 0;
@@ -4381,6 +4429,8 @@
     this.parent = null;
     this.previousSibling = null;
     this.nextSibling = null;
+
+    return this;
   };
 
   Node.prototype.removeChildren = function() {
@@ -4422,28 +4472,6 @@
     this.parent = null;
     this.previousSibling = null;
     this.nextSibling = null;
-  };
-
-  Node.prototype.becomeSymbolReference = function(symbol) {
-    this.kind = 25;
-    this.symbol = symbol;
-    this.stringValue = symbol.name;
-    this.resolvedType = symbol.resolvedType;
-    this.removeChildren();
-  };
-
-  Node.prototype.becomeIntegerConstant = function(value) {
-    this.kind = 24;
-    this.symbol = null;
-    this.intValue = value;
-    this.removeChildren();
-  };
-
-  Node.prototype.becomeBooleanConstant = function(value) {
-    this.kind = 18;
-    this.symbol = null;
-    this.intValue = value ? 1 : 0;
-    this.removeChildren();
   };
 
   Node.prototype.isType = function() {
@@ -4678,6 +4706,90 @@
     __declare.assert(this.firstChild.nextSibling.nextSibling === null || this.firstChild.nextSibling.nextSibling.kind === 3);
 
     return this.firstChild.nextSibling.nextSibling;
+  };
+
+  Node.prototype.expandCallIntoOperatorTree = function() {
+    if (this.kind !== 19) {
+      return false;
+    }
+
+    var value = this.callValue();
+    var symbol = value.symbol;
+
+    if (value.kind === 21 && symbol.node.isOperator() && symbol.node.isDeclare()) {
+      var binaryKind = 27;
+
+      if (__declare.string_equals(symbol.name, "%")) {
+        binaryKind = 57;
+      }
+
+      else if (__declare.string_equals(symbol.name, "&")) {
+        binaryKind = 43;
+      }
+
+      else if (__declare.string_equals(symbol.name, "*")) {
+        binaryKind = 55;
+      }
+
+      else if (__declare.string_equals(symbol.name, "**")) {
+        binaryKind = 48;
+      }
+
+      else if (__declare.string_equals(symbol.name, "/")) {
+        binaryKind = 46;
+      }
+
+      else if (__declare.string_equals(symbol.name, "<")) {
+        binaryKind = 51;
+      }
+
+      else if (__declare.string_equals(symbol.name, "<<")) {
+        binaryKind = 58;
+      }
+
+      else if (__declare.string_equals(symbol.name, "==")) {
+        binaryKind = 47;
+      }
+
+      else if (__declare.string_equals(symbol.name, ">")) {
+        binaryKind = 49;
+      }
+
+      else if (__declare.string_equals(symbol.name, ">>")) {
+        binaryKind = 59;
+      }
+
+      else if (__declare.string_equals(symbol.name, "[]")) {
+        binaryKind = 23;
+      }
+
+      else if (__declare.string_equals(symbol.name, "^")) {
+        binaryKind = 45;
+      }
+
+      else if (__declare.string_equals(symbol.name, "|")) {
+        binaryKind = 44;
+      }
+
+      if (binaryKind !== 27) {
+        this.kind = binaryKind;
+        value.remove();
+        this.insertChildBefore(this.firstChild, value.dotTarget().remove());
+
+        return true;
+      }
+
+      else if (__declare.string_equals(symbol.name, "[]=")) {
+        this.kind = 42;
+        var target = createIndex(value.remove().dotTarget().remove());
+        target.appendChild(this.firstChild.remove());
+        this.insertChildBefore(this.firstChild, target);
+
+        return true;
+      }
+    }
+
+    return false;
   };
 
   function createNew(type) {

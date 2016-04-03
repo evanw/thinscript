@@ -122,8 +122,6 @@ class JsResult {
   emitExpression(node: Node, parentPrecedence: Precedence): void {
     var code = this.code;
 
-    assert(node.resolvedType != null);
-
     if (node.kind == NodeKind.NAME) {
       var symbol = node.symbol;
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.node.isDeclare()) {
@@ -252,43 +250,25 @@ class JsResult {
       }
     }
 
+    else if (node.kind == NodeKind.INDEX) {
+      var value = node.indexTarget();
+      this.emitExpression(value, Precedence.UNARY_POSTFIX);
+      code.appendChar('[');
+      this.emitCommaSeparatedExpressions(value.nextSibling, null);
+      code.appendChar(']');
+    }
+
     else if (node.kind == NodeKind.CALL) {
-      var value = node.callValue();
-      var symbol = value.symbol;
-      var isDeclaredInstance = value.kind == NodeKind.DOT && symbol.node.isDeclare();
-
-      if (isDeclaredInstance && string_equals(symbol.name, "[]")) {
-        this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
-        code.appendChar('[');
-        this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        code.appendChar(']');
-      }
-
-      else if (isDeclaredInstance && string_equals(symbol.name, "[]=")) {
-        if (parentPrecedence > Precedence.ASSIGN) {
-          code.appendChar('(');
-        }
-
-        this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
-        code.appendChar('[');
-        this.emitCommaSeparatedExpressions(value.nextSibling, node.lastChild);
-        code.append("] = ");
-        this.emitExpression(node.lastChild, Precedence.ASSIGN);
-
-        if (parentPrecedence > Precedence.ASSIGN) {
-          code.appendChar(')');
-        }
+      if (node.expandCallIntoOperatorTree()) {
+        this.emitExpression(node, parentPrecedence);
       }
 
       else {
+        var value = node.callValue();
         this.emitExpression(value, Precedence.UNARY_POSTFIX);
-
-        // Handle declared getters
-        if (!isDeclaredInstance || !symbol.isGetter()) {
-          code.appendChar('(');
-          this.emitCommaSeparatedExpressions(value.nextSibling, null);
-          code.appendChar(')');
-        }
+        code.appendChar('(');
+        this.emitCommaSeparatedExpressions(value.nextSibling, null);
+        code.appendChar(')');
       }
     }
 
@@ -298,9 +278,25 @@ class JsResult {
       code.append("()");
     }
 
+    else if (node.kind == NodeKind.NOT) {
+      var value = node.unaryValue();
+
+      // Automatically invert operators for readability
+      value.expandCallIntoOperatorTree();
+      var invertedKind = invertedBinaryKind(value.kind);
+
+      if (invertedKind != value.kind) {
+        value.kind = invertedKind;
+        this.emitExpression(value, parentPrecedence);
+      }
+
+      else {
+        this.emitUnary(node, parentPrecedence, "!");
+      }
+    }
+
     else if (node.kind == NodeKind.COMPLEMENT) this.emitUnary(node, parentPrecedence, "~");
     else if (node.kind == NodeKind.NEGATIVE) this.emitUnary(node, parentPrecedence, "-");
-    else if (node.kind == NodeKind.NOT) this.emitUnary(node, parentPrecedence, "!");
     else if (node.kind == NodeKind.POSITIVE) this.emitUnary(node, parentPrecedence, "+");
     else if (node.kind == NodeKind.PREFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
     else if (node.kind == NodeKind.PREFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
