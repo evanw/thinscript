@@ -50,10 +50,6 @@ function loadStdlibForJavaScript() {
       return self.charCodeAt(index);
     },
 
-    string_slice: function(text, start, end) {
-      return text.slice(start, end);
-    },
-
     string_intToString: function(value) {
       return (value | 0).toString();
     },

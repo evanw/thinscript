@@ -40,7 +40,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 #if JS ////////////////////////////////////////////////////////////////////////////////
 
   declare function string_get(text: string, index: int): int;
-  declare function string_slice(text: string, start: int, end: int): string;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
 
@@ -61,7 +60,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
     }
 
     appendSlice(text: string, start: int, end: int): StringBuilder {
-      this._text = StringBuilder_append(this._text, string_slice(text, start, end));
+      this._text = StringBuilder_append(this._text, text.slice(start, end));
       return this;
     }
 
@@ -80,28 +79,10 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
 #elif WASM ////////////////////////////////////////////////////////////////////////////////
 
-  extern function string_new(length: uint): string {
-    unsafe {
-      var ptr = malloc(4 + length);
-      (ptr as UIntPtr).value = length;
-      return ptr as string;
-    }
-  }
-
   function string_get(text: string, index: int): int {
     assert(index as uint < text.length as uint);
     unsafe {
       return ((text as int + index + 4) as BytePtr).value;
-    }
-  }
-
-  function string_slice(text: string, start: int, end: int): string {
-    assert(start >= 0 && start <= end && end <= text.length);
-    unsafe {
-      var length = (end - start) as uint;
-      var ptr = string_new(length);
-      memcpy(ptr as uint + 4, text as uint + 4 + start as uint, length);
-      return ptr;
     }
   }
 
@@ -176,7 +157,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
     // TODO: Make this more efficient
     appendSlice(text: string, start: int, end: int): StringBuilder {
-      return this.append(string_slice(text, start, end));
+      return this.append(text.slice(start, end));
     }
 
     append(text: string): StringBuilder {
@@ -207,7 +188,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 #else ////////////////////////////////////////////////////////////////////////////////
 
   declare function string_get(text: string, index: int): int;
-  declare function string_slice(text: string, start: int, end: int): string;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
 

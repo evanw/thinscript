@@ -41,7 +41,7 @@ class Range {
   end: int;
 
   toString(): string {
-    return string_slice(this.source.contents, this.start, this.end);
+    return this.source.contents.slice(this.start, this.end);
   }
 
   equals(other: Range): bool {

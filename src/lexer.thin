@@ -258,7 +258,7 @@ function tokenize(source: Source, log: Log): Token {
       // Keywords
       var length = i - start;
       if (length >= 2 && length <= 10) {
-        var text = string_slice(contents, start, i);
+        var text = contents.slice(start, i);
 
         if (length == 2) {
           if (text == "as") kind = TokenKind.AS; else
@@ -576,7 +576,7 @@ function tokenize(source: Source, log: Log): Token {
         i = i + 1;
       }
 
-      var text = string_slice(contents, start, i);
+      var text = contents.slice(start, i);
 
       if (text == "#define") kind = TokenKind.PREPROCESSOR_DEFINE;
       else if (text == "#elif") kind = TokenKind.PREPROCESSOR_ELIF;
