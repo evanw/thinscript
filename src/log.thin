@@ -10,6 +10,7 @@ class Source {
   // These are for internal use by the compiler
   next: Source;
   firstToken: Token;
+  file: Node;
 
   indexToLineColumn(index: int): LineColumn {
     var contents = this.contents;

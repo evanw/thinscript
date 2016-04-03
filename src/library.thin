@@ -1,5 +1,14 @@
 function library(): string {
   return `
+declare class bool {}
+declare class byte {}
+declare class int {}
+declare class sbyte {}
+declare class short {}
+declare class string {}
+declare class uint {}
+declare class ushort {}
+
 #if WASM
   // Cast to these to read from and write to arbitrary locations in memory
   unsafe class BytePtr { value: byte; }

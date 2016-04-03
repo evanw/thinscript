@@ -1037,7 +1037,7 @@ class WasmModule {
   getWasmType(type: Type): WasmType {
     var context = this.context;
 
-    if (type == context.boolType || type.isInteger() || type.isReference(context)) {
+    if (type == context.boolType || type.isInteger() || type.isReference()) {
       return WasmType.I32;
     }
 

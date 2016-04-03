@@ -28,7 +28,7 @@ enum ParseKind {
 
 enum StatementMode {
   NORMAL,
-  GLOBAL,
+  FILE,
 }
 
 class ParserContext {
@@ -1060,7 +1060,7 @@ class ParserContext {
   }
 
   parseStatement(mode: StatementMode): Node {
-    var firstFlag = mode == StatementMode.GLOBAL ? this.parseFlags() : null;
+    var firstFlag = mode == StatementMode.FILE ? this.parseFlags() : null;
 
     if (this.peek(TokenKind.UNSAFE) && firstFlag == null) return this.parseUnsafe();
     if (this.peek(TokenKind.CONST) || this.peek(TokenKind.LET) || this.peek(TokenKind.VAR)) return this.parseVariables(firstFlag, null);
@@ -1096,7 +1096,7 @@ class ParserContext {
 
   parseStatements(parent: Node): bool {
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
-      var child = this.parseStatement(parent.kind == NodeKind.GLOBAL ? StatementMode.GLOBAL : StatementMode.NORMAL);
+      var child = this.parseStatement(parent.kind == NodeKind.FILE ? StatementMode.FILE : StatementMode.NORMAL);
       if (child == null) {
         return false;
       }
@@ -1156,10 +1156,10 @@ function parse(firstToken: Token, log: Log): Node {
   context.current = firstToken;
   context.log = log;
 
-  var global = new Node();
-  global.kind = NodeKind.GLOBAL;
-  if (!context.parseStatements(global)) {
+  var file = new Node();
+  file.kind = NodeKind.FILE;
+  if (!context.parseStatements(file)) {
     return null;
   }
-  return global;
+  return file;
 }

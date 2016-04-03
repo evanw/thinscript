@@ -74,22 +74,14 @@ class Scope {
     return true;
   }
 
-  defineNativeType(log: Log, name: string, byteSizeAndMaxAlignment: int): Type {
+  defineNativeType(log: Log, name: string): Type {
     var symbol = new Symbol();
     symbol.kind = SymbolKind.TYPE_NATIVE;
     symbol.name = name;
-    symbol.byteSize = byteSizeAndMaxAlignment;
-    symbol.maxAlignment = byteSizeAndMaxAlignment;
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
     symbol.state = SymbolState.INITIALIZED;
     this.define(log, symbol, ScopeHint.NORMAL);
     return symbol.resolvedType;
-  }
-
-  defineNativeIntegerType(log: Log, name: string, byteSizeAndMaxAlignment: int, isUnsigned: bool): Type {
-    var type = this.defineNativeType(log, name, byteSizeAndMaxAlignment);
-    type.symbol.flags = isUnsigned ? SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED : SYMBOL_FLAG_NATIVE_INTEGER;
-    return type;
   }
 }

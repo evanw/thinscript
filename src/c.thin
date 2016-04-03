@@ -168,7 +168,7 @@ class CResult {
     else if (node.kind == NodeKind.DOT) {
       var target = node.dotTarget();
       this.emitExpression(target, Precedence.MEMBER);
-      code.append(target.resolvedType.isReference(this.context) ? "->" : ".");
+      code.append(target.resolvedType.isReference() ? "->" : ".");
       this.emitSymbolName(node.symbol);
     }
 
@@ -246,6 +246,11 @@ class CResult {
     }
   }
 
+  shouldEmitClass(node: Node): bool {
+    assert(node.kind == NodeKind.CLASS);
+    return node.symbol.kind == SymbolKind.TYPE_CLASS && node.symbol != this.context.stringType.symbol;
+  }
+
   emitType(type: Type, mode: TypeMode): void {
     var context = this.context;
     var code = this.code;
@@ -266,7 +271,7 @@ class CResult {
     else this.emitSymbolName(type.symbol);
 
     if (mode != TypeMode.BARE) {
-      if (type.isReference(this.context)) code.append(" *");
+      if (type.isReference()) code.append(" *");
       else if (mode == TypeMode.DECLARATION) code.appendChar(' ');
     }
   }
@@ -398,8 +403,10 @@ class CResult {
 
     while (node != null) {
       if (node.kind == NodeKind.CLASS) {
-        this.emitNewlineBefore(node);
-        code.append("struct ").append(node.symbol.name).append(";\n");
+        if (this.shouldEmitClass(node)) {
+          this.emitNewlineBefore(node);
+          code.append("struct ").append(node.symbol.name).append(";\n");
+        }
       }
 
       node = node.nextSibling;
@@ -411,27 +418,29 @@ class CResult {
 
     while (node != null) {
       if (node.kind == NodeKind.CLASS) {
-        this.emitNewlineBefore(node);
-        code.append("struct ");
-        this.emitSymbolName(node.symbol);
-        code.append(" {\n");
-        this.indent = this.indent + 1;
+        if (this.shouldEmitClass(node)) {
+          this.emitNewlineBefore(node);
+          code.append("struct ");
+          this.emitSymbolName(node.symbol);
+          code.append(" {\n");
+          this.indent = this.indent + 1;
 
-        // Emit member variables
-        var child = node.firstChild;
-        while (child != null) {
-          if (child.kind == NodeKind.VARIABLE) {
-            this.emitIndent();
-            this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
-            this.emitSymbolName(child.symbol);
-            code.append(";\n");
+          // Emit member variables
+          var child = node.firstChild;
+          while (child != null) {
+            if (child.kind == NodeKind.VARIABLE) {
+              this.emitIndent();
+              this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
+              this.emitSymbolName(child.symbol);
+              code.append(";\n");
+            }
+            child = child.nextSibling;
           }
-          child = child.nextSibling;
-        }
 
-        this.indent = this.indent - 1;
-        code.append("};\n");
-        this.emitNewlineAfter(node);
+          this.indent = this.indent - 1;
+          code.append("};\n");
+          this.emitNewlineAfter(node);
+        }
       }
 
       node = node.nextSibling;

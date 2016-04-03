@@ -39,53 +39,33 @@ function linkSymbolToNode(symbol: Symbol, node: Node): void {
   symbol.node = node;
 }
 
-function initialize(context: CheckContext, node: Node, parentScope: Scope): void {
+enum CheckMode {
+  NORMAL,
+  INITIALIZE,
+}
+
+function initialize(context: CheckContext, node: Node, parentScope: Scope, mode: CheckMode): void {
+  var kind = node.kind;
+
   if (node.parent != null) {
-    var kind = node.kind;
     var parentKind = node.parent.kind;
 
     // Validate node placement
     if (kind != NodeKind.VARIABLE && kind != NodeKind.VARIABLES && (kind != NodeKind.FUNCTION || parentKind != NodeKind.CLASS) &&
-        (parentKind == NodeKind.GLOBAL) != (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
+        (parentKind == NodeKind.FILE) != (kind == NodeKind.CLASS || kind == NodeKind.ENUM || kind == NodeKind.FUNCTION || kind == NodeKind.CONSTANTS)) {
       context.log.error(node.range, "This statement is not allowed here");
     }
   }
 
-  // Global
-  if (node.kind == NodeKind.GLOBAL) {
-    assert(parentScope == null);
-
+  // Class
+  if (kind == NodeKind.CLASS || kind == NodeKind.ENUM) {
+    assert(node.symbol == null);
     var symbol = new Symbol();
-    symbol.kind = SymbolKind.TYPE_GLOBAL;
-    symbol.name = "<global>";
+    symbol.kind = kind == NodeKind.CLASS ? SymbolKind.TYPE_CLASS : SymbolKind.TYPE_ENUM;
+    symbol.name = node.stringValue;
     symbol.resolvedType = new Type();
     symbol.resolvedType.symbol = symbol;
-    symbol.state = SymbolState.INITIALIZED;
-    addScopeToSymbol(symbol, parentScope);
-    linkSymbolToNode(symbol, node);
-    parentScope = symbol.scope;
-
-    // Initialize native types
-    context.boolType = parentScope.defineNativeType(context.log, "bool", 1);
-    context.errorType = parentScope.defineNativeType(context.log, "<error>", 0);
-    context.nullType = parentScope.defineNativeType(context.log, "null", 0);
-    context.stringType = parentScope.defineNativeType(context.log, "string", POINTER_SIZE);
-    context.voidType = parentScope.defineNativeType(context.log, "void", 0);
-
-    // Native integer types
-    context.sbyteType = parentScope.defineNativeIntegerType(context.log, "sbyte", 1, false);
-    context.intType = parentScope.defineNativeIntegerType(context.log, "int", 4, false);
-    context.shortType = parentScope.defineNativeIntegerType(context.log, "short", 2, false);
-    context.byteType = parentScope.defineNativeIntegerType(context.log, "byte", 1, true);
-    context.uintType = parentScope.defineNativeIntegerType(context.log, "uint", 4, true);
-    context.ushortType = parentScope.defineNativeIntegerType(context.log, "ushort", 2, true);
-  }
-
-  // Class
-  else if (node.kind == NodeKind.CLASS || node.kind == NodeKind.ENUM) {
-    var symbol = new Symbol();
-    symbol.kind = node.kind == NodeKind.CLASS ? SymbolKind.TYPE_CLASS : SymbolKind.TYPE_ENUM;
-    symbol.name = node.stringValue;
+    symbol.flags = SYMBOL_FLAG_IS_REFERENCE;
     addScopeToSymbol(symbol, parentScope);
     linkSymbolToNode(symbol, node);
     parentScope.define(context.log, symbol, ScopeHint.NORMAL);
@@ -93,7 +73,8 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 
   // Function
-  else if (node.kind == NodeKind.FUNCTION) {
+  else if (kind == NodeKind.FUNCTION) {
+    assert(node.symbol == null);
     var symbol = new Symbol();
     symbol.kind =
       node.parent.kind == NodeKind.CLASS ? SymbolKind.FUNCTION_INSTANCE :
@@ -143,20 +124,20 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
     // All instance functions have a special "this" type
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
       var parent = symbol.parent();
-      assert(parent.kind == SymbolKind.TYPE_CLASS);
       initializeSymbol(context, parent);
       node.insertChildBefore(node.firstChild, createVariable("this", createType(parent.resolvedType), null));
     }
   }
 
   // Variable
-  else if (node.kind == NodeKind.VARIABLE) {
+  else if (kind == NodeKind.VARIABLE) {
+    assert(node.symbol == null);
     var symbol = new Symbol();
     symbol.kind =
       node.parent.kind == NodeKind.CLASS ? SymbolKind.VARIABLE_INSTANCE :
       node.parent.kind == NodeKind.FUNCTION ? SymbolKind.VARIABLE_ARGUMENT :
       node.parent.kind == NodeKind.CONSTANTS || node.parent.kind == NodeKind.ENUM ? SymbolKind.VARIABLE_CONSTANT :
-      node.parent.kind == NodeKind.VARIABLES && node.parent.parent.kind == NodeKind.GLOBAL ? SymbolKind.VARIABLE_GLOBAL :
+      node.parent.kind == NodeKind.VARIABLES && node.parent.parent.kind == NodeKind.FILE ? SymbolKind.VARIABLE_GLOBAL :
       SymbolKind.VARIABLE_LOCAL;
     symbol.name = node.stringValue;
     symbol.scope = parentScope;
@@ -165,7 +146,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   }
 
   // Block
-  else if (node.kind == NodeKind.BLOCK) {
+  else if (kind == NodeKind.BLOCK) {
     if (node.parent.kind != NodeKind.FUNCTION) {
       var scope = new Scope();
       scope.parent = parentScope;
@@ -177,9 +158,37 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope): void
   // Children
   var child = node.firstChild;
   while (child != null) {
-    initialize(context, child, parentScope);
+    initialize(context, child, parentScope, mode);
     child = child.nextSibling;
   }
+
+  if (kind == NodeKind.FILE && mode == CheckMode.INITIALIZE) {
+    context.boolType = parentScope.findLocal("bool", ScopeHint.NORMAL).resolvedType;
+    context.byteType = parentScope.findLocal("byte", ScopeHint.NORMAL).resolvedType;
+    context.intType = parentScope.findLocal("int", ScopeHint.NORMAL).resolvedType;
+    context.sbyteType = parentScope.findLocal("sbyte", ScopeHint.NORMAL).resolvedType;
+    context.shortType = parentScope.findLocal("short", ScopeHint.NORMAL).resolvedType;
+    context.stringType = parentScope.findLocal("string", ScopeHint.NORMAL).resolvedType;
+    context.uintType = parentScope.findLocal("uint", ScopeHint.NORMAL).resolvedType;
+    context.ushortType = parentScope.findLocal("ushort", ScopeHint.NORMAL).resolvedType;
+
+    prepareNativeType(context.boolType, 1, 0);
+    prepareNativeType(context.byteType, 1, SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED);
+    prepareNativeType(context.intType, 4, SYMBOL_FLAG_NATIVE_INTEGER);
+    prepareNativeType(context.sbyteType, 1, SYMBOL_FLAG_NATIVE_INTEGER);
+    prepareNativeType(context.shortType, 2, SYMBOL_FLAG_NATIVE_INTEGER);
+    prepareNativeType(context.stringType, 4, SYMBOL_FLAG_IS_REFERENCE);
+    prepareNativeType(context.uintType, 4, SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED);
+    prepareNativeType(context.ushortType, 2, SYMBOL_FLAG_NATIVE_INTEGER | SYMBOL_FLAG_IS_UNSIGNED);
+  }
+}
+
+function prepareNativeType(type: Type, byteSizeAndMaxAlignment: int, flags: int): void {
+  var symbol = type.symbol;
+  symbol.kind = SymbolKind.TYPE_NATIVE;
+  symbol.byteSize = byteSizeAndMaxAlignment;
+  symbol.maxAlignment = byteSizeAndMaxAlignment;
+  symbol.flags = flags;
 }
 
 function forbidFlag(context: CheckContext, node: Node, flag: int, text: string): void {
@@ -207,7 +216,6 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   }
 
   assert(symbol.state == SymbolState.UNINITIALIZED);
-  assert(symbol.resolvedType == null);
   symbol.state = SymbolState.INITIALIZING;
 
   // Most flags aren't supported yet
@@ -217,14 +225,11 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   forbidFlag(context, node, NODE_FLAG_STATIC, "Unsupported flag 'static'");
 
   // Class
-  if (symbol.kind == SymbolKind.TYPE_CLASS) {
+  if (symbol.kind == SymbolKind.TYPE_CLASS || symbol.kind == SymbolKind.TYPE_NATIVE) {
     forbidFlag(context, node, NODE_FLAG_GET, "Cannot use 'get' on a class");
     forbidFlag(context, node, NODE_FLAG_SET, "Cannot use 'set' on a class");
     forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' on a class");
     forbidFlag(context, node, NODE_FLAG_PRIVATE, "Cannot use 'private' on a class");
-
-    symbol.resolvedType = new Type();
-    symbol.resolvedType.symbol = symbol;
   }
 
   // Enum
@@ -536,12 +541,12 @@ function canConvert(context: CheckContext, node: Node, to: Type, kind: Conversio
   }
 
   // Allow conversions from null
-  else if (from == context.nullType && to.isReference(context)) {
+  else if (from == context.nullType && to.isReference()) {
     return true;
   }
 
   // Allow explicit conversions between references in unsafe mode
-  else if (context.isUnsafeAllowed && (from.isReference(context) || to.isReference(context))) {
+  else if (context.isUnsafeAllowed && (from.isReference() || to.isReference())) {
     if (kind == ConversionKind.EXPLICIT) {
       return true;
     }
@@ -600,7 +605,7 @@ function createDefaultValueForType(context: CheckContext, type: Type): Node {
     return createBool(false);
   }
 
-  assert(type.isReference(context));
+  assert(type.isReference());
   return createNull();
 }
 
@@ -727,7 +732,7 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, node: Node
 
 function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   var kind = node.kind;
-  assert(kind == NodeKind.GLOBAL || parentScope != null);
+  assert(kind == NodeKind.FILE || parentScope != null);
 
   if (node.resolvedType != null) {
     return;
@@ -735,8 +740,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
   node.resolvedType = context.errorType;
 
-  if (kind == NodeKind.GLOBAL) {
-    resolveChildren(context, node, node.scope);
+  if (kind == NodeKind.FILE || kind == NodeKind.GLOBAL) {
+    resolveChildren(context, node, parentScope);
   }
 
   else if (kind == NodeKind.CLASS) {
@@ -744,7 +749,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     initializeSymbol(context, node.symbol);
     context.enclosingClass = node.symbol;
     resolveChildren(context, node, node.scope);
-    node.symbol.determineClassLayout(context);
+    if (node.symbol.kind == SymbolKind.TYPE_CLASS) {
+      node.symbol.determineClassLayout(context);
+    }
     context.enclosingClass = oldEnclosingClass;
   }
 
@@ -1158,8 +1165,8 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     resolve(context, yes, parentScope);
     resolve(context, no, parentScope);
     var commonType = (yes.resolvedType == context.nullType ? no : yes).resolvedType;
-    if (yes.resolvedType != commonType && (yes.resolvedType != context.nullType || !commonType.isReference(context)) &&
-        no.resolvedType != commonType && (no.resolvedType != context.nullType || !commonType.isReference(context))) {
+    if (yes.resolvedType != commonType && (yes.resolvedType != context.nullType || !commonType.isReference()) &&
+        no.resolvedType != commonType && (no.resolvedType != context.nullType || !commonType.isReference())) {
       context.log.error(spanRanges(yes.range, no.range), StringBuilder_new()
         .append("Type '")
         .append(yes.resolvedType.toString())
@@ -1461,12 +1468,4 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else {
     assert(false);
   }
-}
-
-function check(global: Node, log: Log): CheckContext {
-  var context = new CheckContext();
-  context.log = log;
-  initialize(context, global, null);
-  resolve(context, global, null);
-  return context;
 }

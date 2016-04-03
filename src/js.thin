@@ -254,16 +254,17 @@ class JsResult {
 
     else if (node.kind == NodeKind.CALL) {
       var value = node.callValue();
-      var isDeclaredInstance = value.kind == NodeKind.DOT && value.symbol.node.isDeclare();
+      var symbol = value.symbol;
+      var isDeclaredInstance = value.kind == NodeKind.DOT && symbol.node.isDeclare();
 
-      if (isDeclaredInstance && string_equals(value.symbol.name, "[]")) {
+      if (isDeclaredInstance && string_equals(symbol.name, "[]")) {
         this.emitExpression(value.dotTarget(), Precedence.UNARY_POSTFIX);
         code.appendChar('[');
         this.emitCommaSeparatedExpressions(value.nextSibling, null);
         code.appendChar(']');
       }
 
-      else if (isDeclaredInstance && string_equals(value.symbol.name, "[]=")) {
+      else if (isDeclaredInstance && string_equals(symbol.name, "[]=")) {
         if (parentPrecedence > Precedence.ASSIGN) {
           code.appendChar('(');
         }
@@ -281,9 +282,13 @@ class JsResult {
 
       else {
         this.emitExpression(value, Precedence.UNARY_POSTFIX);
-        code.appendChar('(');
-        this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        code.appendChar(')');
+
+        // Handle declared getters
+        if (!isDeclaredInstance || !symbol.isGetter()) {
+          code.appendChar('(');
+          this.emitCommaSeparatedExpressions(value.nextSibling, null);
+          code.appendChar(')');
+        }
       }
     }
 
