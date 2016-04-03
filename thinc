@@ -109,7 +109,6 @@ function main() {
   global.Terminal_write = Terminal_write;
   global.Profiler_begin = function() {};
   global.Profiler_end = function() {};
-  global.string_length = function(x) { return x.length; };
   global.string_get = function(x, i) { return x.charCodeAt(i); };
   global.string_slice = function(x, a, b) { return x.slice(a, b); };
   global.string_intToString = function(x) { return (x | 0).toString(); };

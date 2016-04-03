@@ -207,7 +207,7 @@ class ParserContext {
           return null;
         }
         this.advance();
-        if (string_length(text) != 1) {
+        if (text.length != 1) {
           this.log.error(token.range, "Invalid character literal (strings use double quotes)");
           return createParseError().withRange(token.range);
         }

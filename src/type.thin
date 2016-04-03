@@ -61,6 +61,12 @@ class Type {
   }
 
   findMember(name: string, hint: ScopeHint): Symbol {
-    return this.symbol != null && this.symbol.scope != null ? this.symbol.scope.findLocal(name, hint) : null;
+    var symbol = this.symbol;
+    return symbol != null && symbol.scope != null ? symbol.scope.findLocal(name, hint) : null;
+  }
+
+  hasInstanceMembers(): bool {
+    var symbol = this.symbol;
+    return symbol != null && (symbol.kind == SymbolKind.TYPE_CLASS || symbol.kind == SymbolKind.TYPE_NATIVE);
   }
 }

@@ -19,7 +19,7 @@
   }
 
   function ByteArray_setString(array, index, text) {
-    var length = __declare.string_length(text);
+    var length = text.length;
     __declare.assert(index >= 0 && (index + length | 0) <= array.length());
     var data = array._data;
     var i = 0;
@@ -1634,10 +1634,10 @@
       resolve(context, target, parentScope);
 
       if (target.resolvedType !== context.errorType) {
-        if (target.isType() && target.resolvedType.isEnum() || !target.isType() && target.resolvedType.isClass()) {
+        if (target.isType() && target.resolvedType.isEnum() || !target.isType() && target.resolvedType.hasInstanceMembers()) {
           var name = node.stringValue;
 
-          if (__declare.string_length(name) > 0) {
+          if (name.length > 0) {
             var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? 6 : 5);
 
             if (symbol === null) {
@@ -2587,9 +2587,12 @@
       else {
         var value = node.callValue();
         this.emitExpression(value, 14);
-        code.appendChar(40);
-        this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        code.appendChar(41);
+
+        if (value.symbol === null || !value.symbol.isGetter()) {
+          code.appendChar(40);
+          this.emitCommaSeparatedExpressions(value.nextSibling, null);
+          code.appendChar(41);
+        }
       }
     }
 
@@ -3401,7 +3404,7 @@
     var first = null;
     var last = null;
     var contents = source.contents;
-    var limit = __declare.string_length(contents);
+    var limit = contents.length;
     var needsPreprocessor = false;
     var wantNewline = false;
     var i = 0;
@@ -4002,7 +4005,7 @@
   }
 
   function library() {
-    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n\n  declare class string {\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n  }\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n#else\n\n  declare class string {\n    operator == (other: string): bool;\n  }\n\n#endif\n";
+    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n\n  declare class string {\n    get length(): int {\n      unsafe {\n        return (this as UIntPtr).value as int;\n      }\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n  }\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n#else\n\n  declare class string {\n    get length(): int;\n    operator == (other: string): bool;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {
@@ -4064,7 +4067,7 @@
       start = start - 1 | 0;
     }
 
-    var length = __declare.string_length(contents);
+    var length = contents.length;
 
     while (end < length && __declare.string_get(contents, end) !== 10) {
       end = end + 1 | 0;
@@ -4117,7 +4120,7 @@
   Diagnostic.prototype.appendLineContents = function(builder, location) {
     var range = this.range;
     var contents = range.source.contents;
-    var length = __declare.string_length(contents);
+    var length = contents.length;
     var start = range.start - location.column | 0;
     var end = range.start;
 
@@ -5341,7 +5344,7 @@
 
         this.advance();
 
-        if (__declare.string_length(text) !== 1) {
+        if (text.length !== 1) {
           this.log.error(token.range, "Invalid character literal (strings use double quotes)");
 
           return createParseError().withRange(token.range);
@@ -6895,7 +6898,7 @@
 
   function StringBuilder_appendQuoted(sb, text) {
     var end = 0;
-    var limit = __declare.string_length(text);
+    var limit = text.length;
     var start = end;
     sb.appendChar(34);
 
@@ -7180,7 +7183,15 @@
   };
 
   Type.prototype.findMember = function(name, hint) {
-    return this.symbol !== null && this.symbol.scope !== null ? this.symbol.scope.findLocal(name, hint) : null;
+    var symbol = this.symbol;
+
+    return symbol !== null && symbol.scope !== null ? symbol.scope.findLocal(name, hint) : null;
+  };
+
+  Type.prototype.hasInstanceMembers = function() {
+    var symbol = this.symbol;
+
+    return symbol !== null && (symbol.kind === 0 || symbol.kind === 3);
   };
 
   function WasmWrappedType() {
@@ -7518,7 +7529,7 @@
   WasmModule.prototype.prepareToEmit = function(node) {
     if (node.kind === 30) {
       var text = node.stringValue;
-      var length = __declare.string_length(text);
+      var length = text.length;
       var offset = this.context.allocateGlobalVariableOffset(length + 4 | 0, 4);
       node.intValue = offset;
       this.growMemoryInitializer();
@@ -8161,7 +8172,7 @@
   }
 
   function wasmWriteLengthPrefixedString(array, value) {
-    var length = __declare.string_length(value);
+    var length = value.length;
     wasmWriteVarUnsigned(array, length);
     var index = array.length();
     array.resize(index + length | 0);

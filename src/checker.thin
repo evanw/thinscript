@@ -980,11 +980,11 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     if (target.resolvedType != context.errorType) {
       if (target.isType() && target.resolvedType.isEnum() ||
-          !target.isType() && target.resolvedType.isClass()) {
+          !target.isType() && target.resolvedType.hasInstanceMembers()) {
         var name = node.stringValue;
 
         // Empty names are left over from parse errors that have already been reported
-        if (string_length(name) > 0) {
+        if (name.length > 0) {
           var symbol = target.resolvedType.findMember(name, node.isAssignTarget() ? ScopeHint.PREFER_SETTER : ScopeHint.PREFER_GETTER);
 
           if (symbol == null) {

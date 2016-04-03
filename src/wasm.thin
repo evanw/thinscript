@@ -511,7 +511,7 @@ class WasmModule {
   prepareToEmit(node: Node): void {
     if (node.kind == NodeKind.STRING) {
       var text = node.stringValue;
-      var length = string_length(text);
+      var length = text.length;
       var offset = this.context.allocateGlobalVariableOffset(length + 4, 4);
       node.intValue = offset;
       this.growMemoryInitializer();
@@ -1101,7 +1101,7 @@ function wasmWriteVarSigned(array: ByteArray, value: int): void {
 }
 
 function wasmWriteLengthPrefixedString(array: ByteArray, value: string): void {
-  var length = string_length(value);
+  var length = value.length;
   wasmWriteVarUnsigned(array, length);
   var index = array.length();
   array.resize(index + length);

@@ -220,7 +220,7 @@ function tokenize(source: Source, log: Log): Token {
   var first: Token = null;
   var last: Token = null;
   var contents = source.contents;
-  var limit = string_length(contents);
+  var limit = contents.length;
   var needsPreprocessor = false;
   var wantNewline = false;
   var i = 0;

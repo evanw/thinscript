@@ -60,7 +60,7 @@ class Range {
       start = start - 1;
     }
 
-    var length = string_length(contents);
+    var length = contents.length;
     while (end < length && string_get(contents, end) != '\n') {
       end = end + 1;
     }
@@ -121,7 +121,7 @@ class Diagnostic {
   appendLineContents(builder: StringBuilder, location: LineColumn): void {
     var range = this.range;
     var contents = range.source.contents;
-    var length = string_length(contents);
+    var length = contents.length;
     var start = range.start - location.column;
     var end = range.start;
 

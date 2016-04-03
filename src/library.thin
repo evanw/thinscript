@@ -11,6 +11,12 @@ declare class ushort {}
 #if WASM
 
   declare class string {
+    get length(): int {
+      unsafe {
+        return (this as UIntPtr).value as int;
+      }
+    }
+
     operator == (other: string): bool {
       unsafe {
         if (this as uint == other as uint) return true;
@@ -83,6 +89,7 @@ declare class ushort {}
 #else
 
   declare class string {
+    get length(): int;
     operator == (other: string): bool;
   }
 

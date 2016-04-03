@@ -46,10 +46,6 @@ function loadStdlibForJavaScript() {
       console.log(text + ': ' + Math.round(now() - time) + 'ms');
     },
 
-    string_length: function(self) {
-      return self.length;
-    },
-
     string_get: function(self, index) {
       return self.charCodeAt(index);
     },

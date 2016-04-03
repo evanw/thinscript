@@ -30,7 +30,7 @@ function ByteArray_append32(array: ByteArray, value: int): void {
   }
 
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
-    var length = string_length(text);
+    var length = text.length;
     assert(index >= 0 && index + length <= array.length());
     var data = array._data;
     var i = 0;

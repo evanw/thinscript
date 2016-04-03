@@ -266,9 +266,12 @@ class JsResult {
       else {
         var value = node.callValue();
         this.emitExpression(value, Precedence.UNARY_POSTFIX);
-        code.appendChar('(');
-        this.emitCommaSeparatedExpressions(value.nextSibling, null);
-        code.appendChar(')');
+
+        if (value.symbol == null || !value.symbol.isGetter()) {
+          code.appendChar('(');
+          this.emitCommaSeparatedExpressions(value.nextSibling, null);
+          code.appendChar(')');
+        }
       }
     }
 
