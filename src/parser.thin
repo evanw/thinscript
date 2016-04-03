@@ -154,13 +154,13 @@ class ParserContext {
     var builder = StringBuilder_new();
 
     while (end < limit) {
-      var c = string_get(text, end);
+      var c = text[end];
 
       if (c == '\\') {
         builder.appendSlice(text, start, end);
         end = end + 1;
         start = end + 1;
-        c = string_get(text, end);
+        c = text[end];
 
         if (c == '0') builder.appendChar('\0');
         else if (c == 't') builder.appendChar('\t');
@@ -211,7 +211,7 @@ class ParserContext {
           this.log.error(token.range, "Invalid character literal (strings use double quotes)");
           return createParseError().withRange(token.range);
         }
-        return createInt(string_get(text, 0)).withRange(token.range);
+        return createInt(text[0]).withRange(token.range);
       }
 
       if (this.peek(TokenKind.STRING)) {
@@ -1114,8 +1114,8 @@ class ParserContext {
     var base: uint = 10;
 
     // Handle binary, octal, and hexadecimal prefixes
-    if (string_get(contents, i) == '0' && i + 1 < limit) {
-      var c = string_get(contents, i + 1);
+    if (contents[i] == '0' && i + 1 < limit) {
+      var c = contents[i + 1];
       if (c == 'b' || c == 'B') base = 2;
       else if (c == 'o' || c == 'O') base = 8;
       else if (c == 'x' || c == 'X') base = 16;
@@ -1127,7 +1127,7 @@ class ParserContext {
     }
 
     while (i < limit) {
-      var c = string_get(contents, i);
+      var c = contents[i];
       var digit = (
         c >= 'A' && c <= 'F' ? c + (10 - 'A') :
         c >= 'a' && c <= 'f' ? c + (10 - 'a') :

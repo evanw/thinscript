@@ -17,7 +17,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   sb.appendChar('"');
 
   while (end < limit) {
-    var c = string_get(text, end);
+    var c = text[end];
 
     if (c == '"') sb.appendSlice(text, start, end).append("\\\"");
     else if (c == '\0') sb.appendSlice(text, start, end).append("\\0");
@@ -39,7 +39,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
 #if JS ////////////////////////////////////////////////////////////////////////////////
 
-  declare function string_get(text: string, index: int): int;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
 
@@ -78,13 +77,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   }
 
 #elif WASM ////////////////////////////////////////////////////////////////////////////////
-
-  function string_get(text: string, index: int): int {
-    assert(index as uint < text.length as uint);
-    unsafe {
-      return ((text as int + index + 4) as BytePtr).value;
-    }
-  }
 
   function string_intToString(value: int): string {
     // Special-case this to keep the rest of the code simple
@@ -187,7 +179,6 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
 #else ////////////////////////////////////////////////////////////////////////////////
 
-  declare function string_get(text: string, index: int): int;
   declare function string_intToString(value: int): string;
   declare function string_uintToString(value: uint): string;
 

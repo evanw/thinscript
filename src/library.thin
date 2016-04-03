@@ -89,10 +89,27 @@ declare class ushort {}
   }
 
   declare class string {
+    charAt(index: int): string {
+      return this.slice(index, index + 1);
+    }
+
+    charCodeAt(index: int): int {
+      return this[index];
+    }
+
     get length(): int {
       unsafe {
         return (this as UIntPtr).value as int;
       }
+    }
+
+    operator [] (index: int): int {
+      if (index as uint < this.length as uint) {
+        unsafe {
+          return ((this as int + index + 4) as BytePtr).value;
+        }
+      }
+      return 0;
     }
 
     operator == (other: string): bool {
@@ -156,7 +173,10 @@ declare class ushort {}
 #else
 
   declare class string {
+    charAt(index: int): string;
+    charCodeAt(index: int): int;
     get length(): int;
+    operator [] (index: int): int { return this.charCodeAt(index); }
     operator == (other: string): bool;
     slice(start: int, end: int): string;
   }

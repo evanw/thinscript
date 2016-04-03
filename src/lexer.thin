@@ -227,7 +227,7 @@ function tokenize(source: Source, log: Log): Token {
 
   while (i < limit) {
     var start = i;
-    var c = string_get(contents, i);
+    var c = contents[i];
     i = i + 1;
 
     if (c == ' ' || c == '\t' || c == '\r') {
@@ -251,7 +251,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (isAlpha(c)) {
       kind = TokenKind.IDENTIFIER;
 
-      while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
+      while (i < limit && (isAlpha(contents[i]) || isNumber(contents[i]))) {
         i = i + 1;
       }
 
@@ -320,7 +320,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.INT;
 
       if (i < limit) {
-        var next = string_get(contents, i);
+        var next = contents[i];
         var base = 10;
 
         // Handle binary, octal, and hexadecimal prefixes
@@ -329,21 +329,21 @@ function tokenize(source: Source, log: Log): Token {
           else if (next == 'o' || next == 'O') base = 8;
           else if (next == 'x' || next == 'X') base = 16;
           if (base != 10) {
-            if (isDigit(string_get(contents, i + 1), base)) i = i + 2;
+            if (isDigit(contents[i + 1], base)) i = i + 2;
             else base = 10;
           }
         }
 
         // Scan the payload
-        while (i < limit && isDigit(string_get(contents, i), base)) {
+        while (i < limit && isDigit(contents[i], base)) {
           i = i + 1;
         }
 
         // Extra letters after the end is an error
-        if (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
+        if (i < limit && (isAlpha(contents[i]) || isNumber(contents[i]))) {
           i = i + 1;
 
-          while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
+          while (i < limit && (isAlpha(contents[i]) || isNumber(contents[i]))) {
             i = i + 1;
           }
 
@@ -360,7 +360,7 @@ function tokenize(source: Source, log: Log): Token {
     // Character or string
     else if (c == '"' || c == '\'' || c == '`') {
       while (i < limit) {
-        var next = string_get(contents, i);
+        var next = contents[i];
 
         // Escape any character including newlines
         if (i + 1 < limit && next == '\\') {
@@ -414,7 +414,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '*') {
       kind = TokenKind.MULTIPLY;
 
-      if (i < limit && string_get(contents, i) == '*') {
+      if (i < limit && contents[i] == '*') {
         kind = TokenKind.EXPONENT;
         i = i + 1;
       }
@@ -425,10 +425,10 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.DIVIDE;
 
       // Single-line comments
-      if (i < limit && string_get(contents, i) == '/') {
+      if (i < limit && contents[i] == '/') {
         i = i + 1;
 
-        while (i < limit && string_get(contents, i) != '\n') {
+        while (i < limit && contents[i] != '\n') {
           i = i + 1;
         }
 
@@ -436,14 +436,14 @@ function tokenize(source: Source, log: Log): Token {
       }
 
       // Multi-line comments
-      if (i < limit && string_get(contents, i) == '*') {
+      if (i < limit && contents[i] == '*') {
         i = i + 1;
         var foundEnd = false;
 
         while (i < limit) {
-          var next = string_get(contents, i);
+          var next = contents[i];
 
-          if (next == '*' && i + 1 < limit && string_get(contents, i + 1) == '/') {
+          if (next == '*' && i + 1 < limit && contents[i + 1] == '/') {
             foundEnd = true;
             i = i + 2;
             break;
@@ -465,12 +465,12 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '!') {
       kind = TokenKind.NOT;
 
-      if (i < limit && string_get(contents, i) == '=') {
+      if (i < limit && contents[i] == '=') {
         kind = TokenKind.NOT_EQUAL;
         i = i + 1;
 
         // Recover from !==
-        if (i < limit && string_get(contents, i) == '=') {
+        if (i < limit && contents[i] == '=') {
           i = i + 1;
           log.error(createRange(source, start, i), "Use '!=' instead of '!=='");
         }
@@ -481,12 +481,12 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '=') {
       kind = TokenKind.ASSIGN;
 
-      if (i < limit && string_get(contents, i) == '=') {
+      if (i < limit && contents[i] == '=') {
         kind = TokenKind.EQUAL;
         i = i + 1;
 
         // Recover from ===
-        if (i < limit && string_get(contents, i) == '=') {
+        if (i < limit && contents[i] == '=') {
           i = i + 1;
           log.error(createRange(source, start, i), "Use '==' instead of '==='");
         }
@@ -497,7 +497,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '+') {
       kind = TokenKind.PLUS;
 
-      if (i < limit && string_get(contents, i) == '+') {
+      if (i < limit && contents[i] == '+') {
         kind = TokenKind.PLUS_PLUS;
         i = i + 1;
       }
@@ -507,7 +507,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '-') {
       kind = TokenKind.MINUS;
 
-      if (i < limit && string_get(contents, i) == '-') {
+      if (i < limit && contents[i] == '-') {
         kind = TokenKind.MINUS_MINUS;
         i = i + 1;
       }
@@ -517,7 +517,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '&') {
       kind = TokenKind.BITWISE_AND;
 
-      if (i < limit && string_get(contents, i) == '&') {
+      if (i < limit && contents[i] == '&') {
         kind = TokenKind.LOGICAL_AND;
         i = i + 1;
       }
@@ -527,7 +527,7 @@ function tokenize(source: Source, log: Log): Token {
     else if (c == '|') {
       kind = TokenKind.BITWISE_OR;
 
-      if (i < limit && string_get(contents, i) == '|') {
+      if (i < limit && contents[i] == '|') {
         kind = TokenKind.LOGICAL_OR;
         i = i + 1;
       }
@@ -538,7 +538,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.LESS_THAN;
 
       if (i < limit) {
-        c = string_get(contents, i);
+        c = contents[i];
 
         if (c == '<') {
           kind = TokenKind.SHIFT_LEFT;
@@ -557,7 +557,7 @@ function tokenize(source: Source, log: Log): Token {
       kind = TokenKind.GREATER_THAN;
 
       if (i < limit) {
-        c = string_get(contents, i);
+        c = contents[i];
 
         if (c == '>') {
           kind = TokenKind.SHIFT_RIGHT;
@@ -572,7 +572,7 @@ function tokenize(source: Source, log: Log): Token {
     }
 
     else if (c == '#') {
-      while (i < limit && (isAlpha(string_get(contents, i)) || isNumber(string_get(contents, i)))) {
+      while (i < limit && (isAlpha(contents[i]) || isNumber(contents[i]))) {
         i = i + 1;
       }
 
@@ -588,8 +588,8 @@ function tokenize(source: Source, log: Log): Token {
       else if (text == "#warning") kind = TokenKind.PREPROCESSOR_WARNING;
 
       // Allow a shebang at the start of the file
-      else if (start == 0 && text == "#" && i < limit && string_get(contents, i) == '!') {
-        while (i < limit && string_get(contents, i) != '\n') {
+      else if (start == 0 && text == "#" && i < limit && contents[i] == '!') {
+        while (i < limit && contents[i] != '\n') {
           i = i + 1;
         }
         continue;
@@ -624,7 +624,7 @@ function tokenize(source: Source, log: Log): Token {
         var end = last.range.end;
         var j = i - 1;
         while (j >= end) {
-          if (string_get(contents, j) == '\n') {
+          if (contents[j] == '\n') {
             break;
           }
           j = j - 1;

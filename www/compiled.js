@@ -1,4 +1,8 @@
 (function(__declare, __extern) {
+  function string_op_get(__this, index) {
+    return __this.charCodeAt(index);
+  }
+
   function ByteArray_set16(array, index, value) {
     array.set(index, value & 255);
     array.set(index + 1 | 0, value >> 8 & 255);
@@ -25,7 +29,7 @@
     var i = 0;
 
     while (i < length) {
-      data[index + i | 0] = __declare.string_get(text, i) & 255;
+      data[index + i | 0] = string_op_get(text, i) & 255;
       i = i + 1 | 0;
     }
   }
@@ -1516,14 +1520,14 @@
       var type = target.resolvedType;
 
       if (type !== context.errorType) {
-        var symbol = type.isClass() ? type.findMember("[]", 0) : null;
+        var symbol = type.hasInstanceMembers() ? type.findMember("[]", 0) : null;
 
         if (symbol === null) {
           context.log.error(node.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
         }
 
         else {
-          __declare.assert(symbol.kind === 4);
+          __declare.assert(symbol.kind === 4 || symbol.kind === 5 && symbol.shouldConvertInstanceToGlobal());
           node.kind = 19;
           target.remove();
           node.insertChildBefore(node.firstChild, createMemberReference(target, symbol));
@@ -1799,7 +1803,7 @@
         var type = target.resolvedType;
 
         if (type !== context.errorType) {
-          var symbol = type.isClass() ? type.findMember("[]=", 0) : null;
+          var symbol = type.hasInstanceMembers() ? type.findMember("[]=", 0) : null;
 
           if (symbol === null) {
             context.log.error(left.internalRange, StringBuilder_new().append("Cannot index into type '").append(target.resolvedType.toString()).appendChar(39).finish());
@@ -3343,7 +3347,7 @@
 
     while (i < limit) {
       var start = i;
-      var c = __declare.string_get(contents, i);
+      var c = string_op_get(contents, i);
       i = i + 1 | 0;
 
       if (c === 32 || c === 9 || c === 13) {
@@ -3364,7 +3368,7 @@
       else if (isAlpha(c)) {
         kind = 2;
 
-        while (i < limit && (isAlpha(__declare.string_get(contents, i)) || isNumber(__declare.string_get(contents, i)))) {
+        while (i < limit && (isAlpha(string_op_get(contents, i)) || isNumber(string_op_get(contents, i)))) {
           i = i + 1 | 0;
         }
 
@@ -3519,7 +3523,7 @@
         kind = 3;
 
         if (i < limit) {
-          var next = __declare.string_get(contents, i);
+          var next = string_op_get(contents, i);
           var base = 10;
 
           if (c === 48 && (i + 1 | 0) < limit) {
@@ -3536,7 +3540,7 @@
             }
 
             if (base !== 10) {
-              if (isDigit(__declare.string_get(contents, i + 1 | 0), base)) {
+              if (isDigit(string_op_get(contents, i + 1 | 0), base)) {
                 i = i + 2 | 0;
               }
 
@@ -3546,14 +3550,14 @@
             }
           }
 
-          while (i < limit && isDigit(__declare.string_get(contents, i), base)) {
+          while (i < limit && isDigit(string_op_get(contents, i), base)) {
             i = i + 1 | 0;
           }
 
-          if (i < limit && (isAlpha(__declare.string_get(contents, i)) || isNumber(__declare.string_get(contents, i)))) {
+          if (i < limit && (isAlpha(string_op_get(contents, i)) || isNumber(string_op_get(contents, i)))) {
             i = i + 1 | 0;
 
-            while (i < limit && (isAlpha(__declare.string_get(contents, i)) || isNumber(__declare.string_get(contents, i)))) {
+            while (i < limit && (isAlpha(string_op_get(contents, i)) || isNumber(string_op_get(contents, i)))) {
               i = i + 1 | 0;
             }
 
@@ -3566,7 +3570,7 @@
 
       else if (c === 34 || c === 39 || c === 96) {
         while (i < limit) {
-          var next = __declare.string_get(contents, i);
+          var next = string_op_get(contents, i);
 
           if ((i + 1 | 0) < limit && next === 92) {
             i = i + 2 | 0;
@@ -3653,7 +3657,7 @@
       else if (c === 42) {
         kind = 27;
 
-        if (i < limit && __declare.string_get(contents, i) === 42) {
+        if (i < limit && string_op_get(contents, i) === 42) {
           kind = 15;
           i = i + 1 | 0;
         }
@@ -3662,24 +3666,24 @@
       else if (c === 47) {
         kind = 12;
 
-        if (i < limit && __declare.string_get(contents, i) === 47) {
+        if (i < limit && string_op_get(contents, i) === 47) {
           i = i + 1 | 0;
 
-          while (i < limit && __declare.string_get(contents, i) !== 10) {
+          while (i < limit && string_op_get(contents, i) !== 10) {
             i = i + 1 | 0;
           }
 
           continue;
         }
 
-        if (i < limit && __declare.string_get(contents, i) === 42) {
+        if (i < limit && string_op_get(contents, i) === 42) {
           i = i + 1 | 0;
           var foundEnd = false;
 
           while (i < limit) {
-            var next = __declare.string_get(contents, i);
+            var next = string_op_get(contents, i);
 
-            if (next === 42 && (i + 1 | 0) < limit && __declare.string_get(contents, i + 1 | 0) === 47) {
+            if (next === 42 && (i + 1 | 0) < limit && string_op_get(contents, i + 1 | 0) === 47) {
               foundEnd = true;
               i = i + 2 | 0;
 
@@ -3702,11 +3706,11 @@
       else if (c === 33) {
         kind = 28;
 
-        if (i < limit && __declare.string_get(contents, i) === 61) {
+        if (i < limit && string_op_get(contents, i) === 61) {
           kind = 29;
           i = i + 1 | 0;
 
-          if (i < limit && __declare.string_get(contents, i) === 61) {
+          if (i < limit && string_op_get(contents, i) === 61) {
             i = i + 1 | 0;
             log.error(createRange(source, start, i), "Use '!=' instead of '!=='");
           }
@@ -3716,11 +3720,11 @@
       else if (c === 61) {
         kind = 5;
 
-        if (i < limit && __declare.string_get(contents, i) === 61) {
+        if (i < limit && string_op_get(contents, i) === 61) {
           kind = 14;
           i = i + 1 | 0;
 
-          if (i < limit && __declare.string_get(contents, i) === 61) {
+          if (i < limit && string_op_get(contents, i) === 61) {
             i = i + 1 | 0;
             log.error(createRange(source, start, i), "Use '==' instead of '==='");
           }
@@ -3730,7 +3734,7 @@
       else if (c === 43) {
         kind = 30;
 
-        if (i < limit && __declare.string_get(contents, i) === 43) {
+        if (i < limit && string_op_get(contents, i) === 43) {
           kind = 31;
           i = i + 1 | 0;
         }
@@ -3739,7 +3743,7 @@
       else if (c === 45) {
         kind = 25;
 
-        if (i < limit && __declare.string_get(contents, i) === 45) {
+        if (i < limit && string_op_get(contents, i) === 45) {
           kind = 26;
           i = i + 1 | 0;
         }
@@ -3748,7 +3752,7 @@
       else if (c === 38) {
         kind = 6;
 
-        if (i < limit && __declare.string_get(contents, i) === 38) {
+        if (i < limit && string_op_get(contents, i) === 38) {
           kind = 23;
           i = i + 1 | 0;
         }
@@ -3757,7 +3761,7 @@
       else if (c === 124) {
         kind = 7;
 
-        if (i < limit && __declare.string_get(contents, i) === 124) {
+        if (i < limit && string_op_get(contents, i) === 124) {
           kind = 24;
           i = i + 1 | 0;
         }
@@ -3767,7 +3771,7 @@
         kind = 21;
 
         if (i < limit) {
-          c = __declare.string_get(contents, i);
+          c = string_op_get(contents, i);
 
           if (c === 60) {
             kind = 38;
@@ -3785,7 +3789,7 @@
         kind = 16;
 
         if (i < limit) {
-          c = __declare.string_get(contents, i);
+          c = string_op_get(contents, i);
 
           if (c === 62) {
             kind = 39;
@@ -3800,7 +3804,7 @@
       }
 
       else if (c === 35) {
-        while (i < limit && (isAlpha(__declare.string_get(contents, i)) || isNumber(__declare.string_get(contents, i)))) {
+        while (i < limit && (isAlpha(string_op_get(contents, i)) || isNumber(string_op_get(contents, i)))) {
           i = i + 1 | 0;
         }
 
@@ -3838,8 +3842,8 @@
           kind = 82;
         }
 
-        else if (start === 0 && text === "#" && i < limit && __declare.string_get(contents, i) === 33) {
-          while (i < limit && __declare.string_get(contents, i) !== 10) {
+        else if (start === 0 && text === "#" && i < limit && string_op_get(contents, i) === 33) {
+          while (i < limit && string_op_get(contents, i) !== 10) {
             i = i + 1 | 0;
           }
 
@@ -3872,7 +3876,7 @@
           var j = i - 1 | 0;
 
           while (j >= end) {
-            if (__declare.string_get(contents, j) === 10) {
+            if (string_op_get(contents, j) === 10) {
               break;
             }
 
@@ -3937,7 +3941,7 @@
   }
 
   function library() {
-    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: uint, source: uint, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == 0 || target == 0) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && source % 4 == target % 4) {\n      // Pick off the beginning\n      while (target % 4 != 0) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        ((target + length) as BytePtr).value = ((source + length) as BytePtr).value;\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        (target as UIntPtr).value = (source as UIntPtr).value;\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length);\n      (ptr as UIntPtr).value = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    get length(): int {\n      unsafe {\n        return (this as UIntPtr).value as int;\n      }\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as uint + 4, this as uint + 4 + start as uint, length);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class string {\n    get length(): int;\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
+    return "\ndeclare class bool {}\ndeclare class byte {}\ndeclare class int {}\ndeclare class sbyte {}\ndeclare class short {}\ndeclare class uint {}\ndeclare class ushort {}\n\n#if WASM\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: uint, source: uint, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == 0 || target == 0) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && source % 4 == target % 4) {\n      // Pick off the beginning\n      while (target % 4 != 0) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        ((target + length) as BytePtr).value = ((source + length) as BytePtr).value;\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        (target as UIntPtr).value = (source as UIntPtr).value;\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length);\n      (ptr as UIntPtr).value = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): int {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return (this as UIntPtr).value as int;\n      }\n    }\n\n    operator [] (index: int): int {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return ((this as int + index + 4) as BytePtr).value;\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as uint + 4, this as uint + 4 + start as uint, length);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): int;\n    get length(): int;\n    operator [] (index: int): int { return this.charCodeAt(index); }\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {
@@ -3961,7 +3965,7 @@
     var i = 0;
 
     while (i < index) {
-      if (__declare.string_get(contents, i) === 10) {
+      if (string_op_get(contents, i) === 10) {
         lastNewline = i + 1 | 0;
         line = line + 1 | 0;
       }
@@ -3995,13 +3999,13 @@
     var start = this.start;
     var end = this.start;
 
-    while (start > 0 && __declare.string_get(contents, start - 1 | 0) !== 10) {
+    while (start > 0 && string_op_get(contents, start - 1 | 0) !== 10) {
       start = start - 1 | 0;
     }
 
     var length = contents.length;
 
-    while (end < length && __declare.string_get(contents, end) !== 10) {
+    while (end < length && string_op_get(contents, end) !== 10) {
       end = end + 1 | 0;
     }
 
@@ -4056,7 +4060,7 @@
     var start = range.start - location.column | 0;
     var end = range.start;
 
-    while (end < length && __declare.string_get(contents, end) !== 10) {
+    while (end < length && string_op_get(contents, end) !== 10) {
       end = end + 1 | 0;
     }
 
@@ -4080,7 +4084,7 @@
     else {
       var i = range.start;
 
-      while (i < range.end && __declare.string_get(contents, i) !== 10) {
+      while (i < range.end && string_op_get(contents, i) !== 10) {
         builder.appendChar(126);
         i = i + 1 | 0;
       }
@@ -5207,13 +5211,13 @@
     var builder = StringBuilder_new();
 
     while (end < limit) {
-      var c = __declare.string_get(text, end);
+      var c = string_op_get(text, end);
 
       if (c === 92) {
         builder.appendSlice(text, start, end);
         end = end + 1 | 0;
         start = end + 1 | 0;
-        c = __declare.string_get(text, end);
+        c = string_op_get(text, end);
 
         if (c === 48) {
           builder.appendChar(0);
@@ -5282,7 +5286,7 @@
           return createParseError().withRange(token.range);
         }
 
-        return createInt(__declare.string_get(text, 0)).withRange(token.range);
+        return createInt(string_op_get(text, 0)).withRange(token.range);
       }
 
       if (this.peek(4)) {
@@ -6312,8 +6316,8 @@
     var value = 0;
     var base = 10;
 
-    if (__declare.string_get(contents, i) === 48 && (i + 1 | 0) < limit) {
-      var c = __declare.string_get(contents, i + 1 | 0);
+    if (string_op_get(contents, i) === 48 && (i + 1 | 0) < limit) {
+      var c = string_op_get(contents, i + 1 | 0);
 
       if (c === 98 || c === 66) {
         base = 2;
@@ -6339,7 +6343,7 @@
     }
 
     while (i < limit) {
-      var c = __declare.string_get(contents, i);
+      var c = string_op_get(contents, i);
       var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
       var baseValue = __imul(value, base) >>> 0;
 
@@ -6907,7 +6911,7 @@
     sb.appendChar(34);
 
     while (end < limit) {
-      var c = __declare.string_get(text, end);
+      var c = string_op_get(text, end);
 
       if (c === 34) {
         sb.appendSlice(text, start, end).append("\\\"");

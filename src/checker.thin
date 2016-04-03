@@ -849,7 +849,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var type = target.resolvedType;
 
     if (type != context.errorType) {
-      var symbol = type.isClass() ? type.findMember("[]", ScopeHint.NORMAL) : null;
+      var symbol = type.hasInstanceMembers() ? type.findMember("[]", ScopeHint.NORMAL) : null;
 
       if (symbol == null) {
         context.log.error(node.internalRange, StringBuilder_new()
@@ -860,7 +860,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       }
 
       else {
-        assert(symbol.kind == SymbolKind.FUNCTION_INSTANCE);
+        assert(symbol.kind == SymbolKind.FUNCTION_INSTANCE || symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.shouldConvertInstanceToGlobal());
 
         // Convert to a regular function call and resolve that instead
         node.kind = NodeKind.CALL;
@@ -1182,7 +1182,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       var type = target.resolvedType;
 
       if (type != context.errorType) {
-        var symbol = type.isClass() ? type.findMember("[]=", ScopeHint.NORMAL) : null;
+        var symbol = type.hasInstanceMembers() ? type.findMember("[]=", ScopeHint.NORMAL) : null;
 
         if (symbol == null) {
           context.log.error(left.internalRange, StringBuilder_new()

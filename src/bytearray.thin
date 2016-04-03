@@ -35,7 +35,7 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     var data = array._data;
     var i = 0;
     while (i < length) {
-      data[index + i] = string_get(text, i) as byte;
+      data[index + i] = text[i] as byte;
       i = i + 1;
     }
   }

@@ -21,7 +21,7 @@ class Source {
 
     // Just count the number of lines from the beginning of the file for now
     while (i < index) {
-      if (string_get(contents, i) == '\n') {
+      if (contents[i] == '\n') {
         lastNewline = i + 1;
         line = line + 1;
       }
@@ -56,12 +56,12 @@ class Range {
     var start = this.start;
     var end = this.start;
 
-    while (start > 0 && string_get(contents, start - 1) != '\n') {
+    while (start > 0 && contents[start - 1] != '\n') {
       start = start - 1;
     }
 
     var length = contents.length;
-    while (end < length && string_get(contents, end) != '\n') {
+    while (end < length && contents[end] != '\n') {
       end = end + 1;
     }
 
@@ -125,7 +125,7 @@ class Diagnostic {
     var start = range.start - location.column;
     var end = range.start;
 
-    while (end < length && string_get(contents, end) != '\n') {
+    while (end < length && contents[end] != '\n') {
       end = end + 1;
     }
 
@@ -151,7 +151,7 @@ class Diagnostic {
     // Multiple characters
     else {
       var i = range.start;
-      while (i < range.end && string_get(contents, i) != '\n') {
+      while (i < range.end && contents[i] != '\n') {
         builder.appendChar('~');
         i = i + 1;
       }
