@@ -102,13 +102,13 @@ class ParserContext {
     return true;
   }
 
-  parseUnaryPrefix(kind: NodeKind): Node {
+  parseUnaryPrefix(kind: NodeKind, mode: ParseKind): Node {
     assert(isUnary(kind));
 
     var token = this.current;
     this.advance();
 
-    var value = this.parseExpression(Precedence.UNARY_PREFIX, ParseKind.EXPRESSION);
+    var value = this.parseExpression(Precedence.UNARY_PREFIX, mode);
     if (value == null) {
       return null;
     }
@@ -190,6 +190,14 @@ class ParserContext {
     if (this.peek(TokenKind.IDENTIFIER)) {
       this.advance();
       return createName(token.range.toString()).withRange(token.range);
+    }
+
+    if (this.peek(TokenKind.EXPONENT)) {
+      splitToken(this.current, TokenKind.MULTIPLY, TokenKind.MULTIPLY);
+    }
+
+    if (this.peek(TokenKind.MULTIPLY)) {
+      return this.parseUnaryPrefix(mode == ParseKind.TYPE ? NodeKind.POINTER_TYPE : NodeKind.DEREFERENCE, mode);
     }
 
     if (mode == ParseKind.EXPRESSION) {
@@ -287,12 +295,13 @@ class ParserContext {
       }
 
       // Unary prefix
-      if (this.peek(TokenKind.NOT)) return this.parseUnaryPrefix(NodeKind.NOT);
-      if (this.peek(TokenKind.MINUS)) return this.parseUnaryPrefix(NodeKind.NEGATIVE);
-      if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_DECREMENT);
-      if (this.peek(TokenKind.PLUS)) return this.parseUnaryPrefix(NodeKind.POSITIVE);
-      if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_INCREMENT);
-      if (this.peek(TokenKind.COMPLEMENT)) return this.parseUnaryPrefix(NodeKind.COMPLEMENT);
+      if (this.peek(TokenKind.BITWISE_AND)) return this.parseUnaryPrefix(NodeKind.ADDRESS_OF, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.COMPLEMENT)) return this.parseUnaryPrefix(NodeKind.COMPLEMENT, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.MINUS)) return this.parseUnaryPrefix(NodeKind.NEGATIVE, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.MINUS_MINUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_DECREMENT, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.NOT)) return this.parseUnaryPrefix(NodeKind.NOT, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.PLUS)) return this.parseUnaryPrefix(NodeKind.POSITIVE, ParseKind.EXPRESSION);
+      if (this.peek(TokenKind.PLUS_PLUS)) return this.parseUnaryPrefix(NodeKind.PREFIX_INCREMENT, ParseKind.EXPRESSION);
     }
 
     this.unexpectedToken();

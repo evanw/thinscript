@@ -1252,6 +1252,24 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     }
   }
 
+  else if (kind == NodeKind.POINTER_TYPE) {
+    var value = node.unaryValue();
+    resolveAsType(context, value, parentScope);
+    context.log.error(node.internalRange, "Pointer types are not supported yet");
+  }
+
+  else if (kind == NodeKind.DEREFERENCE) {
+    var value = node.unaryValue();
+    resolveAsExpression(context, value, parentScope);
+    context.log.error(node.internalRange, "The dereference operator is not supported yet");
+  }
+
+  else if (kind == NodeKind.ADDRESS_OF) {
+    var value = node.unaryValue();
+    resolveAsExpression(context, value, parentScope);
+    context.log.error(node.internalRange, "The address-of operator is not supported yet");
+  }
+
   else if (isUnary(kind)) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);

@@ -102,6 +102,20 @@ class Token {
   next: Token;
 }
 
+function splitToken(first: Token, firstKind: TokenKind, secondKind: TokenKind): void {
+  var range = first.range;
+  assert(range.end - range.start >= 2);
+
+  var second = new Token();
+  second.kind = secondKind;
+  second.range = createRange(range.source, range.start + 1, range.end);
+  second.next = first.next;
+
+  first.kind = firstKind;
+  first.next = second;
+  range.end = range.start + 1;
+}
+
 function tokenToString(token: TokenKind): string {
   if (token == TokenKind.END_OF_FILE) return "end of file";
 

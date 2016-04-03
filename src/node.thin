@@ -39,9 +39,12 @@ enum NodeKind {
   TYPE,
 
   // Unary expressions
+  ADDRESS_OF,
   COMPLEMENT,
+  DEREFERENCE,
   NEGATIVE,
   NOT,
+  POINTER_TYPE,
   POSITIVE,
   POSTFIX_DECREMENT,
   POSTFIX_INCREMENT,
@@ -72,7 +75,7 @@ enum NodeKind {
 }
 
 function isUnary(kind: NodeKind): bool {
-  return kind >= NodeKind.COMPLEMENT && kind <= NodeKind.PREFIX_INCREMENT;
+  return kind >= NodeKind.ADDRESS_OF && kind <= NodeKind.PREFIX_INCREMENT;
 }
 
 function isUnaryPostfix(kind: NodeKind): bool {
@@ -672,6 +675,22 @@ function createNull(): Node {
 function createThis(): Node {
   var node = new Node();
   node.kind = NodeKind.THIS;
+  return node;
+}
+
+function createAddressOf(value: Node): Node {
+  assert(isExpression(value));
+  var node = new Node();
+  node.kind = NodeKind.ADDRESS_OF;
+  node.appendChild(value);
+  return node;
+}
+
+function createDereference(value: Node): Node {
+  assert(isExpression(value));
+  var node = new Node();
+  node.kind = NodeKind.DEREFERENCE;
+  node.appendChild(value);
   return node;
 }
 
