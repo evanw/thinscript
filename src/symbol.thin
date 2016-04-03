@@ -131,7 +131,7 @@ class Symbol {
 
         // Ignore invalid members
         if (type != context.errorType) {
-          var alignmentOf = type.variableAlignmentOf();
+          var alignmentOf = type.variableAlignmentOf(context);
 
           // Align the member to the next available slot
           offset = alignToNextMultipleOf(offset, alignmentOf);
@@ -139,7 +139,7 @@ class Symbol {
 
           // Allocate the member by extending the object
           child.symbol.offset = offset;
-          offset = offset + type.variableSizeOf();
+          offset = offset + type.variableSizeOf(context);
         }
       }
 

@@ -88,10 +88,10 @@ function ByteArray_append32(array: ByteArray, value: int): void {
 #elif WASM ////////////////////////////////////////////////////////////////////////////////
 
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
+    var length = text.length;
     unsafe {
-      var length = (text as UIntPtr).value;
       assert(index >= 0 && index + length as int <= array.length());
-      memcpy(array._data + index as uint, text as uint + 4, length);
+      memcpy(array._data + index as uint, text as uint + 4, length as uint);
     }
   }
 
@@ -111,14 +111,14 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     get(index: int): byte {
       assert((index as uint) < this._length);
       unsafe {
-        return ((this._data as int + index) as BytePtr).value;
+        return *((this._data as int + index) as *byte);
       }
     }
 
     set(index: int, value: byte): void {
       assert((index as uint) < this._length);
       unsafe {
-        ((this._data as int + index) as BytePtr).value = value;
+        *((this._data as int + index) as *byte) = value;
       }
     }
 
@@ -126,7 +126,7 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       var offset = this._length;
       unsafe {
         this.resize(offset as int + 1);
-        ((this._data + offset) as BytePtr).value = value;
+        *((this._data + offset) as *byte) = value;
       }
     }
 

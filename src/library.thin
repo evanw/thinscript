@@ -2,11 +2,6 @@ function library(): string {
   return `
 #if WASM
 
-  // Cast to these to read from and write to arbitrary locations in memory
-  unsafe class BytePtr { value: byte; }
-  unsafe class UShortPtr { value: ushort; }
-  unsafe class UIntPtr { value: uint; }
-
   // These will be filled in by the WebAssembly code generator
   unsafe var currentHeapPointer: uint = 0;
   unsafe var originalHeapPointer: uint = 0;
@@ -23,7 +18,7 @@ function library(): string {
     // Make sure the memory starts off at zero
     var ptr = offset;
     while (ptr < limit) {
-      (ptr as UIntPtr).value = 0;
+      *(ptr as *int) = 0;
       ptr = ptr + 4;
     }
 
@@ -40,7 +35,7 @@ function library(): string {
     if (length >= 16 && source % 4 == target % 4) {
       // Pick off the beginning
       while (target % 4 != 0) {
-        (target as BytePtr).value = (source as BytePtr).value;
+        *(target as *byte) = *(source as *byte);
         target = target + 1;
         source = source + 1;
         length = length - 1;
@@ -49,13 +44,13 @@ function library(): string {
       // Pick off the end
       while (length % 4 != 0) {
         length = length - 1;
-        ((target + length) as BytePtr).value = ((source + length) as BytePtr).value;
+        *((target + length) as *byte) = *((source + length) as *byte);
       }
 
       // Zip over the middle
       var end = target + length;
       while (target < end) {
-        (target as UIntPtr).value = (source as UIntPtr).value;
+        *(target as *int) = *(source as *int);
         target = target + 4;
         source = source + 4;
       }
@@ -65,7 +60,7 @@ function library(): string {
     else {
       var end = target + length;
       while (target < end) {
-        (target as BytePtr).value = (source as BytePtr).value;
+        *(target as *byte) = *(source as *byte);
         target = target + 1;
         source = source + 1;
       }
@@ -142,12 +137,12 @@ function library(): string {
       var end = ptr + 4 + length;
 
       if (sign) {
-        ((ptr + 4) as BytePtr).value = '-';
+        *((ptr + 4) as *byte) = '-';
       }
 
       while (value != 0) {
         end = end - 1;
-        (end as BytePtr).value = (value % 10 + '0') as byte;
+        *(end as *byte) = (value % 10 + '0') as byte;
         value = value / 10;
       }
 
@@ -158,7 +153,7 @@ function library(): string {
   function string_new(length: uint): string {
     unsafe {
       var ptr = malloc(4 + length);
-      (ptr as UIntPtr).value = length;
+      *(ptr as *uint) = length;
       return ptr as string;
     }
   }
@@ -174,14 +169,14 @@ function library(): string {
 
     get length(): int {
       unsafe {
-        return (this as UIntPtr).value as int;
+        return *(this as *int);
       }
     }
 
     operator [] (index: int): int {
       if (index as uint < this.length as uint) {
         unsafe {
-          return ((this as int + index + 4) as BytePtr).value;
+          return *((this as int + index + 4) as *byte);
         }
       }
       return 0;
@@ -192,21 +187,21 @@ function library(): string {
         if (this as uint == other as uint) return true;
         if (this as uint == 0 || other as uint == 0) return false;
 
-        var length = (this as UIntPtr).value;
+        var length = this.length;
 
         // Check the length first
-        if (length != (other as UIntPtr).value) {
+        if (length != other.length) {
           return false;
         }
 
         // Check the content next
         var ai = this as uint + 4;
         var bi = other as uint + 4;
-        var an = ai + (length & ~3 as uint);
+        var an = ai + (length & ~3) as uint;
 
         // Compare 32-bit values for speed (4-byte alignment is manditory)
         while (ai < an) {
-          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {
+          if (*(ai as *int) != *(bi as *int)) {
             return false;
           }
           ai = ai + 4;
@@ -214,9 +209,9 @@ function library(): string {
         }
 
         // Compare trailing 8-bit values
-        an = ai + length % 4;
+        an = ai + length as uint % 4;
         while (ai < an) {
-          if ((ai as BytePtr).value != (bi as BytePtr).value) {
+          if (*(ai as *byte) != *(bi as *byte)) {
             return false;
           }
           ai = ai + 1;

@@ -1,5 +1,3 @@
-const POINTER_SIZE = 4;
-
 enum ConversionKind {
   IMPLICIT,
   EXPLICIT,
@@ -7,57 +5,75 @@ enum ConversionKind {
 
 class Type {
   symbol: Symbol;
+  pointerTo: Type;
+  private cachedToString: string;
+  private cachedPointerType: Type;
 
   isClass(): bool {
-    return this.symbol.kind == SymbolKind.TYPE_CLASS;
+    return this.symbol != null && this.symbol.kind == SymbolKind.TYPE_CLASS;
   }
 
   isEnum(): bool {
-    return this.symbol.kind == SymbolKind.TYPE_ENUM;
+    return this.symbol != null && this.symbol.kind == SymbolKind.TYPE_ENUM;
   }
 
   isInteger(): bool {
-    return (this.symbol.flags & SYMBOL_FLAG_NATIVE_INTEGER) != 0 || this.isEnum();
+    return this.symbol != null && (this.symbol.flags & SYMBOL_FLAG_NATIVE_INTEGER) != 0 || this.isEnum();
   }
 
   isUnsigned(): bool {
-    return (this.symbol.flags & SYMBOL_FLAG_IS_UNSIGNED) != 0;
+    return this.symbol != null && (this.symbol.flags & SYMBOL_FLAG_IS_UNSIGNED) != 0;
   }
 
   isReference(): bool {
-    return (this.symbol.flags & SYMBOL_FLAG_IS_REFERENCE) != 0;
+    return this.pointerTo != null || this.symbol != null && (this.symbol.flags & SYMBOL_FLAG_IS_REFERENCE) != 0;
   }
 
   underlyingType(context: CheckContext): Type {
-    return this.isEnum() ? context.intType : this;
+    return this.isEnum() ? context.intType : this.pointerTo != null ? context.uintType : this;
   }
 
-  integerBitCount(): int {
-    return this.symbol.byteSize * 8;
+  integerBitCount(context: CheckContext): int {
+    return this.symbol != null ? this.symbol.byteSize * 8 : 0;
   }
 
-  integerBitMask(): uint {
-    return ~0 as uint >> (32 - this.integerBitCount()) as uint;
+  integerBitMask(context: CheckContext): uint {
+    return ~0 as uint >> (32 - this.integerBitCount(context)) as uint;
   }
 
-  allocationSizeOf(): int {
-    return this.symbol.byteSize;
+  allocationSizeOf(context: CheckContext): int {
+    return this.symbol == null ? context.pointerByteSize : this.symbol.byteSize;
   }
 
-  allocationAlignmentOf(): int {
-    return this.allocationSizeOf(); // This is true right now
+  allocationAlignmentOf(context: CheckContext): int {
+    return this.allocationSizeOf(context); // This is true right now
   }
 
-  variableSizeOf(): int {
-    return this.isClass() ? POINTER_SIZE : this.symbol.byteSize;
+  variableSizeOf(context: CheckContext): int {
+    return this.isReference() ? context.pointerByteSize : this.symbol.byteSize;
   }
 
-  variableAlignmentOf(): int {
-    return this.variableSizeOf(); // This is true right now
+  variableAlignmentOf(context: CheckContext): int {
+    return this.variableSizeOf(context); // This is true right now
+  }
+
+  pointerType(): Type {
+    var type = this.cachedPointerType;
+    if (type == null) {
+      type = new Type();
+      type.pointerTo = this;
+      this.cachedPointerType = type;
+    }
+    return type;
   }
 
   toString(): string {
-    return this.symbol.name;
+    if (this.cachedToString == null) {
+      this.cachedToString =
+        this.pointerTo != null ? StringBuilder_new().appendChar('*').append(this.pointerTo.toString()).finish() :
+        this.symbol.name;
+    }
+    return this.cachedToString;
   }
 
   findMember(name: string, hint: ScopeHint): Symbol {

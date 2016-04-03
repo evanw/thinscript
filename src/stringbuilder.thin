@@ -102,10 +102,10 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
     append(text: string): StringBuilder {
       var bytes = this._bytes;
       var index = bytes._length;
+      var length = text.length;
       unsafe {
-        var length = (text as UIntPtr).value;
-        bytes.resize((index + length) as int);
-        memcpy(bytes._data + index, text as uint + 4, length);
+        bytes.resize(index as int + length);
+        memcpy(bytes._data + index, text as uint + 4, length as uint);
       }
       return this;
     }

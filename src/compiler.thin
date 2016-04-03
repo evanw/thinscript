@@ -43,6 +43,8 @@ class Compiler {
   createGlobals(): void {
     var context = new CheckContext();
     context.log = this.log;
+    context.target = this.target;
+    context.pointerByteSize = 4; // Assume 32-bit code generation for now
 
     var global = new Node();
     global.kind = NodeKind.GLOBAL;

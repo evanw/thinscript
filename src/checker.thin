@@ -1,5 +1,7 @@
 class CheckContext {
   log: Log;
+  target: CompileTarget;
+  pointerByteSize: int;
   isUnsafeAllowed: bool;
   enclosingClass: Symbol;
   currentReturnType: Type;
@@ -250,6 +252,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
   else if (isFunction(symbol.kind)) {
     var body = node.functionBody();
     var returnType = node.functionReturnType();
+    var oldUnsafeAllowed = context.isUnsafeAllowed;
+    context.isUnsafeAllowed = node.isUnsafe();
     resolveAsType(context, returnType, symbol.scope.parent);
 
     var argumentCount = 0;
@@ -382,6 +386,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     else {
       forbidFlag(context, node, NODE_FLAG_DECLARE, "Cannot use 'declare' on a function with an implementation");
     }
+
+    context.isUnsafeAllowed = oldUnsafeAllowed;
   }
 
   // Variable
@@ -391,6 +397,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
     var type = node.variableType();
     var value = node.variableValue();
+    var oldUnsafeAllowed = context.isUnsafeAllowed;
+    context.isUnsafeAllowed = context.isUnsafeAllowed || node.isUnsafe();
 
     if (symbol.kind != SymbolKind.VARIABLE_INSTANCE) {
       forbidFlag(context, node, NODE_FLAG_PUBLIC, "Cannot use 'public' here");
@@ -475,6 +483,8 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
         scope = scope.parent;
       }
     }
+
+    context.isUnsafeAllowed = oldUnsafeAllowed;
   }
 
   else {
@@ -554,7 +564,7 @@ function canConvert(context: CheckContext, node: Node, to: Type, kind: Conversio
 
   // Check integer conversions
   else if (from.isInteger() && to.isInteger()) {
-    var mask = to.integerBitMask();
+    var mask = to.integerBitMask(context);
 
     // Allow implicit conversions between enums and int
     if (from.isEnum() && to == from.underlyingType(context)) {
@@ -589,8 +599,8 @@ function checkConversion(context: CheckContext, node: Node, to: Type, kind: Conv
 function checkStorage(context: CheckContext, target: Node): void {
   assert(isExpression(target));
 
-  if (target.resolvedType != context.errorType && target.kind != NodeKind.INDEX && (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT ||
-      target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == SymbolKind.VARIABLE_CONSTANT))) {
+  if (target.resolvedType != context.errorType && target.kind != NodeKind.INDEX && target.kind != NodeKind.DEREFERENCE &&
+      (target.kind != NodeKind.NAME && target.kind != NodeKind.DOT || target.symbol != null && (!isVariable(target.symbol.kind) || target.symbol.kind == SymbolKind.VARIABLE_CONSTANT))) {
     context.log.error(target.range, "Cannot store to this location");
     target.resolvedType = context.errorType;
   }
@@ -686,7 +696,7 @@ function isSymbolAccessAllowed(context: CheckContext, symbol: Symbol, node: Node
     context.log.error(range, StringBuilder_new()
       .append("Cannot use symbol '")
       .append(symbol.name)
-      .append("' outside an unsafe block")
+      .append("' outside an 'unsafe' block")
       .finish());
     return false;
   }
@@ -776,6 +786,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     var symbol = node.symbol;
     initializeSymbol(context, symbol);
 
+    var oldUnsafeAllowed = context.isUnsafeAllowed;
+    context.isUnsafeAllowed = context.isUnsafeAllowed || node.isUnsafe();
+
     var value = node.variableValue();
     if (value != null) {
       resolveAsExpression(context, value, parentScope);
@@ -795,8 +808,10 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // Allocate global variables
     if (symbol.kind == SymbolKind.VARIABLE_GLOBAL && symbol.resolvedType != context.errorType) {
-      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(), symbol.resolvedType.variableAlignmentOf());
+      symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(context), symbol.resolvedType.variableAlignmentOf(context));
     }
+
+    context.isUnsafeAllowed = oldUnsafeAllowed;
   }
 
   else if (kind == NodeKind.BREAK || kind == NodeKind.CONTINUE) {
@@ -878,7 +893,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = context.intType;
 
     if (type.resolvedType != context.errorType) {
-      node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf());
+      node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf(context));
     }
   }
 
@@ -888,7 +903,7 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     node.resolvedType = context.intType;
 
     if (type.resolvedType != context.errorType) {
-      node.becomeIntegerConstant(type.resolvedType.allocationSizeOf());
+      node.becomeIntegerConstant(type.resolvedType.allocationSizeOf(context));
     }
   }
 
@@ -967,9 +982,9 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
     // Automatically fold constants
     if (value.kind == NodeKind.INT && castedType.isInteger()) {
       var result = value.intValue;
-      var shift = 32 - castedType.integerBitCount();
+      var shift = 32 - castedType.integerBitCount(context);
       node.becomeIntegerConstant(castedType.isUnsigned()
-        ? castedType.integerBitMask() as int & result
+        ? castedType.integerBitMask(context) as int & result
         : result << shift >> shift);
     }
   }
@@ -1255,19 +1270,58 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else if (kind == NodeKind.POINTER_TYPE) {
     var value = node.unaryValue();
     resolveAsType(context, value, parentScope);
-    context.log.error(node.internalRange, "Pointer types are not supported yet");
+
+    if (context.target == CompileTarget.JAVASCRIPT) {
+      context.log.error(node.internalRange, "Cannot use pointers when compiling to JavaScript");
+    }
+
+    else if (!context.isUnsafeAllowed) {
+      context.log.error(node.internalRange, "Cannot use pointers outside an 'unsafe' block");
+    }
+
+    else {
+      var type = value.resolvedType;
+
+      if (type != context.errorType) {
+        if (!type.isInteger() && type.pointerTo == null) {
+          context.log.error(node.internalRange, StringBuilder_new()
+            .append("Cannot create a pointer to non-integer type '")
+            .append(type.toString())
+            .appendChar('\'')
+            .finish());
+        }
+
+        else {
+          node.resolvedType = type.pointerType();
+        }
+      }
+    }
   }
 
   else if (kind == NodeKind.DEREFERENCE) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
-    context.log.error(node.internalRange, "The dereference operator is not supported yet");
+    var type = value.resolvedType;
+
+    if (type != context.errorType) {
+      if (type.pointerTo == null) {
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("Cannot dereference type '")
+          .append(type.toString())
+          .appendChar('\'')
+          .finish());
+      }
+
+      else {
+        node.resolvedType = type.pointerTo;
+      }
+    }
   }
 
   else if (kind == NodeKind.ADDRESS_OF) {
     var value = node.unaryValue();
     resolveAsExpression(context, value, parentScope);
-    context.log.error(node.internalRange, "The address-of operator is not supported yet");
+    context.log.error(node.internalRange, "The address-of operator is not supported");
   }
 
   else if (isUnary(kind)) {
@@ -1334,6 +1388,29 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
       checkConversion(context, left, context.boolType, ConversionKind.IMPLICIT);
       checkConversion(context, right, context.boolType, ConversionKind.IMPLICIT);
       node.resolvedType = context.boolType;
+    }
+
+    // Special-case pointer types (it's the emitter's job to scale the integer delta by the size of the pointer target)
+    else if (kind == NodeKind.ADD && leftType.pointerTo != null && rightType.isInteger()) {
+      node.resolvedType = leftType;
+    }
+
+    // Special-case pointer types
+    else if ((kind == NodeKind.LESS_THAN || kind == NodeKind.LESS_THAN_EQUAL ||
+        kind == NodeKind.GREATER_THAN || kind == NodeKind.GREATER_THAN_EQUAL) && (
+        leftType.pointerTo != null || rightType.pointerTo != null)) {
+      node.resolvedType = context.boolType;
+
+      // Both pointer types must be exactly the same
+      if (leftType != rightType) {
+        context.log.error(node.internalRange, StringBuilder_new()
+          .append("Cannot compare type '")
+          .append(leftType.toString())
+          .append("' with type '")
+          .append(rightType.toString())
+          .appendChar('\'')
+          .finish());
+      }
     }
 
     // Operators for integers are hard-coded

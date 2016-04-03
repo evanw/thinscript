@@ -213,13 +213,14 @@ class CResult {
     }
 
     else if (node.kind == NodeKind.COMPLEMENT) this.emitUnary(node, parentPrecedence, "~");
+    else if (node.kind == NodeKind.DEREFERENCE) this.emitUnary(node, parentPrecedence, "*");
     else if (node.kind == NodeKind.NEGATIVE) this.emitUnary(node, parentPrecedence, "-");
     else if (node.kind == NodeKind.NOT) this.emitUnary(node, parentPrecedence, "!");
     else if (node.kind == NodeKind.POSITIVE) this.emitUnary(node, parentPrecedence, "+");
-    else if (node.kind == NodeKind.PREFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
-    else if (node.kind == NodeKind.PREFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
-    else if (node.kind == NodeKind.POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
     else if (node.kind == NodeKind.POSTFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
+    else if (node.kind == NodeKind.POSTFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
+    else if (node.kind == NodeKind.PREFIX_DECREMENT) this.emitUnary(node, parentPrecedence, "--");
+    else if (node.kind == NodeKind.PREFIX_INCREMENT) this.emitUnary(node, parentPrecedence, "++");
 
     else if (node.kind == NodeKind.ADD) this.emitBinary(node, parentPrecedence, " + ", Precedence.ADD);
     else if (node.kind == NodeKind.ASSIGN) this.emitBinary(node, parentPrecedence, " = ", Precedence.ASSIGN);
@@ -251,11 +252,20 @@ class CResult {
     return node.symbol.kind == SymbolKind.TYPE_CLASS && node.symbol != this.context.stringType.symbol;
   }
 
-  emitType(type: Type, mode: TypeMode): void {
+  emitType(originalType: Type, mode: TypeMode): void {
     var context = this.context;
     var code = this.code;
+    var type = originalType;
 
-    type = type.underlyingType(this.context);
+    if (type.isEnum()) {
+      type = type.underlyingType(this.context);
+    }
+
+    else {
+      while (type.pointerTo != null) {
+        type = type.pointerTo;
+      }
+    }
 
     if (type.isClass()) {
       code.append("struct ");
@@ -270,7 +280,15 @@ class CResult {
     else if (type == context.ushortType) code.append("uint16_t");
     else this.emitSymbolName(type.symbol);
 
-    if (mode != TypeMode.BARE) {
+    if (originalType.pointerTo != null) {
+      code.appendChar(' ');
+      while (originalType.pointerTo != null) {
+        code.appendChar('*');
+        originalType = originalType.pointerTo;
+      }
+    }
+
+    else if (mode != TypeMode.BARE) {
       if (type.isReference()) code.append(" *");
       else if (mode == TypeMode.DECLARATION) code.appendChar(' ');
     }

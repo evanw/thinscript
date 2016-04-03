@@ -526,7 +526,7 @@ class WasmModule {
       var symbol = node.symbol;
 
       if (symbol.kind == SymbolKind.VARIABLE_GLOBAL) {
-        var sizeOf = symbol.resolvedType.variableSizeOf();
+        var sizeOf = symbol.resolvedType.variableSizeOf(this.context);
         var value = symbol.node.variableValue().intValue;
         var memoryInitializer = this.memoryInitializer;
 
@@ -615,7 +615,7 @@ class WasmModule {
   }
 
   emitLoadFromMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int): void {
-    var sizeOf = type.variableSizeOf();
+    var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf == 1) {
       array.append(type.isUnsigned() ? WASM_OPCODE_I32_LOAD8_U : WASM_OPCODE_I32_LOAD8_S);
@@ -651,7 +651,7 @@ class WasmModule {
   }
 
   emitStoreToMemory(array: ByteArray, type: Type, relativeBase: Node, offset: int, value: Node): void {
-    var sizeOf = type.variableSizeOf();
+    var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf == 1) {
       array.append(WASM_OPCODE_I32_STORE8);
@@ -844,6 +844,10 @@ class WasmModule {
       }
     }
 
+    else if (node.kind == NodeKind.DEREFERENCE) {
+      this.emitLoadFromMemory(array, node.resolvedType.underlyingType(this.context), node.unaryValue(), 0);
+    }
+
     else if (node.kind == NodeKind.NULL) {
       array.append(WASM_OPCODE_I32_CONST);
       wasmWriteVarSigned(array, 0);
@@ -881,15 +885,15 @@ class WasmModule {
 
     else if (node.kind == NodeKind.NEW) {
       var type = node.newType();
-      assert(type.symbol.kind == SymbolKind.TYPE_CLASS);
+      var size = type.resolvedType.allocationSizeOf(this.context);
 
       array.append(WASM_OPCODE_CALL);
       wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
 
       // Pass the object size as the first argument
-      assert(type.symbol.byteSize > 0);
+      assert(size > 0);
       array.append(WASM_OPCODE_I32_CONST);
-      wasmWriteVarSigned(array, type.symbol.byteSize);
+      wasmWriteVarSigned(array, size);
     }
 
     else if (node.kind == NodeKind.POSITIVE) {
@@ -920,16 +924,18 @@ class WasmModule {
       var context = this.context;
       var from = value.resolvedType.underlyingType(context);
       var type = node.resolvedType.underlyingType(context);
+      var fromSize = from.variableSizeOf(context);
+      var typeSize = type.variableSizeOf(context);
 
       // The cast isn't needed if it's to a wider integer type
-      if (from == type || from.symbol.byteSize < type.symbol.byteSize) {
+      if (from == type || fromSize < typeSize) {
         this.emitNode(array, value);
       }
 
       else {
         // Sign-extend
         if (type == context.sbyteType || type == context.shortType) {
-          var shift = 32 - type.symbol.byteSize * 8;
+          var shift = 32 - typeSize * 8;
           array.append(WASM_OPCODE_I32_SHR_S);
           array.append(WASM_OPCODE_I32_SHL);
           this.emitNode(array, value);
@@ -944,7 +950,7 @@ class WasmModule {
           array.append(WASM_OPCODE_I32_AND);
           this.emitNode(array, value);
           array.append(WASM_OPCODE_I32_CONST);
-          wasmWriteVarSigned(array, type.integerBitMask() as int);
+          wasmWriteVarSigned(array, type.integerBitMask(this.context) as int);
         }
 
         // No cast needed
@@ -968,20 +974,25 @@ class WasmModule {
 
     else if (node.kind == NodeKind.ASSIGN) {
       var left = node.binaryLeft();
+      var right = node.binaryRight();
       var symbol = left.symbol;
 
-      if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
-        this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, node.binaryRight());
+      if (left.kind == NodeKind.DEREFERENCE) {
+        this.emitStoreToMemory(array, left.resolvedType.underlyingType(this.context), left.unaryValue(), 0, right);
+      }
+
+      else if (symbol.kind == SymbolKind.VARIABLE_INSTANCE) {
+        this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, right);
       }
 
       else if (symbol.kind == SymbolKind.VARIABLE_GLOBAL) {
-        this.emitStoreToMemory(array, symbol.resolvedType, null, WASM_MEMORY_INITIALIZER_BASE + symbol.offset, node.binaryRight());
+        this.emitStoreToMemory(array, symbol.resolvedType, null, WASM_MEMORY_INITIALIZER_BASE + symbol.offset, right);
       }
 
       else if (symbol.kind == SymbolKind.VARIABLE_ARGUMENT || symbol.kind == SymbolKind.VARIABLE_LOCAL) {
         array.append(WASM_OPCODE_SET_LOCAL);
         wasmWriteVarUnsigned(array, symbol.offset);
-        this.emitNode(array, node.binaryRight());
+        this.emitNode(array, right);
       }
 
       else {
@@ -1008,7 +1019,56 @@ class WasmModule {
     else {
       var isUnsigned = node.isUnsignedOperator();
 
-      if (node.kind == NodeKind.ADD) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_ADD);
+      if (node.kind == NodeKind.ADD) {
+        var left = node.binaryLeft();
+        var right = node.binaryRight();
+
+        array.append(WASM_OPCODE_I32_ADD);
+        this.emitNode(array, left);
+
+        if (left.resolvedType.pointerTo == null) {
+          this.emitNode(array, right);
+        }
+
+        // Need to multiply the right by the size of the pointer target
+        else {
+          assert(right.resolvedType.isInteger());
+          var size = left.resolvedType.pointerTo.allocationSizeOf(this.context);
+
+          if (size == 2) {
+            if (right.kind == NodeKind.INT) {
+              array.append(WASM_OPCODE_I32_CONST);
+              wasmWriteVarSigned(array, right.intValue << 1);
+            }
+
+            else {
+              array.append(WASM_OPCODE_I32_SHL);
+              this.emitNode(array, right);
+              array.append(WASM_OPCODE_I32_CONST);
+              wasmWriteVarSigned(array, 1);
+            }
+          }
+
+          else if (size == 4) {
+            if (right.kind == NodeKind.INT) {
+              array.append(WASM_OPCODE_I32_CONST);
+              wasmWriteVarSigned(array, right.intValue << 2);
+            }
+
+            else {
+              array.append(WASM_OPCODE_I32_SHL);
+              this.emitNode(array, right);
+              array.append(WASM_OPCODE_I32_CONST);
+              wasmWriteVarSigned(array, 2);
+            }
+          }
+
+          else {
+            this.emitNode(array, right);
+          }
+        }
+      }
+
       else if (node.kind == NodeKind.BITWISE_AND) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_AND);
       else if (node.kind == NodeKind.BITWISE_OR) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_OR);
       else if (node.kind == NodeKind.BITWISE_XOR) this.emitBinaryExpression(array, node, WASM_OPCODE_I32_XOR);

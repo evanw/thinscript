@@ -161,9 +161,11 @@ class JsResult {
       var value = node.castValue();
       var from = value.resolvedType.underlyingType(context);
       var type = node.resolvedType.underlyingType(context);
+      var fromSize = from.variableSizeOf(context);
+      var typeSize = type.variableSizeOf(context);
 
       // The cast isn't needed if it's to a wider integer type
-      if (from == type || from.symbol.byteSize < type.symbol.byteSize) {
+      if (from == type || fromSize < typeSize) {
         this.emitExpression(value, parentPrecedence);
       }
 
@@ -174,7 +176,7 @@ class JsResult {
             code.appendChar('(');
           }
 
-          var shift = (32 - type.symbol.byteSize * 8).toString();
+          var shift = (32 - typeSize * 8).toString();
           this.emitExpression(value, Precedence.SHIFT);
           code.append(" << ");
           code.append(shift);
@@ -194,7 +196,7 @@ class JsResult {
 
           this.emitExpression(value, Precedence.BITWISE_AND);
           code.append(" & ");
-          code.append(type.integerBitMask().toString());
+          code.append(type.integerBitMask(context).toString());
 
           if (parentPrecedence > Precedence.BITWISE_AND) {
             code.appendChar(')');

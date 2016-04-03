@@ -388,7 +388,7 @@ class Node {
   }
 
   isType(): bool {
-    return this.kind == NodeKind.TYPE || this.symbol != null && isType(this.symbol.kind);
+    return this.kind == NodeKind.TYPE || this.kind == NodeKind.POINTER_TYPE || this.symbol != null && isType(this.symbol.kind);
   }
 
   isCallValue(): bool {
