@@ -46,30 +46,6 @@ function loadStdlibForJavaScript() {
       console.log(text + ': ' + Math.round(now() - time) + 'ms');
     },
 
-    string_length: function(self) {
-      return self.length;
-    },
-
-    string_get: function(self, index) {
-      return self.charCodeAt(index);
-    },
-
-    string_equals: function(a, b) {
-      return a === b;
-    },
-
-    string_slice: function(text, start, end) {
-      return text.slice(start, end);
-    },
-
-    string_intToString: function(value) {
-      return (value | 0).toString();
-    },
-
-    string_uintToString: function(value) {
-      return (value >>> 0).toString();
-    },
-
     StringBuilder_append: function(a, b) {
       return a + b;
     },
@@ -136,8 +112,8 @@ function compileWebAssembly(code) {
     sources.forEach(function(source) {
       var name = source.name;
       var contents = source.contents;
-      var nameString = exports.string_new(name.length);
-      var contentsString = exports.string_new(contents.length);
+      var nameString = exports.Compiler_allocateString(name.length);
+      var contentsString = exports.Compiler_allocateString(contents.length);
       var bytes = stdlib.bytes;
 
       for (var i = 0, length = name.length; i < length; i++) {
@@ -151,7 +127,7 @@ function compileWebAssembly(code) {
       exports.Compiler_callAddInput(compiler, nameString, contentsString);
     });
 
-    exports.Compiler_callFinish(compiler);
+    var success = exports.Compiler_callFinish(compiler);
 
     var wasm = exports.Compiler_wasm(compiler);
     var wasmData = wasm && stdlib.ints[wasm >> 2];
@@ -167,6 +143,7 @@ function compileWebAssembly(code) {
       js: stdlib.extractLengthPrefixedString(exports.Compiler_js(compiler)) || '',
       c: stdlib.extractLengthPrefixedString(exports.Compiler_c(compiler)) || '',
       totalTime: totalTime,
+      success: success,
     };
   };
 }
@@ -193,7 +170,7 @@ function compileJavaScript(code) {
       });
     }
 
-    exports.Compiler_callFinish(compiler);
+    var success = exports.Compiler_callFinish(compiler);
     var wasm = exports.Compiler_wasm(compiler);
 
     var after = now();
@@ -206,6 +183,7 @@ function compileJavaScript(code) {
       js: exports.Compiler_js(compiler),
       c: exports.Compiler_c(compiler),
       totalTime: totalTime,
+      success: success,
     };
   };
 }
