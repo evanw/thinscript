@@ -9,6 +9,7 @@ class Source {
 
   // These are for internal use by the compiler
   next: Source;
+  isLibrary: bool;
   firstToken: Token;
   file: Node;
 

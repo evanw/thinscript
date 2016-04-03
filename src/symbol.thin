@@ -38,6 +38,7 @@ const SYMBOL_FLAG_IS_REFERENCE = 1 << 2;
 const SYMBOL_FLAG_IS_UNARY_OPERATOR = 1 << 3;
 const SYMBOL_FLAG_IS_UNSIGNED = 1 << 4;
 const SYMBOL_FLAG_NATIVE_INTEGER = 1 << 5;
+const SYMBOL_FLAG_USED = 1 << 6;
 
 class Symbol {
   kind: SymbolKind;
@@ -97,6 +98,10 @@ class Symbol {
 
   shouldConvertInstanceToGlobal(): bool {
     return (this.flags & SYMBOL_FLAG_CONVERT_INSTANCE_TO_GLOBAL) != 0;
+  }
+
+  isUsed(): bool {
+    return (this.flags & SYMBOL_FLAG_USED) != 0;
   }
 
   parent(): Symbol {

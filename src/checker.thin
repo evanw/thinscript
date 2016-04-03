@@ -1008,7 +1008,6 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
           else if (isSymbolAccessAllowed(context, symbol, node, node.internalRange)) {
             initializeSymbol(context, symbol);
-
             node.symbol = symbol;
             node.resolvedType = symbol.resolvedType;
 
@@ -1458,4 +1457,67 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   else {
     assert(false);
   }
+}
+
+function treeShakingMarkAllUsed(node: Node): void {
+  var symbol = node.symbol;
+  if (symbol != null && !symbol.isUsed() && symbol.node != null) {
+    symbol.flags = symbol.flags | SYMBOL_FLAG_USED;
+    treeShakingMarkAllUsed(symbol.node);
+  }
+
+  if (node.kind == NodeKind.NEW) {
+    var type = node.newType().resolvedType;
+    if (type.symbol != null) {
+      type.symbol.flags = type.symbol.flags | SYMBOL_FLAG_USED;
+    }
+  }
+
+  var child = node.firstChild;
+  while (child != null) {
+    treeShakingMarkAllUsed(child);
+    child = child.nextSibling;
+  }
+}
+
+function treeShakingSearchForUsed(node: Node): void {
+  if (node.kind == NodeKind.FUNCTION && node.isExtern()) {
+    treeShakingMarkAllUsed(node);
+  }
+
+  else if (node.kind == NodeKind.GLOBAL || node.kind == NodeKind.CLASS) {
+    var child = node.firstChild;
+    while (child != null) {
+      treeShakingSearchForUsed(child);
+      child = child.nextSibling;
+    }
+
+    if (node.kind == NodeKind.CLASS && node.isExtern()) {
+      node.symbol.flags = node.symbol.flags | SYMBOL_FLAG_USED;
+    }
+  }
+}
+
+function treeShakingRemoveUnused(node: Node): void {
+  if (node.kind == NodeKind.FUNCTION && !node.symbol.isUsed() && node.range.source.isLibrary) {
+    node.remove();
+  }
+
+  else if (node.kind == NodeKind.GLOBAL || node.kind == NodeKind.CLASS) {
+    var child = node.firstChild;
+    while (child != null) {
+      var next = child.nextSibling;
+      treeShakingRemoveUnused(child);
+      child = next;
+    }
+
+    if (node.kind == NodeKind.CLASS && !node.symbol.isUsed() && node.range.source.isLibrary) {
+      node.remove();
+    }
+  }
+}
+
+function treeShaking(node: Node): void {
+  treeShakingSearchForUsed(node);
+  treeShakingRemoveUnused(node);
 }

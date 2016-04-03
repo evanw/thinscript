@@ -19,7 +19,7 @@ declare class ushort {}
   unsafe var currentHeapPointer: uint = 0;
   unsafe var originalHeapPointer: uint = 0;
 
-  unsafe function malloc(sizeOf: uint): uint {
+  extern unsafe function malloc(sizeOf: uint): uint {
     // Align all allocations to 8 bytes
     var offset = (currentHeapPointer + 7) & ~7 as uint;
     sizeOf = (sizeOf + 7) & ~7 as uint;

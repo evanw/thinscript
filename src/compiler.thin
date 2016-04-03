@@ -24,6 +24,7 @@ class Compiler {
     this.preprocessor = new Preprocessor();
     this.target = target;
     this.librarySource = this.addInput("<native>", library());
+    this.librarySource.isLibrary = true;
     this.createGlobals();
 
     if (target == CompileTarget.C) {
@@ -135,6 +136,11 @@ class Compiler {
       return false;
     }
 
+    Profiler_begin();
+
+    treeShaking(global);
+
+    Profiler_end("shaking");
     Profiler_begin();
 
     if (this.target == CompileTarget.C) {
