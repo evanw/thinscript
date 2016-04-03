@@ -2054,74 +2054,6 @@
     }
   }
 
-  function treeShakingMarkAllUsed(node) {
-    var symbol = node.symbol;
-
-    if (symbol !== null && !symbol.isUsed() && symbol.node !== null) {
-      symbol.flags = symbol.flags | 64;
-      treeShakingMarkAllUsed(symbol.node);
-    }
-
-    if (node.kind === 26) {
-      var type = node.newType().resolvedType;
-
-      if (type.symbol !== null) {
-        type.symbol.flags = type.symbol.flags | 64;
-      }
-    }
-
-    var child = node.firstChild;
-
-    while (child !== null) {
-      treeShakingMarkAllUsed(child);
-      child = child.nextSibling;
-    }
-  }
-
-  function treeShakingSearchForUsed(node) {
-    if (node.kind === 11 && node.isExtern()) {
-      treeShakingMarkAllUsed(node);
-    }
-
-    else if (node.kind === 1 || node.kind === 5) {
-      var child = node.firstChild;
-
-      while (child !== null) {
-        treeShakingSearchForUsed(child);
-        child = child.nextSibling;
-      }
-
-      if (node.kind === 5 && node.isExtern()) {
-        node.symbol.flags = node.symbol.flags | 64;
-      }
-    }
-  }
-
-  function treeShakingRemoveUnused(node) {
-    if (node.kind === 11 && !node.symbol.isUsed() && node.range.source.isLibrary) {
-      node.remove();
-    }
-
-    else if (node.kind === 1 || node.kind === 5) {
-      var child = node.firstChild;
-
-      while (child !== null) {
-        var next = child.nextSibling;
-        treeShakingRemoveUnused(child);
-        child = next;
-      }
-
-      if (node.kind === 5 && !node.symbol.isUsed() && node.range.source.isLibrary) {
-        node.remove();
-      }
-    }
-  }
-
-  function treeShaking(node) {
-    treeShakingSearchForUsed(node);
-    treeShakingRemoveUnused(node);
-  }
-
   __extern.CompileTarget = {
     NONE: 0,
     C: 1,
@@ -6877,6 +6809,74 @@
 
     return symbol.resolvedType;
   };
+
+  function treeShakingMarkAllUsed(node) {
+    var symbol = node.symbol;
+
+    if (symbol !== null && !symbol.isUsed() && symbol.node !== null) {
+      symbol.flags = symbol.flags | 64;
+      treeShakingMarkAllUsed(symbol.node);
+    }
+
+    if (node.kind === 26) {
+      var type = node.newType().resolvedType;
+
+      if (type.symbol !== null) {
+        type.symbol.flags = type.symbol.flags | 64;
+      }
+    }
+
+    var child = node.firstChild;
+
+    while (child !== null) {
+      treeShakingMarkAllUsed(child);
+      child = child.nextSibling;
+    }
+  }
+
+  function treeShakingSearchForUsed(node) {
+    if (node.kind === 11 && node.isExtern()) {
+      treeShakingMarkAllUsed(node);
+    }
+
+    else if (node.kind === 1 || node.kind === 5) {
+      var child = node.firstChild;
+
+      while (child !== null) {
+        treeShakingSearchForUsed(child);
+        child = child.nextSibling;
+      }
+
+      if (node.kind === 5 && node.isExtern()) {
+        node.symbol.flags = node.symbol.flags | 64;
+      }
+    }
+  }
+
+  function treeShakingRemoveUnused(node) {
+    if (node.kind === 11 && !node.symbol.isUsed() && node.range.source.isLibrary) {
+      node.remove();
+    }
+
+    else if (node.kind === 1 || node.kind === 5) {
+      var child = node.firstChild;
+
+      while (child !== null) {
+        var next = child.nextSibling;
+        treeShakingRemoveUnused(child);
+        child = next;
+      }
+
+      if (node.kind === 5 && !node.symbol.isUsed() && !node.isDeclare() && node.range.source.isLibrary) {
+        node.remove();
+      }
+    }
+  }
+
+  function treeShaking(node) {
+    treeShakingSearchForUsed(node);
+    treeShakingRemoveUnused(node);
+  }
 
   var stringBuilderPool = null;
 
