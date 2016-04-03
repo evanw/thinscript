@@ -142,8 +142,8 @@ class CResult {
 
     else if (node.kind == NodeKind.INT) {
       code.append(node.resolvedType.isUnsigned()
-        ? string_uintToString(node.intValue as uint)
-        : string_intToString(node.intValue));
+        ? (node.intValue as uint).toString()
+        : node.intValue.toString());
     }
 
     else if (node.kind == NodeKind.STRING) {

@@ -104,9 +104,9 @@ class Diagnostic {
     builder
       .append(this.range.source.name)
       .appendChar(':')
-      .append(string_intToString(location.line + 1))
+      .append((location.line + 1).toString())
       .appendChar(':')
-      .append(string_intToString(location.column + 1))
+      .append((location.column + 1).toString())
       .append(": ");
   }
 

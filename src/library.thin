@@ -2,10 +2,8 @@ function library(): string {
   return `
 declare class bool {}
 declare class byte {}
-declare class int {}
 declare class sbyte {}
 declare class short {}
-declare class uint {}
 declare class ushort {}
 
 #if WASM
@@ -77,6 +75,59 @@ declare class ushort {}
         target = target + 1;
         source = source + 1;
       }
+    }
+  }
+
+  declare class int {
+    toString(): string {
+      // Special-case this to keep the rest of the code simple
+      if (this == -2147483648) {
+        return "-2147483648";
+      }
+
+      // Treat this like an unsigned integer prefixed by '-' if it's negative
+      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);
+    }
+  }
+
+  declare class uint {
+    toString(): string {
+      return internalIntToString(this, false);
+    }
+  }
+
+  function internalIntToString(value: uint, sign: bool): string {
+    // Avoid allocation for common cases
+    if (value == 0) return "0";
+    if (value == 1) return sign ? "-1" : "1";
+
+    unsafe {
+      // Determine how many digits we need
+      var length = ((sign ? 1 : 0) + (
+        value >= 100000000 ?
+          value >= 1000000000 ? 10 : 9 :
+        value >= 10000 ?
+          value >= 1000000 ?
+            value >= 10000000 ? 8 : 7 :
+            value >= 100000 ? 6 : 5 :
+          value >= 100 ?
+            value >= 1000 ? 4 : 3 :
+            value >= 10 ? 2 : 1)) as uint;
+
+      var ptr = string_new(length) as uint;
+      var end = ptr + 4 + length;
+
+      if (sign) {
+        ((ptr + 4) as BytePtr).value = '-';
+      }
+
+      while (value != 0) {
+        end = end - 1;
+        (end as BytePtr).value = (value % 10 + '0') as byte;
+        value = value / 10;
+      }
+
+      return ptr as string;
     }
   }
 
@@ -171,6 +222,14 @@ declare class ushort {}
   }
 
 #else
+
+  declare class int {
+    toString(): string;
+  }
+
+  declare class uint {
+    toString(): string;
+  }
 
   declare class string {
     charAt(index: int): string;

@@ -140,8 +140,8 @@ class JsResult {
 
     else if (node.kind == NodeKind.INT) {
       code.append(node.resolvedType.isUnsigned()
-        ? string_uintToString(node.intValue as uint)
-        : string_intToString(node.intValue));
+        ? (node.intValue as uint).toString()
+        : node.intValue.toString());
     }
 
     else if (node.kind == NodeKind.STRING) {
@@ -166,7 +166,7 @@ class JsResult {
             code.appendChar('(');
           }
 
-          var shift = string_intToString(32 - type.symbol.byteSize * 8);
+          var shift = (32 - type.symbol.byteSize * 8).toString();
           this.emitExpression(value, Precedence.SHIFT);
           code.append(" << ");
           code.append(shift);
@@ -186,7 +186,7 @@ class JsResult {
 
           this.emitExpression(value, Precedence.BITWISE_AND);
           code.append(" & ");
-          code.append(string_uintToString(type.integerBitMask()));
+          code.append(type.integerBitMask().toString());
 
           if (parentPrecedence > Precedence.BITWISE_AND) {
             code.appendChar(')');
@@ -580,7 +580,7 @@ class JsResult {
           this.emitIndent();
           this.emitSymbolName(child.symbol);
           code.append(": ");
-          code.append(string_intToString(child.symbol.offset));
+          code.append(child.symbol.offset.toString());
           child = child.nextSibling;
           code.append(child != null ? ",\n" : "\n");
         }
