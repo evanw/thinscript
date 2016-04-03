@@ -198,6 +198,10 @@ extern function Compiler_log(compiler: Compiler): string {
 }
 
 #if WASM
+  extern unsafe function Compiler_allocateString(length: uint): string {
+    return string_new(length);
+  }
+
   extern unsafe function Compiler_resetHeapPointer(): void {
     currentHeapPointer = originalHeapPointer; // Reset the heap
     stringBuilderPool = null;

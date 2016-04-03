@@ -1,8 +1,9 @@
 function treeShakingMarkAllUsed(node: Node): void {
   var symbol = node.symbol;
-  if (symbol != null && !symbol.isUsed() && symbol.node != null) {
+  if (symbol != null && !symbol.isUsed() && isFunction(symbol.kind) && symbol.node != null) {
     symbol.flags = symbol.flags | SYMBOL_FLAG_USED;
     treeShakingMarkAllUsed(symbol.node);
+    if (node == symbol.node) return;
   }
 
   if (node.kind == NodeKind.NEW) {

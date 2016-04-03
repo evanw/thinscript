@@ -124,8 +124,8 @@ function compileWebAssembly(code) {
     sources.forEach(function(source) {
       var name = source.name;
       var contents = source.contents;
-      var nameString = exports.string_new(name.length);
-      var contentsString = exports.string_new(contents.length);
+      var nameString = exports.Compiler_allocateString(name.length);
+      var contentsString = exports.Compiler_allocateString(contents.length);
       var bytes = stdlib.bytes;
 
       for (var i = 0, length = name.length; i < length; i++) {

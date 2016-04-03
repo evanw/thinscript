@@ -80,7 +80,7 @@ declare class ushort {}
     }
   }
 
-  extern function string_new(length: uint): string {
+  function string_new(length: uint): string {
     unsafe {
       var ptr = malloc(4 + length);
       (ptr as UIntPtr).value = length;
