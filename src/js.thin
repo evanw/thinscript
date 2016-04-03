@@ -139,9 +139,17 @@ class JsResult {
     }
 
     else if (node.kind == NodeKind.INT) {
+      if (parentPrecedence == Precedence.MEMBER) {
+        code.appendChar('(');
+      }
+
       code.append(node.resolvedType.isUnsigned()
         ? (node.intValue as uint).toString()
         : node.intValue.toString());
+
+      if (parentPrecedence == Precedence.MEMBER) {
+        code.appendChar(')');
+      }
     }
 
     else if (node.kind == NodeKind.STRING) {

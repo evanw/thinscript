@@ -1,11 +1,5 @@
 function library(): string {
   return `
-declare class bool {}
-declare class byte {}
-declare class sbyte {}
-declare class short {}
-declare class ushort {}
-
 #if WASM
 
   // Cast to these to read from and write to arbitrary locations in memory
@@ -75,6 +69,36 @@ declare class ushort {}
         target = target + 1;
         source = source + 1;
       }
+    }
+  }
+
+  declare class bool {
+    toString(): string {
+      return this ? "true" : "false";
+    }
+  }
+
+  declare class sbyte {
+    toString(): string {
+      return (this as int).toString();
+    }
+  }
+
+  declare class byte {
+    toString(): string {
+      return (this as uint).toString();
+    }
+  }
+
+  declare class short {
+    toString(): string {
+      return (this as int).toString();
+    }
+  }
+
+  declare class ushort {
+    toString(): string {
+      return (this as uint).toString();
     }
   }
 
@@ -222,6 +246,26 @@ declare class ushort {}
   }
 
 #else
+
+  declare class bool {
+    toString(): string;
+  }
+
+  declare class sbyte {
+    toString(): string;
+  }
+
+  declare class byte {
+    toString(): string;
+  }
+
+  declare class short {
+    toString(): string;
+  }
+
+  declare class ushort {
+    toString(): string;
+  }
 
   declare class int {
     toString(): string;
