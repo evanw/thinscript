@@ -134,15 +134,15 @@ function library(): string {
             value >= 10 ? 2 : 1)) as uint;
 
       var ptr = string_new(length) as uint;
-      var end = ptr + 4 + length;
+      var end = ptr + 4 + length * 2;
 
       if (sign) {
-        *((ptr + 4) as *byte) = '-';
+        *((ptr + 4) as *ushort) = '-';
       }
 
       while (value != 0) {
-        end = end - 1;
-        *(end as *byte) = (value % 10 + '0') as byte;
+        end = end - 2;
+        *(end as *ushort) = (value % 10 + '0') as ushort;
         value = value / 10;
       }
 
@@ -152,7 +152,7 @@ function library(): string {
 
   function string_new(length: uint): string {
     unsafe {
-      var ptr = malloc(4 + length);
+      var ptr = malloc(4 + length * 2);
       *(ptr as *uint) = length;
       return ptr as string;
     }
@@ -163,7 +163,7 @@ function library(): string {
       return this.slice(index, index + 1);
     }
 
-    charCodeAt(index: int): int {
+    charCodeAt(index: int): ushort {
       return this[index];
     }
 
@@ -173,10 +173,10 @@ function library(): string {
       }
     }
 
-    operator [] (index: int): int {
+    operator [] (index: int): ushort {
       if (index as uint < this.length as uint) {
         unsafe {
-          return *((this as int + index + 4) as *byte);
+          return *((this as int + index * 2 + 4) as *ushort);
         }
       }
       return 0;
@@ -197,7 +197,7 @@ function library(): string {
         // Check the content next
         var ai = this as uint + 4;
         var bi = other as uint + 4;
-        var an = ai + (length & ~3) as uint;
+        var an = ai + ((length * 2) & ~3) as uint;
 
         // Compare 32-bit values for speed (4-byte alignment is manditory)
         while (ai < an) {
@@ -208,14 +208,9 @@ function library(): string {
           bi = bi + 4;
         }
 
-        // Compare trailing 8-bit values
-        an = ai + length as uint % 4;
-        while (ai < an) {
-          if (*(ai as *byte) != *(bi as *byte)) {
-            return false;
-          }
-          ai = ai + 1;
-          bi = bi + 1;
+        // Compare trailing 16-bit values
+        if (length as uint % 2 != 0 && *(ai as *ushort) != *(bi as *ushort)) {
+          return false;
         }
       }
 
@@ -234,7 +229,7 @@ function library(): string {
       unsafe {
         var length = (end - start) as uint;
         var ptr = string_new(length);
-        memcpy(ptr as uint + 4, this as uint + 4 + start as uint, length);
+        memcpy(ptr as uint + 4, this as uint + 4 + start as uint * 2, length * 2);
         return ptr;
       }
     }

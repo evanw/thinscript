@@ -39,7 +39,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
 
 #if JS ////////////////////////////////////////////////////////////////////////////////
 
-  declare function StringBuilder_appendChar(a: string, b: byte): string;
+  declare function StringBuilder_appendChar(a: string, b: ushort): string;
   declare function StringBuilder_append(a: string, b: string): string;
 
   class StringBuilder {
@@ -50,7 +50,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       this._text = "";
     }
 
-    appendChar(c: byte): StringBuilder {
+    appendChar(c: ushort): StringBuilder {
       this._text = StringBuilder_appendChar(this._text, c);
       return this;
     }
@@ -89,8 +89,9 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       }
     }
 
-    appendChar(c: byte): StringBuilder {
-      this._bytes.append(c);
+    appendChar(c: ushort): StringBuilder {
+      this._bytes.append(c as byte);
+      this._bytes.append((c >> 8) as byte);
       return this;
     }
 
@@ -104,8 +105,8 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       var index = bytes._length;
       var length = text.length;
       unsafe {
-        bytes.resize(index as int + length);
-        memcpy(bytes._data + index, text as uint + 4, length as uint);
+        bytes.resize(index as int + length * 2);
+        memcpy(bytes._data + index, text as uint + 4, length as uint * 2);
       }
       return this;
     }
@@ -116,9 +117,9 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       stringBuilderPool = this;
       unsafe {
         var bytes = this._bytes;
-        var length = bytes._length;
+        var length = bytes._length as uint / 2;
         var ptr = string_new(length);
-        memcpy(ptr as uint + 4, bytes._data, length);
+        memcpy(ptr as uint + 4, bytes._data, length * 2);
         return ptr;
       }
     }

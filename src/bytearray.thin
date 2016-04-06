@@ -31,11 +31,14 @@ function ByteArray_append32(array: ByteArray, value: int): void {
 
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
     var length = text.length;
-    assert(index >= 0 && index + length <= array.length());
+    assert(index >= 0 && index + length * 2 <= array.length());
     var data = array._data;
     var i = 0;
     while (i < length) {
-      data[index + i] = text[i] as byte;
+      var c = text[i];
+      data[index] = c as byte;
+      data[index + 1] = (c >> 8) as byte;
+      index = index + 2;
       i = i + 1;
     }
   }
@@ -90,8 +93,8 @@ function ByteArray_append32(array: ByteArray, value: int): void {
   function ByteArray_setString(array: ByteArray, index: int, text: string): void {
     var length = text.length;
     unsafe {
-      assert(index >= 0 && index + length as int <= array.length());
-      memcpy(array._data + index as uint, text as uint + 4, length as uint);
+      assert(index >= 0 && index + length * 2 <= array.length());
+      memcpy(array._data + index as uint, text as uint + 4, length as uint * 2);
     }
   }
 

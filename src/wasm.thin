@@ -382,8 +382,8 @@ class WasmModule {
     var current = this.firstImport;
     while (current != null) {
       wasmWriteVarUnsigned(array, current.signatureIndex);
-      wasmWriteLengthPrefixedString(array, current.module);
-      wasmWriteLengthPrefixedString(array, current.name);
+      wasmWriteLengthPrefixedASCII(array, current.module);
+      wasmWriteLengthPrefixedASCII(array, current.name);
       current = current.next;
     }
 
@@ -436,7 +436,7 @@ class WasmModule {
     while (fn != null) {
       if (fn.isExported) {
         wasmWriteVarUnsigned(array, i);
-        wasmWriteLengthPrefixedString(array, fn.name);
+        wasmWriteLengthPrefixedASCII(array, fn.name);
       }
       fn = fn.next;
       i = i + 1;
@@ -512,7 +512,7 @@ class WasmModule {
     if (node.kind == NodeKind.STRING) {
       var text = node.stringValue;
       var length = text.length;
-      var offset = this.context.allocateGlobalVariableOffset(length + 4, 4);
+      var offset = this.context.allocateGlobalVariableOffset(length * 2 + 4, 4);
       node.intValue = offset;
       this.growMemoryInitializer();
       var memoryInitializer = this.memoryInitializer;
@@ -1160,18 +1160,22 @@ function wasmWriteVarSigned(array: ByteArray, value: int): void {
   }
 }
 
-function wasmWriteLengthPrefixedString(array: ByteArray, value: string): void {
+function wasmWriteLengthPrefixedASCII(array: ByteArray, value: string): void {
   var length = value.length;
   wasmWriteVarUnsigned(array, length);
   var index = array.length();
   array.resize(index + length);
-  ByteArray_setString(array, index, value);
+  var i = 0;
+  while (i < length) {
+    array.set(index + i, value[i] as byte);
+    i = i + 1;
+  }
 }
 
 function wasmStartSection(array: ByteArray, name: string): int {
   var offset = array.length();
   wasmWriteVarUnsigned(array, ~0); // Section length, will be filled in later
-  wasmWriteLengthPrefixedString(array, name);
+  wasmWriteLengthPrefixedASCII(array, name);
   return offset;
 }
 
