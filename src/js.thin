@@ -49,7 +49,9 @@ class JsResult {
 
   emitUnary(node: Node, parentPrecedence: Precedence, operator: string): void {
     var isPostfix = isUnaryPostfix(node.kind);
-    var operatorPrecedence = isPostfix ? Precedence.UNARY_POSTFIX : Precedence.UNARY_PREFIX;
+    var shouldCastToInt = node.kind == NodeKind.NEGATIVE && !jsKindCastsOperandsToInt(node.parent.kind);
+    var isUnsigned = node.isUnsignedOperator();
+    var operatorPrecedence = shouldCastToInt ? isUnsigned ? Precedence.SHIFT : Precedence.BITWISE_OR : isPostfix ? Precedence.UNARY_POSTFIX : Precedence.UNARY_PREFIX;
     var code = this.code;
 
     if (parentPrecedence > operatorPrecedence) {
@@ -66,6 +68,10 @@ class JsResult {
       code.append(operator);
     }
 
+    if (shouldCastToInt) {
+      code.append(isUnsigned ? " >>> 0" : " | 0");
+    }
+
     if (parentPrecedence > operatorPrecedence) {
       code.appendChar(')');
     }
@@ -73,14 +79,11 @@ class JsResult {
 
   emitBinary(node: Node, parentPrecedence: Precedence, operator: string, operatorPrecedence: Precedence, mode: EmitBinary): void {
     var isRightAssociative = node.kind == NodeKind.ASSIGN;
-    var parentKind = node.parent.kind;
     var isUnsigned = node.isUnsignedOperator();
     var code = this.code;
 
     // Avoid casting when the parent operator already does a cast
-    var shouldCastToInt = mode == EmitBinary.CAST_TO_INT && (isUnsigned ||
-      parentKind != NodeKind.SHIFT_LEFT && parentKind != NodeKind.SHIFT_RIGHT &&
-      parentKind != NodeKind.BITWISE_OR && parentKind != NodeKind.BITWISE_AND && parentKind != NodeKind.BITWISE_XOR);
+    var shouldCastToInt = mode == EmitBinary.CAST_TO_INT && (isUnsigned || !jsKindCastsOperandsToInt(node.parent.kind));
     var selfPrecedence = shouldCastToInt ? isUnsigned ? Precedence.SHIFT : Precedence.BITWISE_OR : parentPrecedence;
 
     if (parentPrecedence > selfPrecedence) {
@@ -609,6 +612,12 @@ class JsResult {
       assert(false);
     }
   }
+}
+
+function jsKindCastsOperandsToInt(kind: NodeKind): bool {
+  return
+    kind == NodeKind.SHIFT_LEFT || kind == NodeKind.SHIFT_RIGHT ||
+    kind == NodeKind.BITWISE_OR || kind == NodeKind.BITWISE_AND || kind == NodeKind.BITWISE_XOR;
 }
 
 function jsEmit(global: Node, context: CheckContext): string {

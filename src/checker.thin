@@ -1336,7 +1336,12 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
 
     // Special-case integer types
     else if (value.resolvedType.isInteger()) {
-      node.resolvedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
+      if (value.resolvedType.isUnsigned()) {
+        node.flags = node.flags | NODE_FLAG_UNSIGNED_OPERATOR;
+        node.resolvedType = context.uintType;
+      } else {
+        node.resolvedType = context.intType;
+      }
 
       // Automatically fold constants
       if (value.kind == NodeKind.INT) {

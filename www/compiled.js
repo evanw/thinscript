@@ -618,6 +618,7 @@
     var code = this.code;
     code.append("#include <stdint.h>\n");
     code.append("#include <stdlib.h>\n");
+    code.append("#include <string.h>\n");
   };
 
   CResult.prototype.emitTypeDeclarations = function(node) {
@@ -669,36 +670,43 @@
     }
   };
 
+  CResult.prototype.shouldEmitFunction = function(symbol) {
+    return symbol.kind !== 5 || symbol.name !== "malloc" && symbol.name !== "memcpy";
+  };
+
   CResult.prototype.emitFunctionDeclarations = function(node) {
     var code = this.code;
 
     while (node !== null) {
       if (node.kind === 11) {
         var symbol = node.symbol;
-        var returnType = node.functionReturnType();
-        var child = node.firstChild;
-        this.emitNewlineBefore(node);
 
-        if (!node.isDeclareOrExtern()) {
-          code.append("static ");
-        }
+        if (this.shouldEmitFunction(symbol)) {
+          var returnType = node.functionReturnType();
+          var child = node.firstChild;
+          this.emitNewlineBefore(node);
 
-        this.emitType(returnType.resolvedType, 1);
-        this.emitSymbolName(symbol);
-        code.appendChar(40);
-
-        while (child !== returnType) {
-          __declare.assert(child.kind === 2);
-          this.emitType(child.symbol.resolvedType, 1);
-          this.emitSymbolName(child.symbol);
-          child = child.nextSibling;
-
-          if (child !== returnType) {
-            code.append(", ");
+          if (!node.isDeclareOrExtern()) {
+            code.append("static ");
           }
-        }
 
-        code.append(");\n");
+          this.emitType(returnType.resolvedType, 1);
+          this.emitSymbolName(symbol);
+          code.appendChar(40);
+
+          while (child !== returnType) {
+            __declare.assert(child.kind === 2);
+            this.emitType(child.symbol.resolvedType, 1);
+            this.emitSymbolName(child.symbol);
+            child = child.nextSibling;
+
+            if (child !== returnType) {
+              code.append(", ");
+            }
+          }
+
+          code.append(");\n");
+        }
       }
 
       else if (node.kind === 5) {
@@ -742,9 +750,9 @@
     while (node !== null) {
       if (node.kind === 11) {
         var body = node.functionBody();
+        var symbol = node.symbol;
 
-        if (body !== null) {
-          var symbol = node.symbol;
+        if (body !== null && this.shouldEmitFunction(symbol)) {
           var returnType = node.functionReturnType();
           var child = node.firstChild;
           this.emitNewlineBefore(node);
@@ -1383,7 +1391,7 @@
 
     else if (node.kind === 44 && right.isNegativeInteger()) {
       node.kind = 63;
-      right.intValue = -right.intValue;
+      right.intValue = -right.intValue | 0;
     }
   }
 
@@ -1964,7 +1972,14 @@
       }
 
       else if (value.resolvedType.isInteger()) {
-        node.resolvedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
+        if (value.resolvedType.isUnsigned()) {
+          node.flags = node.flags | 4096;
+          node.resolvedType = context.uintType;
+        }
+
+        else {
+          node.resolvedType = context.intType;
+        }
 
         if (value.kind === 24) {
           var input = value.intValue;
@@ -1975,7 +1990,7 @@
           }
 
           else if (kind === 36) {
-            output = -input;
+            output = -input | 0;
           }
 
           node.becomeIntegerConstant(output);
@@ -2421,7 +2436,9 @@
 
   JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
     var isPostfix = isUnaryPostfix(node.kind);
-    var operatorPrecedence = isPostfix ? 14 : 13;
+    var shouldCastToInt = node.kind === 36 && !jsKindCastsOperandsToInt(node.parent.kind);
+    var isUnsigned = node.isUnsignedOperator();
+    var operatorPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : isPostfix ? 14 : 13;
     var code = this.code;
 
     if (parentPrecedence > operatorPrecedence) {
@@ -2438,6 +2455,10 @@
       code.append(operator);
     }
 
+    if (shouldCastToInt) {
+      code.append(isUnsigned ? " >>> 0" : " | 0");
+    }
+
     if (parentPrecedence > operatorPrecedence) {
       code.appendChar(41);
     }
@@ -2445,10 +2466,9 @@
 
   JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
     var isRightAssociative = node.kind === 45;
-    var parentKind = node.parent.kind;
     var isUnsigned = node.isUnsignedOperator();
     var code = this.code;
-    var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 61 && parentKind !== 62 && parentKind !== 47 && parentKind !== 46 && parentKind !== 48);
+    var shouldCastToInt = mode === 1 && (isUnsigned || !jsKindCastsOperandsToInt(node.parent.kind));
     var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
 
     if (parentPrecedence > selfPrecedence) {
@@ -3057,6 +3077,10 @@
       __declare.assert(false);
     }
   };
+
+  function jsKindCastsOperandsToInt(kind) {
+    return kind === 61 || kind === 62 || kind === 47 || kind === 46 || kind === 48;
+  }
 
   function jsEmit(global, context) {
     var code = StringBuilder_new();
@@ -4066,7 +4090,7 @@
   }
 
   function library() {
-    return "\n#if WASM\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: *byte = null;\n  unsafe var originalHeapPointer: *byte = null;\n\n  extern unsafe function malloc(sizeOf: uint): *byte {\n    // Align all allocations to 8 bytes\n    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      *(ptr as *int) = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == null || target == null) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {\n      // Pick off the beginning\n      while ((target as uint) % 4 != 0) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        *(target + length) = *(source + length);\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        *(target as *int) = *(source as *int);\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as uint;\n      var end = ptr + 4 + length * 2;\n\n      if (sign) {\n        *((ptr + 4) as *ushort) = '-';\n      }\n\n      while (value != 0) {\n        end = end - 2;\n        *(end as *ushort) = (value % 10 + '0') as ushort;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length * 2);\n      *(ptr as *uint) = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): ushort {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return *(this as *int);\n      }\n    }\n\n    operator [] (index: int): ushort {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return *((this as *byte + 4 + index * 2) as *ushort);\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as *byte == other as *byte) return true;\n        if (this as *byte == null || other as *byte == null) return false;\n\n        var length = this.length;\n\n        // Check the length first\n        if (length != other.length) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as *byte + 4;\n        var bi = other as *byte + 4;\n        var an = ai + ((length * 2) & ~3) as uint;\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if (*(ai as *int) != *(bi as *int)) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 16-bit values\n        if (length as uint % 2 != 0 && *(ai as *ushort) != *(bi as *ushort)) {\n          return false;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, length * 2);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): int;\n    get length(): int;\n    operator [] (index: int): int { return this.charCodeAt(index); }\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
+    return "\n#if WASM\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: *byte = null;\n  unsafe var originalHeapPointer: *byte = null;\n\n  extern unsafe function malloc(sizeOf: uint): *byte {\n    // Align all allocations to 8 bytes\n    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      *(ptr as *int) = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == null || target == null) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {\n      // Pick off the beginning\n      while ((target as uint) % 4 != 0) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        *(target + length) = *(source + length);\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        *(target as *int) = *(source as *int);\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n#elif C\n\n  declare unsafe function malloc(sizeOf: uint): *byte;\n  declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;\n\n#endif\n\n#if WASM || C\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as uint;\n      var end = ptr + 4 + length * 2;\n\n      if (sign) {\n        *((ptr + 4) as *ushort) = '-';\n      }\n\n      while (value != 0) {\n        end = end - 2;\n        *(end as *ushort) = (value % 10 + '0') as ushort;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length * 2);\n      *(ptr as *uint) = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): ushort {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return *(this as *int);\n      }\n    }\n\n    operator [] (index: int): ushort {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return *((this as *byte + 4 + index * 2) as *ushort);\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as *byte == other as *byte) return true;\n        if (this as *byte == null || other as *byte == null) return false;\n\n        var length = this.length;\n\n        // Check the length first\n        if (length != other.length) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as *byte + 4;\n        var bi = other as *byte + 4;\n        var an = ai + ((length * 2) & ~3) as uint;\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if (*(ai as *int) != *(bi as *int)) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 16-bit values\n        if (length as uint % 2 != 0 && *(ai as *ushort) != *(bi as *ushort)) {\n          return false;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, length * 2);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): int;\n    get length(): int;\n    operator [] (index: int): int { return this.charCodeAt(index); }\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {

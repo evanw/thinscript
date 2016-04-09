@@ -414,6 +414,7 @@ class CResult {
     var code = this.code;
     code.append("#include <stdint.h>\n"); // Need "int32_t" and friends
     code.append("#include <stdlib.h>\n"); // Need "NULL" and "calloc"
+    code.append("#include <string.h>\n"); // Need "memcpy"
   }
 
   emitTypeDeclarations(node: Node): void {
@@ -465,34 +466,41 @@ class CResult {
     }
   }
 
+  shouldEmitFunction(symbol: Symbol): bool {
+    return symbol.kind != SymbolKind.FUNCTION_GLOBAL || symbol.name != "malloc" && symbol.name != "memcpy";
+  }
+
   emitFunctionDeclarations(node: Node): void {
     var code = this.code;
 
     while (node != null) {
       if (node.kind == NodeKind.FUNCTION) {
         var symbol = node.symbol;
-        var returnType = node.functionReturnType();
-        var child = node.firstChild;
 
-        this.emitNewlineBefore(node);
-        if (!node.isDeclareOrExtern()) {
-          code.append("static ");
-        }
-        this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
-        this.emitSymbolName(symbol);
-        code.appendChar('(');
+        if (this.shouldEmitFunction(symbol)) {
+          var returnType = node.functionReturnType();
+          var child = node.firstChild;
 
-        while (child != returnType) {
-          assert(child.kind == NodeKind.VARIABLE);
-          this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
-          this.emitSymbolName(child.symbol);
-          child = child.nextSibling;
-          if (child != returnType) {
-            code.append(", ");
+          this.emitNewlineBefore(node);
+          if (!node.isDeclareOrExtern()) {
+            code.append("static ");
           }
-        }
+          this.emitType(returnType.resolvedType, TypeMode.DECLARATION);
+          this.emitSymbolName(symbol);
+          code.appendChar('(');
 
-        code.append(");\n");
+          while (child != returnType) {
+            assert(child.kind == NodeKind.VARIABLE);
+            this.emitType(child.symbol.resolvedType, TypeMode.DECLARATION);
+            this.emitSymbolName(child.symbol);
+            child = child.nextSibling;
+            if (child != returnType) {
+              code.append(", ");
+            }
+          }
+
+          code.append(");\n");
+        }
       }
 
       else if (node.kind == NodeKind.CLASS) {
@@ -534,8 +542,9 @@ class CResult {
     while (node != null) {
       if (node.kind == NodeKind.FUNCTION) {
         var body = node.functionBody();
-        if (body != null) {
-          var symbol = node.symbol;
+        var symbol = node.symbol;
+
+        if (body != null && this.shouldEmitFunction(symbol)) {
           var returnType = node.functionReturnType();
           var child = node.firstChild;
 

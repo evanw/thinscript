@@ -67,6 +67,15 @@ function library(): string {
     }
   }
 
+#elif C
+
+  declare unsafe function malloc(sizeOf: uint): *byte;
+  declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;
+
+#endif
+
+#if WASM || C
+
   declare class bool {
     toString(): string {
       return this ? "true" : "false";
