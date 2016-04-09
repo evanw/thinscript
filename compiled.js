@@ -24,12 +24,15 @@
 
   function ByteArray_setString(array, index, text) {
     var length = text.length;
-    __declare.assert(index >= 0 && (index + length | 0) <= array.length());
+    __declare.assert(index >= 0 && (index + (length << 1) | 0) <= array.length());
     var data = array._data;
     var i = 0;
 
     while (i < length) {
-      data[index + i | 0] = string_op_get(text, i) & 255;
+      var c = string_op_get(text, i);
+      data[index] = c & 255;
+      data[index + 1 | 0] = c >>> 8 & 255;
+      index = index + 2 | 0;
       i = i + 1 | 0;
     }
   }
@@ -86,8 +89,11 @@
   function CResult() {
     this.context = null;
     this.code = null;
+    this.codePrefix = null;
     this.indent = 0;
+    this.hasStrings = false;
     this.previousNode = null;
+    this.nextStringLiteral = 0;
   }
 
   CResult.prototype.emitIndent = function() {
@@ -200,6 +206,41 @@
     this.code.append(symbol.rename !== null ? symbol.rename : symbol.name);
   };
 
+  CResult.prototype.emitCharacter = function(c) {
+    var codePrefix = this.codePrefix;
+
+    if (isASCII(c)) {
+      codePrefix.appendChar(39);
+
+      if (c === 92 || c === 39) {
+        codePrefix.appendChar(92);
+      }
+
+      codePrefix.appendChar(c);
+      codePrefix.appendChar(39);
+    }
+
+    else if (c === 0) {
+      codePrefix.append("'\\0'");
+    }
+
+    else if (c === 13) {
+      codePrefix.append("'\\r'");
+    }
+
+    else if (c === 10) {
+      codePrefix.append("'\\n'");
+    }
+
+    else if (c === 9) {
+      codePrefix.append("'\\t'");
+    }
+
+    else {
+      codePrefix.append(c.toString());
+    }
+  };
+
   CResult.prototype.emitExpression = function(node, parentPrecedence) {
     var code = this.code;
     __declare.assert(node.resolvedType !== null);
@@ -221,7 +262,65 @@
     }
 
     else if (node.kind === 30) {
-      StringBuilder_appendQuoted(code, node.stringValue);
+      var id = this.nextStringLiteral;
+      var builder = StringBuilder_new();
+      builder.append("__string_").append(id.toString());
+      var value = node.stringValue;
+      var codePrefix = this.codePrefix;
+      var length = value.length;
+      var i = 0;
+
+      if (!this.hasStrings) {
+        codePrefix.append("\n#ifdef THINSCRIPT_BIG_ENDIAN\n  #define S(a, b) (((a) << 16) | (b))\n#else\n  #define S(a, b) ((a) | ((b) << 16))\n#endif\n\n");
+        this.hasStrings = true;
+      }
+
+      var underscore = true;
+      i = 0;
+
+      while (i < length && i < 32) {
+        var c = string_op_get(value, i);
+
+        if (isAlpha(c) || isNumber(c)) {
+          if (underscore) {
+            builder.appendChar(95);
+            underscore = false;
+          }
+
+          builder.appendChar(c);
+        }
+
+        else {
+          underscore = true;
+        }
+
+        i = i + 1 | 0;
+      }
+
+      var name = builder.finish();
+      codePrefix.append("static const uint32_t ").append(name).append("[] = {").append(length.toString());
+      i = 0;
+
+      while (i < length) {
+        codePrefix.append(", S(");
+        this.emitCharacter(string_op_get(value, i));
+
+        if ((i + 1 | 0) < length) {
+          codePrefix.append(", ");
+          this.emitCharacter(string_op_get(value, i + 1 | 0));
+          codePrefix.appendChar(41);
+        }
+
+        else {
+          codePrefix.append(", 0)");
+        }
+
+        i = i + 2 | 0;
+      }
+
+      codePrefix.append("};\n");
+      this.nextStringLiteral = this.nextStringLiteral + 1 | 0;
+      code.append("(const uint16_t *)").append(name);
     }
 
     else if (node.kind === 20) {
@@ -289,6 +388,10 @@
       this.emitUnary(node, parentPrecedence, "~");
     }
 
+    else if (node.kind === 35) {
+      this.emitUnary(node, parentPrecedence, "*");
+    }
+
     else if (node.kind === 36) {
       this.emitUnary(node, parentPrecedence, "-");
     }
@@ -301,11 +404,7 @@
       this.emitUnary(node, parentPrecedence, "+");
     }
 
-    else if (node.kind === 43) {
-      this.emitUnary(node, parentPrecedence, "++");
-    }
-
-    else if (node.kind === 42) {
+    else if (node.kind === 40) {
       this.emitUnary(node, parentPrecedence, "--");
     }
 
@@ -313,8 +412,12 @@
       this.emitUnary(node, parentPrecedence, "++");
     }
 
-    else if (node.kind === 40) {
+    else if (node.kind === 42) {
       this.emitUnary(node, parentPrecedence, "--");
+    }
+
+    else if (node.kind === 43) {
+      this.emitUnary(node, parentPrecedence, "++");
     }
 
     else if (node.kind === 44) {
@@ -404,10 +507,20 @@
     return node.symbol.kind === 0 && node.symbol !== this.context.stringType.symbol;
   };
 
-  CResult.prototype.emitType = function(type, mode) {
+  CResult.prototype.emitType = function(originalType, mode) {
     var context = this.context;
     var code = this.code;
-    type = type.underlyingType(this.context);
+    var type = originalType;
+
+    if (type.isEnum()) {
+      type = type.underlyingType(this.context);
+    }
+
+    else {
+      while (type.pointerTo !== null) {
+        type = type.pointerTo;
+      }
+    }
 
     if (type.isClass()) {
       code.append("struct ");
@@ -430,7 +543,7 @@
     }
 
     else if (type === context.stringType) {
-      code.append("const char");
+      code.append("const uint16_t");
     }
 
     else if (type === context.uintType) {
@@ -445,7 +558,16 @@
       this.emitSymbolName(type.symbol);
     }
 
-    if (mode !== 2) {
+    if (originalType.pointerTo !== null) {
+      code.appendChar(32);
+
+      while (originalType.pointerTo !== null) {
+        code.appendChar(42);
+        originalType = originalType.pointerTo;
+      }
+    }
+
+    else if (mode !== 2) {
       if (type.isReference()) {
         code.append(" *");
       }
@@ -589,9 +711,10 @@
   };
 
   CResult.prototype.emitIncludes = function() {
-    var code = this.code;
+    var code = this.codePrefix;
     code.append("#include <stdint.h>\n");
     code.append("#include <stdlib.h>\n");
+    code.append("#include <string.h>\n");
   };
 
   CResult.prototype.emitTypeDeclarations = function(node) {
@@ -643,36 +766,43 @@
     }
   };
 
+  CResult.prototype.shouldEmitFunction = function(symbol) {
+    return symbol.kind !== 5 || symbol.name !== "malloc" && symbol.name !== "memcpy";
+  };
+
   CResult.prototype.emitFunctionDeclarations = function(node) {
     var code = this.code;
 
     while (node !== null) {
       if (node.kind === 11) {
         var symbol = node.symbol;
-        var returnType = node.functionReturnType();
-        var child = node.firstChild;
-        this.emitNewlineBefore(node);
 
-        if (!node.isDeclareOrExtern()) {
-          code.append("static ");
-        }
+        if (this.shouldEmitFunction(symbol)) {
+          var returnType = node.functionReturnType();
+          var child = node.firstChild;
+          this.emitNewlineBefore(node);
 
-        this.emitType(returnType.resolvedType, 1);
-        this.emitSymbolName(symbol);
-        code.appendChar(40);
-
-        while (child !== returnType) {
-          __declare.assert(child.kind === 2);
-          this.emitType(child.symbol.resolvedType, 1);
-          this.emitSymbolName(child.symbol);
-          child = child.nextSibling;
-
-          if (child !== returnType) {
-            code.append(", ");
+          if (!node.isDeclareOrExtern()) {
+            code.append("static ");
           }
-        }
 
-        code.append(");\n");
+          this.emitType(returnType.resolvedType, 1);
+          this.emitSymbolName(symbol);
+          code.appendChar(40);
+
+          while (child !== returnType) {
+            __declare.assert(child.kind === 2);
+            this.emitType(child.symbol.resolvedType, 1);
+            this.emitSymbolName(child.symbol);
+            child = child.nextSibling;
+
+            if (child !== returnType) {
+              code.append(", ");
+            }
+          }
+
+          code.append(");\n");
+        }
       }
 
       else if (node.kind === 5) {
@@ -716,9 +846,9 @@
     while (node !== null) {
       if (node.kind === 11) {
         var body = node.functionBody();
+        var symbol = node.symbol;
 
-        if (body !== null) {
-          var symbol = node.symbol;
+        if (body !== null && this.shouldEmitFunction(symbol)) {
           var returnType = node.functionReturnType();
           var child = node.firstChild;
           this.emitNewlineBefore(node);
@@ -757,12 +887,20 @@
     }
   };
 
+  CResult.prototype.finish = function() {
+    if (this.hasStrings) {
+      this.codePrefix.append("\n#undef S\n");
+    }
+  };
+
   function cEmit(global, context) {
     var child = global.firstChild;
     var code = StringBuilder_new();
+    var codePrefix = StringBuilder_new();
     var result = new CResult();
     result.context = context;
     result.code = code;
+    result.codePrefix = codePrefix;
 
     if (child !== null) {
       result.emitIncludes();
@@ -776,13 +914,18 @@
       result.emitGlobalVariables(child);
       result.emitNewlineAfter(child);
       result.emitFunctionDefinitions(child);
+      result.finish();
     }
 
-    return code.finish();
+    codePrefix.append(code.finish());
+
+    return codePrefix.finish();
   }
 
   function CheckContext() {
     this.log = null;
+    this.target = 0;
+    this.pointerByteSize = 0;
     this.isUnsafeAllowed = false;
     this.enclosingClass = null;
     this.currentReturnType = null;
@@ -991,6 +1134,8 @@
     else if (isFunction(symbol.kind)) {
       var body = node.functionBody();
       var returnType = node.functionReturnType();
+      var oldUnsafeAllowed = context.isUnsafeAllowed;
+      context.isUnsafeAllowed = node.isUnsafe();
       resolveAsType(context, returnType, symbol.scope.parent);
       var argumentCount = 0;
       var child = node.firstChild;
@@ -1097,6 +1242,8 @@
       else {
         forbidFlag(context, node, 1, "Cannot use 'declare' on a function with an implementation");
       }
+
+      context.isUnsafeAllowed = oldUnsafeAllowed;
     }
 
     else if (isVariable(symbol.kind)) {
@@ -1104,6 +1251,8 @@
       forbidFlag(context, node, 512, "Cannot use 'set' on a variable");
       var type = node.variableType();
       var value = node.variableValue();
+      var oldUnsafeAllowed = context.isUnsafeAllowed;
+      context.isUnsafeAllowed = context.isUnsafeAllowed || node.isUnsafe();
 
       if (symbol.kind !== 9) {
         forbidFlag(context, node, 256, "Cannot use 'public' here");
@@ -1181,6 +1330,8 @@
           scope = scope.parent;
         }
       }
+
+      context.isUnsafeAllowed = oldUnsafeAllowed;
     }
 
     else {
@@ -1257,7 +1408,7 @@
     }
 
     else if (from.isInteger() && to.isInteger()) {
-      var mask = to.integerBitMask();
+      var mask = to.integerBitMask(context);
 
       if (from.isEnum() && to === from.underlyingType(context)) {
         return true;
@@ -1281,7 +1432,7 @@
   function checkStorage(context, target) {
     __declare.assert(isExpression(target));
 
-    if (target.resolvedType !== context.errorType && target.kind !== 23 && (target.kind !== 25 && target.kind !== 21 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
+    if (target.resolvedType !== context.errorType && target.kind !== 23 && target.kind !== 35 && (target.kind !== 25 && target.kind !== 21 || target.symbol !== null && (!isVariable(target.symbol.kind) || target.symbol.kind === 7))) {
       context.log.error(target.range, "Cannot store to this location");
       target.resolvedType = context.errorType;
     }
@@ -1347,7 +1498,7 @@
 
     else if (node.kind === 44 && right.isNegativeInteger()) {
       node.kind = 63;
-      right.intValue = -right.intValue;
+      right.intValue = -right.intValue | 0;
     }
   }
 
@@ -1362,7 +1513,7 @@
 
   function isSymbolAccessAllowed(context, symbol, node, range) {
     if (symbol.isUnsafe() && !context.isUnsafeAllowed) {
-      context.log.error(range, StringBuilder_new().append("Cannot use symbol '").append(symbol.name).append("' outside an unsafe block").finish());
+      context.log.error(range, StringBuilder_new().append("Cannot use symbol '").append(symbol.name).append("' outside an 'unsafe' block").finish());
 
       return false;
     }
@@ -1442,6 +1593,8 @@
     else if (kind === 2) {
       var symbol = node.symbol;
       initializeSymbol(context, symbol);
+      var oldUnsafeAllowed = context.isUnsafeAllowed;
+      context.isUnsafeAllowed = context.isUnsafeAllowed || node.isUnsafe();
       var value = node.variableValue();
 
       if (value !== null) {
@@ -1460,8 +1613,10 @@
       }
 
       if (symbol.kind === 8 && symbol.resolvedType !== context.errorType) {
-        symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(), symbol.resolvedType.variableAlignmentOf());
+        symbol.offset = context.allocateGlobalVariableOffset(symbol.resolvedType.variableSizeOf(context), symbol.resolvedType.variableAlignmentOf(context));
       }
+
+      context.isUnsafeAllowed = oldUnsafeAllowed;
     }
 
     else if (kind === 4 || kind === 7) {
@@ -1543,7 +1698,7 @@
       node.resolvedType = context.intType;
 
       if (type.resolvedType !== context.errorType) {
-        node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf());
+        node.becomeIntegerConstant(type.resolvedType.allocationAlignmentOf(context));
       }
     }
 
@@ -1553,7 +1708,7 @@
       node.resolvedType = context.intType;
 
       if (type.resolvedType !== context.errorType) {
-        node.becomeIntegerConstant(type.resolvedType.allocationSizeOf());
+        node.becomeIntegerConstant(type.resolvedType.allocationSizeOf(context));
       }
     }
 
@@ -1628,8 +1783,8 @@
 
       if (value.kind === 24 && castedType.isInteger()) {
         var result = value.intValue;
-        var shift = 32 - castedType.integerBitCount() | 0;
-        node.becomeIntegerConstant(castedType.isUnsigned() ? (castedType.integerBitMask() | 0) & result : result << shift >> shift);
+        var shift = 32 - castedType.integerBitCount(context) | 0;
+        node.becomeIntegerConstant(castedType.isUnsigned() ? (castedType.integerBitMask(context) | 0) & result : result << shift >> shift);
       }
     }
 
@@ -1868,19 +2023,50 @@
     else if (kind === 38) {
       var value = node.unaryValue();
       resolveAsType(context, value, parentScope);
-      context.log.error(node.internalRange, "Pointer types are not supported yet");
+
+      if (context.target === 2) {
+        context.log.error(node.internalRange, "Cannot use pointers when compiling to JavaScript");
+      }
+
+      else if (!context.isUnsafeAllowed) {
+        context.log.error(node.internalRange, "Cannot use pointers outside an 'unsafe' block");
+      }
+
+      else {
+        var type = value.resolvedType;
+
+        if (type !== context.errorType) {
+          if (!type.isInteger() && type.pointerTo === null) {
+            context.log.error(node.internalRange, StringBuilder_new().append("Cannot create a pointer to non-integer type '").append(type.toString()).appendChar(39).finish());
+          }
+
+          else {
+            node.resolvedType = type.pointerType();
+          }
+        }
+      }
     }
 
     else if (kind === 35) {
       var value = node.unaryValue();
       resolveAsExpression(context, value, parentScope);
-      context.log.error(node.internalRange, "The dereference operator is not supported yet");
+      var type = value.resolvedType;
+
+      if (type !== context.errorType) {
+        if (type.pointerTo === null) {
+          context.log.error(node.internalRange, StringBuilder_new().append("Cannot dereference type '").append(type.toString()).appendChar(39).finish());
+        }
+
+        else {
+          node.resolvedType = type.pointerTo;
+        }
+      }
     }
 
     else if (kind === 33) {
       var value = node.unaryValue();
       resolveAsExpression(context, value, parentScope);
-      context.log.error(node.internalRange, "The address-of operator is not supported yet");
+      context.log.error(node.internalRange, "The address-of operator is not supported");
     }
 
     else if (isUnary(kind)) {
@@ -1893,7 +2079,14 @@
       }
 
       else if (value.resolvedType.isInteger()) {
-        node.resolvedType = value.resolvedType.isUnsigned() ? context.uintType : context.intType;
+        if (value.resolvedType.isUnsigned()) {
+          node.flags = node.flags | 4096;
+          node.resolvedType = context.uintType;
+        }
+
+        else {
+          node.resolvedType = context.intType;
+        }
 
         if (value.kind === 24) {
           var input = value.intValue;
@@ -1904,7 +2097,7 @@
           }
 
           else if (kind === 36) {
-            output = -input;
+            output = -input | 0;
           }
 
           node.becomeIntegerConstant(output);
@@ -1940,6 +2133,18 @@
         checkConversion(context, left, context.boolType, 0);
         checkConversion(context, right, context.boolType, 0);
         node.resolvedType = context.boolType;
+      }
+
+      else if (kind === 44 && leftType.pointerTo !== null && rightType.isInteger()) {
+        node.resolvedType = leftType;
+      }
+
+      else if ((kind === 54 || kind === 55 || kind === 52 || kind === 53) && (leftType.pointerTo !== null || rightType.pointerTo !== null)) {
+        node.resolvedType = context.boolType;
+
+        if (leftType !== rightType) {
+          context.log.error(node.internalRange, StringBuilder_new().append("Cannot compare type '").append(leftType.toString()).append("' with type '").append(rightType.toString()).appendChar(39).finish());
+        }
       }
 
       else if (leftType.isInteger() && kind !== 50 && kind !== 59) {
@@ -2122,6 +2327,8 @@
   Compiler.prototype.createGlobals = function() {
     var context = new CheckContext();
     context.log = this.log;
+    context.target = this.target;
+    context.pointerByteSize = 4;
     var global = new Node();
     global.kind = 1;
     var scope = new Scope();
@@ -2336,7 +2543,9 @@
 
   JsResult.prototype.emitUnary = function(node, parentPrecedence, operator) {
     var isPostfix = isUnaryPostfix(node.kind);
-    var operatorPrecedence = isPostfix ? 14 : 13;
+    var shouldCastToInt = node.kind === 36 && !jsKindCastsOperandsToInt(node.parent.kind);
+    var isUnsigned = node.isUnsignedOperator();
+    var operatorPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : isPostfix ? 14 : 13;
     var code = this.code;
 
     if (parentPrecedence > operatorPrecedence) {
@@ -2353,6 +2562,10 @@
       code.append(operator);
     }
 
+    if (shouldCastToInt) {
+      code.append(isUnsigned ? " >>> 0" : " | 0");
+    }
+
     if (parentPrecedence > operatorPrecedence) {
       code.appendChar(41);
     }
@@ -2360,10 +2573,9 @@
 
   JsResult.prototype.emitBinary = function(node, parentPrecedence, operator, operatorPrecedence, mode) {
     var isRightAssociative = node.kind === 45;
-    var parentKind = node.parent.kind;
     var isUnsigned = node.isUnsignedOperator();
     var code = this.code;
-    var shouldCastToInt = mode === 1 && (isUnsigned || parentKind !== 61 && parentKind !== 62 && parentKind !== 47 && parentKind !== 46 && parentKind !== 48);
+    var shouldCastToInt = mode === 1 && (isUnsigned || !jsKindCastsOperandsToInt(node.parent.kind));
     var selfPrecedence = shouldCastToInt ? isUnsigned ? 9 : 4 : parentPrecedence;
 
     if (parentPrecedence > selfPrecedence) {
@@ -2444,8 +2656,10 @@
       var value = node.castValue();
       var from = value.resolvedType.underlyingType(context);
       var type = node.resolvedType.underlyingType(context);
+      var fromSize = from.variableSizeOf(context);
+      var typeSize = type.variableSizeOf(context);
 
-      if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
+      if (from === type || fromSize < typeSize) {
         this.emitExpression(value, parentPrecedence);
       }
 
@@ -2454,7 +2668,7 @@
           code.appendChar(40);
         }
 
-        var shift = (32 - (type.symbol.byteSize << 3) | 0).toString();
+        var shift = (32 - (typeSize << 3) | 0).toString();
         this.emitExpression(value, 9);
         code.append(" << ");
         code.append(shift);
@@ -2473,7 +2687,7 @@
 
         this.emitExpression(value, 6);
         code.append(" & ");
-        code.append(type.integerBitMask().toString());
+        code.append(type.integerBitMask(context).toString());
 
         if (parentPrecedence > 6) {
           code.appendChar(41);
@@ -2971,6 +3185,10 @@
     }
   };
 
+  function jsKindCastsOperandsToInt(kind) {
+    return kind === 61 || kind === 62 || kind === 47 || kind === 46 || kind === 48;
+  }
+
   function jsEmit(global, context) {
     var code = StringBuilder_new();
     var result = new JsResult();
@@ -3362,6 +3580,10 @@
     return c >= 97 && c <= 122 || c >= 65 && c <= 90 || c === 95;
   }
 
+  function isASCII(c) {
+    return c >= 32 && c <= 126;
+  }
+
   function isNumber(c) {
     return c >= 48 && c <= 57;
   }
@@ -3371,7 +3593,7 @@
       return isNumber(c) || c >= 65 && c <= 70 || c >= 97 && c <= 102;
     }
 
-    return c >= 48 && c < (base + 48 | 0);
+    return c >= 48 && c < base + 48 >>> 0;
   }
 
   function tokenize(source, log) {
@@ -3979,7 +4201,7 @@
   }
 
   function library() {
-    return "\n#if WASM\n\n  // Cast to these to read from and write to arbitrary locations in memory\n  unsafe class BytePtr { value: byte; }\n  unsafe class UShortPtr { value: ushort; }\n  unsafe class UIntPtr { value: uint; }\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: uint = 0;\n  unsafe var originalHeapPointer: uint = 0;\n\n  extern unsafe function malloc(sizeOf: uint): uint {\n    // Align all allocations to 8 bytes\n    var offset = (currentHeapPointer + 7) & ~7 as uint;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      (ptr as UIntPtr).value = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: uint, source: uint, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == 0 || target == 0) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && source % 4 == target % 4) {\n      // Pick off the beginning\n      while (target % 4 != 0) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        ((target + length) as BytePtr).value = ((source + length) as BytePtr).value;\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        (target as UIntPtr).value = (source as UIntPtr).value;\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        (target as BytePtr).value = (source as BytePtr).value;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as uint;\n      var end = ptr + 4 + length;\n\n      if (sign) {\n        ((ptr + 4) as BytePtr).value = '-';\n      }\n\n      while (value != 0) {\n        end = end - 1;\n        (end as BytePtr).value = (value % 10 + '0') as byte;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length);\n      (ptr as UIntPtr).value = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): int {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return (this as UIntPtr).value as int;\n      }\n    }\n\n    operator [] (index: int): int {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return ((this as int + index + 4) as BytePtr).value;\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as uint == other as uint) return true;\n        if (this as uint == 0 || other as uint == 0) return false;\n\n        var length = (this as UIntPtr).value;\n\n        // Check the length first\n        if (length != (other as UIntPtr).value) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as uint + 4;\n        var bi = other as uint + 4;\n        var an = ai + (length & ~3 as uint);\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if ((ai as UIntPtr).value != (bi as UIntPtr).value) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 8-bit values\n        an = ai + length % 4;\n        while (ai < an) {\n          if ((ai as BytePtr).value != (bi as BytePtr).value) {\n            return false;\n          }\n          ai = ai + 1;\n          bi = bi + 1;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as uint + 4, this as uint + 4 + start as uint, length);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): int;\n    get length(): int;\n    operator [] (index: int): int { return this.charCodeAt(index); }\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
+    return "\n#if WASM\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: *byte = null;\n  unsafe var originalHeapPointer: *byte = null;\n\n  extern unsafe function malloc(sizeOf: uint): *byte {\n    // Align all allocations to 8 bytes\n    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      *(ptr as *int) = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == null || target == null) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {\n      // Pick off the beginning\n      while ((target as uint) % 4 != 0) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        *(target + length) = *(source + length);\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        *(target as *int) = *(source as *int);\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n#elif C\n\n  declare unsafe function malloc(sizeOf: uint): *byte;\n  declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;\n\n#endif\n\n#if WASM || C\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as uint;\n      var end = ptr + 4 + length * 2;\n\n      if (sign) {\n        *((ptr + 4) as *ushort) = '-';\n      }\n\n      while (value != 0) {\n        end = end - 2;\n        *(end as *ushort) = (value % 10 + '0') as ushort;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length * 2);\n      *(ptr as *uint) = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): ushort {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return *(this as *int);\n      }\n    }\n\n    operator [] (index: int): ushort {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return *((this as *byte + 4 + index * 2) as *ushort);\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as *byte == other as *byte) return true;\n        if (this as *byte == null || other as *byte == null) return false;\n\n        var length = this.length;\n\n        // Check the length first\n        if (length != other.length) {\n          return false;\n        }\n\n        // Check the content next\n        var ai = this as *byte + 4;\n        var bi = other as *byte + 4;\n        var an = ai + ((length * 2) & ~3) as uint;\n\n        // Compare 32-bit values for speed (4-byte alignment is manditory)\n        while (ai < an) {\n          if (*(ai as *int) != *(bi as *int)) {\n            return false;\n          }\n          ai = ai + 4;\n          bi = bi + 4;\n        }\n\n        // Compare trailing 16-bit values\n        if (length as uint % 2 != 0 && *(ai as *ushort) != *(bi as *ushort)) {\n          return false;\n        }\n      }\n\n      return true;\n    }\n\n    slice(start: int, end: int): string {\n      var limit = this.length;\n\n      if (start < 0) start = 0;\n      else if (start > limit) start = limit;\n\n      if (end < start) end = start;\n      else if (end > limit) end = limit;\n\n      unsafe {\n        var length = (end - start) as uint;\n        var ptr = string_new(length);\n        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, length * 2);\n        return ptr;\n      }\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): ushort;\n    get length(): int;\n    operator [] (index: int): ushort { return this.charCodeAt(index); }\n    operator == (other: string): bool;\n    slice(start: int, end: int): string;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {
@@ -4525,7 +4747,7 @@
   };
 
   Node.prototype.isType = function() {
-    return this.kind === 32 || this.symbol !== null && isType(this.symbol.kind);
+    return this.kind === 32 || this.kind === 38 || this.symbol !== null && isType(this.symbol.kind);
   };
 
   Node.prototype.isCallValue = function() {
@@ -6412,7 +6634,7 @@
 
     while (i < limit) {
       var c = string_op_get(contents, i);
-      var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 | 0) >>> 0;
+      var digit = (c >= 65 && c <= 70 ? c - 55 | 0 : c >= 97 && c <= 102 ? c - 87 | 0 : c - 48 >>> 0) >>> 0;
       var baseValue = __imul(value, base) >>> 0;
 
       if (baseValue / base >>> 0 !== value || baseValue > 4294967295 - digit >>> 0) {
@@ -7138,7 +7360,7 @@
         var type = child.symbol.resolvedType;
 
         if (type !== context.errorType) {
-          var alignmentOf = type.variableAlignmentOf();
+          var alignmentOf = type.variableAlignmentOf(context);
           offset = alignToNextMultipleOf(offset, alignmentOf);
 
           if (alignmentOf > maxAlignment) {
@@ -7146,7 +7368,7 @@
           }
 
           child.symbol.offset = offset;
-          offset = offset + type.variableSizeOf() | 0;
+          offset = offset + type.variableSizeOf(context) | 0;
         }
       }
 
@@ -7204,58 +7426,77 @@
 
   function Type() {
     this.symbol = null;
+    this.pointerTo = null;
+    this.cachedToString = null;
+    this.cachedPointerType = null;
   }
 
   Type.prototype.isClass = function() {
-    return this.symbol.kind === 0;
+    return this.symbol !== null && this.symbol.kind === 0;
   };
 
   Type.prototype.isEnum = function() {
-    return this.symbol.kind === 1;
+    return this.symbol !== null && this.symbol.kind === 1;
   };
 
   Type.prototype.isInteger = function() {
-    return (this.symbol.flags & 32) !== 0 || this.isEnum();
+    return this.symbol !== null && (this.symbol.flags & 32) !== 0 || this.isEnum();
   };
 
   Type.prototype.isUnsigned = function() {
-    return (this.symbol.flags & 16) !== 0;
+    return this.symbol !== null && (this.symbol.flags & 16) !== 0;
   };
 
   Type.prototype.isReference = function() {
-    return (this.symbol.flags & 4) !== 0;
+    return this.pointerTo !== null || this.symbol !== null && (this.symbol.flags & 4) !== 0;
   };
 
   Type.prototype.underlyingType = function(context) {
-    return this.isEnum() ? context.intType : this;
+    return this.isEnum() ? context.intType : this.pointerTo !== null ? context.uintType : this;
   };
 
-  Type.prototype.integerBitCount = function() {
-    return this.symbol.byteSize << 3;
+  Type.prototype.integerBitCount = function(context) {
+    return this.symbol !== null ? this.symbol.byteSize << 3 : 0;
   };
 
-  Type.prototype.integerBitMask = function() {
-    return 4294967295 >>> ((32 - this.integerBitCount() | 0) >>> 0);
+  Type.prototype.integerBitMask = function(context) {
+    return 4294967295 >>> ((32 - this.integerBitCount(context) | 0) >>> 0);
   };
 
-  Type.prototype.allocationSizeOf = function() {
-    return this.symbol.byteSize;
+  Type.prototype.allocationSizeOf = function(context) {
+    return this.symbol === null ? context.pointerByteSize : this.symbol.byteSize;
   };
 
-  Type.prototype.allocationAlignmentOf = function() {
-    return this.allocationSizeOf();
+  Type.prototype.allocationAlignmentOf = function(context) {
+    return this.allocationSizeOf(context);
   };
 
-  Type.prototype.variableSizeOf = function() {
-    return this.isClass() ? 4 : this.symbol.byteSize;
+  Type.prototype.variableSizeOf = function(context) {
+    return this.isReference() ? context.pointerByteSize : this.symbol.byteSize;
   };
 
-  Type.prototype.variableAlignmentOf = function() {
-    return this.variableSizeOf();
+  Type.prototype.variableAlignmentOf = function(context) {
+    return this.variableSizeOf(context);
+  };
+
+  Type.prototype.pointerType = function() {
+    var type = this.cachedPointerType;
+
+    if (type === null) {
+      type = new Type();
+      type.pointerTo = this;
+      this.cachedPointerType = type;
+    }
+
+    return type;
   };
 
   Type.prototype.toString = function() {
-    return this.symbol.name;
+    if (this.cachedToString === null) {
+      this.cachedToString = this.pointerTo !== null ? StringBuilder_new().appendChar(42).append(this.pointerTo.toString()).finish() : this.symbol.name;
+    }
+
+    return this.cachedToString;
   };
 
   Type.prototype.findMember = function(name, hint) {
@@ -7477,8 +7718,8 @@
 
     while (current !== null) {
       wasmWriteVarUnsigned(array, current.signatureIndex);
-      wasmWriteLengthPrefixedString(array, current.module);
-      wasmWriteLengthPrefixedString(array, current.name);
+      wasmWriteLengthPrefixedASCII(array, current.module);
+      wasmWriteLengthPrefixedASCII(array, current.name);
       current = current.next;
     }
 
@@ -7534,7 +7775,7 @@
     while (fn !== null) {
       if (fn.isExported) {
         wasmWriteVarUnsigned(array, i);
-        wasmWriteLengthPrefixedString(array, fn.name);
+        wasmWriteLengthPrefixedASCII(array, fn.name);
       }
 
       fn = fn.next;
@@ -7606,7 +7847,7 @@
     if (node.kind === 30) {
       var text = node.stringValue;
       var length = text.length;
-      var offset = this.context.allocateGlobalVariableOffset(length + 4 | 0, 4);
+      var offset = this.context.allocateGlobalVariableOffset((length << 1) + 4 | 0, 4);
       node.intValue = offset;
       this.growMemoryInitializer();
       var memoryInitializer = this.memoryInitializer;
@@ -7618,7 +7859,7 @@
       var symbol = node.symbol;
 
       if (symbol.kind === 8) {
-        var sizeOf = symbol.resolvedType.variableSizeOf();
+        var sizeOf = symbol.resolvedType.variableSizeOf(this.context);
         var value = symbol.node.variableValue().intValue;
         var memoryInitializer = this.memoryInitializer;
         this.growMemoryInitializer();
@@ -7718,7 +7959,7 @@
   };
 
   WasmModule.prototype.emitLoadFromMemory = function(array, type, relativeBase, offset) {
-    var sizeOf = type.variableSizeOf();
+    var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf === 1) {
       array.append(type.isUnsigned() ? 33 : 32);
@@ -7752,7 +7993,7 @@
   };
 
   WasmModule.prototype.emitStoreToMemory = function(array, type, relativeBase, offset, value) {
-    var sizeOf = type.variableSizeOf();
+    var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf === 1) {
       array.append(46);
@@ -7946,6 +8187,10 @@
       }
     }
 
+    else if (node.kind === 35) {
+      this.emitLoadFromMemory(array, node.resolvedType.underlyingType(this.context), node.unaryValue(), 0);
+    }
+
     else if (node.kind === 27) {
       array.append(10);
       wasmWriteVarSigned(array, 0);
@@ -7982,12 +8227,12 @@
 
     else if (node.kind === 26) {
       var type = node.newType();
-      __declare.assert(type.symbol.kind === 0);
+      var size = type.resolvedType.allocationSizeOf(this.context);
       array.append(18);
       wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
-      __declare.assert(type.symbol.byteSize > 0);
+      __declare.assert(size > 0);
       array.append(10);
-      wasmWriteVarSigned(array, type.symbol.byteSize);
+      wasmWriteVarSigned(array, size);
     }
 
     else if (node.kind === 39) {
@@ -8018,13 +8263,15 @@
       var context = this.context;
       var from = value.resolvedType.underlyingType(context);
       var type = node.resolvedType.underlyingType(context);
+      var fromSize = from.variableSizeOf(context);
+      var typeSize = type.variableSizeOf(context);
 
-      if (from === type || from.symbol.byteSize < type.symbol.byteSize) {
+      if (from === type || fromSize < typeSize) {
         this.emitNode(array, value);
       }
 
       else if (type === context.sbyteType || type === context.shortType) {
-        var shift = 32 - (type.symbol.byteSize << 3) | 0;
+        var shift = 32 - (typeSize << 3) | 0;
         array.append(76);
         array.append(74);
         this.emitNode(array, value);
@@ -8038,7 +8285,7 @@
         array.append(71);
         this.emitNode(array, value);
         array.append(10);
-        wasmWriteVarSigned(array, type.integerBitMask() | 0);
+        wasmWriteVarSigned(array, type.integerBitMask(this.context) | 0);
       }
 
       else {
@@ -8060,20 +8307,25 @@
 
     else if (node.kind === 45) {
       var left = node.binaryLeft();
+      var right = node.binaryRight();
       var symbol = left.symbol;
 
-      if (symbol.kind === 9) {
-        this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, node.binaryRight());
+      if (left.kind === 35) {
+        this.emitStoreToMemory(array, left.resolvedType.underlyingType(this.context), left.unaryValue(), 0, right);
+      }
+
+      else if (symbol.kind === 9) {
+        this.emitStoreToMemory(array, symbol.resolvedType, left.dotTarget(), symbol.offset, right);
       }
 
       else if (symbol.kind === 8) {
-        this.emitStoreToMemory(array, symbol.resolvedType, null, symbol.offset + 8 | 0, node.binaryRight());
+        this.emitStoreToMemory(array, symbol.resolvedType, null, symbol.offset + 8 | 0, right);
       }
 
       else if (symbol.kind === 6 || symbol.kind === 10) {
         array.append(15);
         wasmWriteVarUnsigned(array, symbol.offset);
-        this.emitNode(array, node.binaryRight());
+        this.emitNode(array, right);
       }
 
       else {
@@ -8101,7 +8353,51 @@
       var isUnsigned = node.isUnsignedOperator();
 
       if (node.kind === 44) {
-        this.emitBinaryExpression(array, node, 64);
+        var left = node.binaryLeft();
+        var right = node.binaryRight();
+        array.append(64);
+        this.emitNode(array, left);
+
+        if (left.resolvedType.pointerTo === null) {
+          this.emitNode(array, right);
+        }
+
+        else {
+          __declare.assert(right.resolvedType.isInteger());
+          var size = left.resolvedType.pointerTo.allocationSizeOf(this.context);
+
+          if (size === 2) {
+            if (right.kind === 24) {
+              array.append(10);
+              wasmWriteVarSigned(array, right.intValue << 1);
+            }
+
+            else {
+              array.append(74);
+              this.emitNode(array, right);
+              array.append(10);
+              wasmWriteVarSigned(array, 1);
+            }
+          }
+
+          else if (size === 4) {
+            if (right.kind === 24) {
+              array.append(10);
+              wasmWriteVarSigned(array, right.intValue << 2);
+            }
+
+            else {
+              array.append(74);
+              this.emitNode(array, right);
+              array.append(10);
+              wasmWriteVarSigned(array, 2);
+            }
+          }
+
+          else {
+            this.emitNode(array, right);
+          }
+        }
       }
 
       else if (node.kind === 46) {
@@ -8247,18 +8543,23 @@
     }
   }
 
-  function wasmWriteLengthPrefixedString(array, value) {
+  function wasmWriteLengthPrefixedASCII(array, value) {
     var length = value.length;
     wasmWriteVarUnsigned(array, length);
     var index = array.length();
     array.resize(index + length | 0);
-    ByteArray_setString(array, index, value);
+    var i = 0;
+
+    while (i < length) {
+      array.set(index + i | 0, string_op_get(value, i) & 255);
+      i = i + 1 | 0;
+    }
   }
 
   function wasmStartSection(array, name) {
     var offset = array.length();
     wasmWriteVarUnsigned(array, -1);
-    wasmWriteLengthPrefixedString(array, name);
+    wasmWriteLengthPrefixedASCII(array, name);
 
     return offset;
   }

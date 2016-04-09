@@ -2,12 +2,13 @@ function loadStdlibForWebAssembly() {
   var stdlib = {
     strings: [],
     bytes: null,
+    chars: null,
     ints: null,
 
     extractLengthPrefixedString: function(index) {
-      var bytes = stdlib.bytes;
-      var text = '', length = stdlib.ints[index >> 2], i = index + 4;
-      while (length-- > 0) text += String.fromCharCode(bytes[i++]);
+      var chars = stdlib.chars;
+      var text = '', length = stdlib.ints[index >> 2], i = index + 4 >> 1;
+      while (length-- > 0) text += String.fromCharCode(chars[i++]);
       return text;
     },
 
@@ -98,6 +99,7 @@ function compileWebAssembly(code) {
   var exports = module.exports;
   var memory = exports.memory;
   stdlib.bytes = new Uint8Array(memory);
+  stdlib.chars = new Uint16Array(memory);
   stdlib.ints = new Int32Array(memory);
 
   return function(sources, target) {
@@ -114,14 +116,14 @@ function compileWebAssembly(code) {
       var contents = source.contents;
       var nameString = exports.Compiler_allocateString(name.length);
       var contentsString = exports.Compiler_allocateString(contents.length);
-      var bytes = stdlib.bytes;
+      var chars = stdlib.chars;
 
-      for (var i = 0, length = name.length; i < length; i++) {
-        bytes[nameString + i + 4] = name.charCodeAt(i);
+      for (var i = 0, j = nameString + 4 >> 1, length = name.length; i < length; i++, j++) {
+        chars[j] = name.charCodeAt(i);
       }
 
-      for (var i = 0, length = contents.length; i < length; i++) {
-        bytes[contentsString + i + 4] = contents.charCodeAt(i);
+      for (var i = 0, j = contentsString + 4 >> 1, length = contents.length; i < length; i++, j++) {
+        chars[j] = contents.charCodeAt(i);
       }
 
       exports.Compiler_callAddInput(compiler, nameString, contentsString);
