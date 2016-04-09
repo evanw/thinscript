@@ -67,10 +67,32 @@ function library(): string {
     }
   }
 
+  unsafe function memcmp(a: *byte, b: *byte, length: uint): int {
+    // No-op if either of the inputs are null
+    if (a == null || b == null) {
+      return 0;
+    }
+
+    // Return the first non-zero difference
+    while (length > 0) {
+      var delta = *a as int - *b as int;
+      if (delta != 0) {
+        return delta;
+      }
+      a = a + 1;
+      b = b + 1;
+      length = length - 1;
+    }
+
+    // Both inputs are identical
+    return 0;
+  }
+
 #elif C
 
   declare unsafe function malloc(sizeOf: uint): *byte;
   declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;
+  declare unsafe function memcmp(a: *byte, b: *byte, length: uint): int;
 
 #endif
 
@@ -195,51 +217,46 @@ function library(): string {
       unsafe {
         if (this as *byte == other as *byte) return true;
         if (this as *byte == null || other as *byte == null) return false;
-
         var length = this.length;
-
-        // Check the length first
-        if (length != other.length) {
-          return false;
-        }
-
-        // Check the content next
-        var ai = this as *byte + 4;
-        var bi = other as *byte + 4;
-        var an = ai + ((length * 2) & ~3) as uint;
-
-        // Compare 32-bit values for speed (4-byte alignment is manditory)
-        while (ai < an) {
-          if (*(ai as *int) != *(bi as *int)) {
-            return false;
-          }
-          ai = ai + 4;
-          bi = bi + 4;
-        }
-
-        // Compare trailing 16-bit values
-        if (length as uint % 2 != 0 && *(ai as *ushort) != *(bi as *ushort)) {
-          return false;
-        }
+        if (length != other.length) return false;
+        return memcmp(this as *byte + 4, other as *byte + 4, length as uint * 2) == 0;
       }
-
-      return true;
     }
 
     slice(start: int, end: int): string {
-      var limit = this.length;
+      var length = this.length;
+
+      if (start < 0) start = start + length;
+      if (end < 0) end = end + length;
 
       if (start < 0) start = 0;
-      else if (start > limit) start = limit;
+      else if (start > length) start = length;
 
       if (end < start) end = start;
-      else if (end > limit) end = limit;
+      else if (end > length) end = length;
 
       unsafe {
-        var length = (end - start) as uint;
-        var ptr = string_new(length);
-        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, length * 2);
+        var range = (end - start) as uint;
+        var ptr = string_new(range);
+        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, range * 2);
         return ptr;
+      }
+    }
+
+    startsWith(text: string): bool {
+      var textLength = text.length;
+      if (this.length < textLength) return false;
+      unsafe {
+        return memcmp(this as *byte + 4, text as *byte + 4, textLength as uint * 2) == 0;
+      }
+    }
+
+    endsWith(text: string): bool {
+      var thisLength = this.length;
+      var textLength = text.length;
+      if (thisLength < textLength) return false;
+      unsafe {
+        return memcmp(this as *byte + 4 + (thisLength - textLength) * 2, text as *byte + 4, textLength as uint * 2) == 0;
       }
     }
   }
@@ -278,9 +295,17 @@ function library(): string {
     charAt(index: int): string;
     charCodeAt(index: int): ushort;
     get length(): int;
-    operator [] (index: int): ushort { return this.charCodeAt(index); }
     operator == (other: string): bool;
+    operator [] (index: int): ushort { return this.charCodeAt(index); }
     slice(start: int, end: int): string;
+
+    #if JS
+      startsWith(text: string): bool { return this.slice(0, text.length) == text; }
+      endsWith(text: string): bool { return this.slice(-text.length, this.length) == text; }
+    #else
+      startsWith(text: string): bool;
+      endsWith(text: string): bool;
+    #endif
   }
 
 #endif

@@ -485,7 +485,7 @@ class CResult {
     var code = this.codePrefix;
     code.append("#include <stdint.h>\n"); // Need "int32_t" and friends
     code.append("#include <stdlib.h>\n"); // Need "NULL" and "calloc"
-    code.append("#include <string.h>\n"); // Need "memcpy"
+    code.append("#include <string.h>\n"); // Need "memcpy" and "memcmp"
   }
 
   emitTypeDeclarations(node: Node): void {
@@ -538,7 +538,7 @@ class CResult {
   }
 
   shouldEmitFunction(symbol: Symbol): bool {
-    return symbol.kind != SymbolKind.FUNCTION_GLOBAL || symbol.name != "malloc" && symbol.name != "memcpy";
+    return symbol.kind != SymbolKind.FUNCTION_GLOBAL || symbol.name != "malloc" && symbol.name != "memcpy" && symbol.name != "memcmp";
   }
 
   emitFunctionDeclarations(node: Node): void {
