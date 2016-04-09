@@ -142,7 +142,7 @@ function library(): string {
             value >= 1000 ? 4 : 3 :
             value >= 10 ? 2 : 1)) as uint;
 
-      var ptr = string_new(length) as uint;
+      var ptr = string_new(length) as *byte;
       var end = ptr + 4 + length * 2;
 
       if (sign) {
@@ -150,7 +150,7 @@ function library(): string {
       }
 
       while (value != 0) {
-        end = end - 2;
+        end = end + -2;
         *(end as *ushort) = (value % 10 + '0') as ushort;
         value = value / 10;
       }

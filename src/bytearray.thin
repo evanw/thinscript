@@ -114,14 +114,14 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     get(index: int): byte {
       assert((index as uint) < this._length);
       unsafe {
-        return *((this._data as int + index) as *byte);
+        return *(this._data + index);
       }
     }
 
     set(index: int, value: byte): void {
       assert((index as uint) < this._length);
       unsafe {
-        *((this._data as int + index) as *byte) = value;
+        *(this._data + index) = value;
       }
     }
 
@@ -129,7 +129,7 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       var offset = this._length;
       unsafe {
         this.resize(offset as int + 1);
-        *((this._data + offset) as *byte) = value;
+        *(this._data + offset) = value;
       }
     }
 
