@@ -7,8 +7,11 @@ enum TypeMode {
 class CResult {
   context: CheckContext;
   code: StringBuilder;
+  codePrefix: StringBuilder;
   private indent: int;
+  private hasStrings: bool;
   private previousNode: Node;
+  private nextStringLiteral: int;
 
   emitIndent(): void {
     var i = this.indent;
@@ -123,6 +126,24 @@ class CResult {
     this.code.append(symbol.rename != null ? symbol.rename : symbol.name);
   }
 
+  emitCharacter(c: ushort): void {
+    var codePrefix = this.codePrefix;
+
+    if (isASCII(c)) {
+      codePrefix.appendChar('\'');
+      if (c == '\\' || c == '\'') {
+        codePrefix.appendChar('\\');
+      }
+      codePrefix.appendChar(c);
+      codePrefix.appendChar('\'');
+    }
+    else if (c == '\0') codePrefix.append("\'\\0\'");
+    else if (c == '\r') codePrefix.append("\'\\r\'");
+    else if (c == '\n') codePrefix.append("\'\\n\'");
+    else if (c == '\t') codePrefix.append("\'\\t\'");
+    else codePrefix.append(c.toString());
+  }
+
   emitExpression(node: Node, parentPrecedence: Precedence): void {
     var code = this.code;
 
@@ -147,7 +168,57 @@ class CResult {
     }
 
     else if (node.kind == NodeKind.STRING) {
-      StringBuilder_appendQuoted(code, node.stringValue);
+      var id = this.nextStringLiteral;
+      var builder = StringBuilder_new();
+      builder.append("__string_").append(id.toString());
+      var value = node.stringValue;
+      var codePrefix = this.codePrefix;
+      var length = value.length;
+      var i = 0;
+      if (!this.hasStrings) {
+        codePrefix.append(`
+#ifdef THINSCRIPT_BIG_ENDIAN
+  #define S(a, b) (((a) << 16) | (b))
+#else
+  #define S(a, b) ((a) | ((b) << 16))
+#endif
+
+`);
+        this.hasStrings = true;
+      }
+      var underscore = true;
+      i = 0;
+      while (i < length && i < 32) {
+        var c = value[i];
+        if (isAlpha(c) || isNumber(c)) {
+          if (underscore) {
+            builder.appendChar('_');
+            underscore = false;
+          }
+          builder.appendChar(c);
+        } else {
+          underscore = true;
+        }
+        i = i + 1;
+      }
+      var name = builder.finish();
+      codePrefix.append("static const uint32_t ").append(name).append("[] = {").append(length.toString());
+      i = 0;
+      while (i < length) {
+        codePrefix.append(", S(");
+        this.emitCharacter(value[i]);
+        if (i + 1 < length) {
+          codePrefix.append(", ");
+          this.emitCharacter(value[i + 1]);
+          codePrefix.appendChar(')');
+        } else {
+          codePrefix.append(", 0)");
+        }
+        i = i + 2;
+      }
+      codePrefix.append("};\n");
+      this.nextStringLiteral = this.nextStringLiteral + 1;
+      code.append("(const uint16_t *)").append(name);
     }
 
     else if (node.kind == NodeKind.CAST) {
@@ -275,7 +346,7 @@ class CResult {
     else if (type == context.sbyteType) code.append("int8_t");
     else if (type == context.intType) code.append("int32_t");
     else if (type == context.shortType) code.append("int16_t");
-    else if (type == context.stringType) code.append("const char");
+    else if (type == context.stringType) code.append("const uint16_t");
     else if (type == context.uintType) code.append("uint32_t");
     else if (type == context.ushortType) code.append("uint16_t");
     else this.emitSymbolName(type.symbol);
@@ -411,7 +482,7 @@ class CResult {
   }
 
   emitIncludes(): void {
-    var code = this.code;
+    var code = this.codePrefix;
     code.append("#include <stdint.h>\n"); // Need "int32_t" and friends
     code.append("#include <stdlib.h>\n"); // Need "NULL" and "calloc"
     code.append("#include <string.h>\n"); // Need "memcpy"
@@ -580,14 +651,22 @@ class CResult {
       node = node.nextSibling;
     }
   }
+
+  finish(): void {
+    if (this.hasStrings) {
+      this.codePrefix.append("\n#undef S\n");
+    }
+  }
 }
 
 function cEmit(global: Node, context: CheckContext): string {
   var child = global.firstChild;
   var code = StringBuilder_new();
+  var codePrefix = StringBuilder_new();
   var result = new CResult();
   result.context = context;
   result.code = code;
+  result.codePrefix = codePrefix;
 
   if (child != null) {
     result.emitIncludes();
@@ -606,7 +685,9 @@ function cEmit(global: Node, context: CheckContext): string {
     result.emitNewlineAfter(child);
 
     result.emitFunctionDefinitions(child);
+    result.finish();
   }
 
-  return code.finish();
+  codePrefix.append(code.finish());
+  return codePrefix.finish();
 }

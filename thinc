@@ -3,7 +3,7 @@
 var fs = require('fs');
 var compiled = null;
 
-function parseError(text) {
+function exitWithError(text) {
   Terminal_setColor(compiled.Color.RED);
   Terminal_write('error: ');
   Terminal_setColor(compiled.Color.BOLD);
@@ -41,12 +41,12 @@ function parseCommandLine() {
         parsed.defines.push(args[++i]);
       }
 
-      else if ((arg === '--out') && i + 1 < args.length) {
+      else if (arg === '--out' && i + 1 < args.length) {
         parsed.output = args[++i];
       }
 
       else {
-        parseError('Invalid flag: ' + arg);
+        exitWithError('Invalid flag: ' + arg);
       }
     }
 
@@ -59,11 +59,11 @@ function parseCommandLine() {
   }
 
   if (!parsed.sources.length) {
-    parseError('No input files');
+    exitWithError('No input files');
   }
 
   if (!parsed.output) {
-    parseError('Missing an output file (use the --out flag)');
+    exitWithError('Missing an output file (use the --out flag)');
   }
 
   if (parsed.target === compiled.CompileTarget.NONE) {
@@ -80,7 +80,7 @@ function parseCommandLine() {
     }
 
     else {
-      parseError('Missing a target (use either --c, --js, or --wasm)');
+      exitWithError('Missing a target (use either --c, --js, or --wasm)');
     }
   }
 

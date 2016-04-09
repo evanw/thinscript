@@ -73,7 +73,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
     }
   }
 
-#elif WASM ////////////////////////////////////////////////////////////////////////////////
+#elif WASM || C ////////////////////////////////////////////////////////////////////////////////
 
   class StringBuilder {
     next: StringBuilder;
@@ -130,7 +130,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
   declare class StringBuilder {
     next: StringBuilder;
     clear(): void;
-    appendChar(c: byte): StringBuilder;
+    appendChar(c: ushort): StringBuilder;
     appendSlice(text: string, start: int, end: int): StringBuilder;
     append(text: string): StringBuilder;
     finish(): string;

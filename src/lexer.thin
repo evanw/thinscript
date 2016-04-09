@@ -212,18 +212,22 @@ function tokenToString(token: TokenKind): string {
   return null;
 }
 
-function isAlpha(c: int): bool {
+function isAlpha(c: ushort): bool {
   return
     c >= 'a' && c <= 'z' ||
     c >= 'A' && c <= 'Z' ||
     c == '_';
 }
 
-function isNumber(c: int): bool {
+function isASCII(c: ushort): bool {
+  return c >= 0x20 && c <= 0x7E;
+}
+
+function isNumber(c: ushort): bool {
   return c >= '0' && c <= '9';
 }
 
-function isDigit(c: int, base: int): bool {
+function isDigit(c: ushort, base: byte): bool {
   if (base == 16) {
     return isNumber(c) || c >= 'A' && c <= 'F' || c >= 'a' && c <= 'f';
   }
@@ -335,7 +339,7 @@ function tokenize(source: Source, log: Log): Token {
 
       if (i < limit) {
         var next = contents[i];
-        var base = 10;
+        var base: byte = 10;
 
         // Handle binary, octal, and hexadecimal prefixes
         if (c == '0' && i + 1 < limit) {

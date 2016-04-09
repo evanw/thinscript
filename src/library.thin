@@ -276,9 +276,9 @@ function library(): string {
 
   declare class string {
     charAt(index: int): string;
-    charCodeAt(index: int): int;
+    charCodeAt(index: int): ushort;
     get length(): int;
-    operator [] (index: int): int { return this.charCodeAt(index); }
+    operator [] (index: int): ushort { return this.charCodeAt(index); }
     operator == (other: string): bool;
     slice(start: int, end: int): string;
   }
