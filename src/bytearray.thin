@@ -94,12 +94,12 @@ function ByteArray_append32(array: ByteArray, value: int): void {
     var length = text.length;
     unsafe {
       assert(index >= 0 && index + length * 2 <= array.length());
-      memcpy(array._data + index as uint, text as uint + 4, length as uint * 2);
+      memcpy(array._data + index, text as *byte + 4, length as uint * 2);
     }
   }
 
   class ByteArray {
-    _data: uint;
+    _data: *byte;
     _length: uint;
     _capacity: uint;
 

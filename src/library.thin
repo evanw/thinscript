@@ -3,12 +3,12 @@ function library(): string {
 #if WASM
 
   // These will be filled in by the WebAssembly code generator
-  unsafe var currentHeapPointer: uint = 0;
-  unsafe var originalHeapPointer: uint = 0;
+  unsafe var currentHeapPointer: *byte = null;
+  unsafe var originalHeapPointer: *byte = null;
 
-  extern unsafe function malloc(sizeOf: uint): uint {
+  extern unsafe function malloc(sizeOf: uint): *byte {
     // Align all allocations to 8 bytes
-    var offset = (currentHeapPointer + 7) & ~7 as uint;
+    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;
     sizeOf = (sizeOf + 7) & ~7 as uint;
 
     // Use a simple bump allocator for now
@@ -25,17 +25,17 @@ function library(): string {
     return offset;
   }
 
-  unsafe function memcpy(target: uint, source: uint, length: uint): void {
+  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {
     // No-op if either of the inputs are null
-    if (source == 0 || target == 0) {
+    if (source == null || target == null) {
       return;
     }
 
     // Optimized aligned copy
-    if (length >= 16 && source % 4 == target % 4) {
+    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {
       // Pick off the beginning
-      while (target % 4 != 0) {
-        *(target as *byte) = *(source as *byte);
+      while ((target as uint) % 4 != 0) {
+        *target = *source;
         target = target + 1;
         source = source + 1;
         length = length - 1;
@@ -44,7 +44,7 @@ function library(): string {
       // Pick off the end
       while (length % 4 != 0) {
         length = length - 1;
-        *((target + length) as *byte) = *((source + length) as *byte);
+        *(target + length) = *(source + length);
       }
 
       // Zip over the middle
@@ -60,7 +60,7 @@ function library(): string {
     else {
       var end = target + length;
       while (target < end) {
-        *(target as *byte) = *(source as *byte);
+        *target = *source;
         target = target + 1;
         source = source + 1;
       }
@@ -176,7 +176,7 @@ function library(): string {
     operator [] (index: int): ushort {
       if (index as uint < this.length as uint) {
         unsafe {
-          return *((this as int + index * 2 + 4) as *ushort);
+          return *((this as *byte + 4 + index * 2) as *ushort);
         }
       }
       return 0;
@@ -184,8 +184,8 @@ function library(): string {
 
     operator == (other: string): bool {
       unsafe {
-        if (this as uint == other as uint) return true;
-        if (this as uint == 0 || other as uint == 0) return false;
+        if (this as *byte == other as *byte) return true;
+        if (this as *byte == null || other as *byte == null) return false;
 
         var length = this.length;
 
@@ -195,8 +195,8 @@ function library(): string {
         }
 
         // Check the content next
-        var ai = this as uint + 4;
-        var bi = other as uint + 4;
+        var ai = this as *byte + 4;
+        var bi = other as *byte + 4;
         var an = ai + ((length * 2) & ~3) as uint;
 
         // Compare 32-bit values for speed (4-byte alignment is manditory)
@@ -229,7 +229,7 @@ function library(): string {
       unsafe {
         var length = (end - start) as uint;
         var ptr = string_new(length);
-        memcpy(ptr as uint + 4, this as uint + 4 + start as uint * 2, length * 2);
+        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, length * 2);
         return ptr;
       }
     }

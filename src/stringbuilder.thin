@@ -106,7 +106,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
       var length = text.length;
       unsafe {
         bytes.resize(index as int + length * 2);
-        memcpy(bytes._data + index, text as uint + 4, length as uint * 2);
+        memcpy(bytes._data + index, text as *byte + 4, length as uint * 2);
       }
       return this;
     }
@@ -119,7 +119,7 @@ function StringBuilder_appendQuoted(sb: StringBuilder, text: string): void {
         var bytes = this._bytes;
         var length = bytes._length as uint / 2;
         var ptr = string_new(length);
-        memcpy(ptr as uint + 4, bytes._data, length * 2);
+        memcpy(ptr as *byte + 4, bytes._data, length * 2);
         return ptr;
       }
     }
