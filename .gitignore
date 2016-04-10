@@ -1,2 +1,4 @@
 .DS_Store
+*.obj
 /out/thinc
+/out/thinc.exe

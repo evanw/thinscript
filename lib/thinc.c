@@ -3,7 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+  #include <windows.h>
+
+  static HANDLE handle = INVALID_HANDLE_VALUE;
+  static CONSOLE_SCREEN_BUFFER_INFO info;
+#else
+  #include <unistd.h>
+#endif
 
 enum {
   COLOR_DEFAULT,
@@ -175,31 +183,54 @@ static const char *utf16_to_cstring(const uint16_t *input) {
 }
 
 void Terminal_setColor(int32_t color) {
-  if (isatty(STDOUT_FILENO)) {
-    printf("\x1B[0;%dm",
-      color == COLOR_BOLD ? 1 :
-      color == COLOR_RED ? 91 :
-      color == COLOR_GREEN ? 92 :
-      color == COLOR_MAGENTA ? 95 :
-      0);
-  }
+  #ifdef _WIN32
+    SetConsoleTextAttribute(handle,
+      color == COLOR_BOLD ? info.wAttributes | FOREGROUND_INTENSITY :
+      color == COLOR_RED ? FOREGROUND_RED | FOREGROUND_INTENSITY :
+      color == COLOR_GREEN ? FOREGROUND_GREEN | FOREGROUND_INTENSITY :
+      color == COLOR_MAGENTA ? FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY :
+      info.wAttributes);
+  #else
+    if (isatty(STDOUT_FILENO)) {
+      printf("\x1B[0;%dm",
+        color == COLOR_BOLD ? 1 :
+        color == COLOR_RED ? 91 :
+        color == COLOR_GREEN ? 92 :
+        color == COLOR_MAGENTA ? 95 :
+        0);
+    }
+  #endif
 }
 
 void Terminal_write(const uint16_t *text) {
-  printf("%s", utf16_to_cstring(text));
+  #ifdef _WIN32
+    WriteConsoleW(handle, text + 2, *(uint32_t *)text, NULL, NULL);
+  #else
+    printf("%s", utf16_to_cstring(text));
+  #endif
 }
 
 const uint16_t *IO_readTextFile(const uint16_t *path) {
   FILE *f = fopen(utf16_to_cstring(path), "r");
   if (f == NULL) return NULL;
   fseek(f, 0, SEEK_END);
-  size_t length = ftell(f);
+  long lengthIncludingCarriageReturns = ftell(f);
   fseek(f, 0, SEEK_SET);
-  char *text = calloc(1, length + 1);
-  if (fread(text, sizeof(char), length, f) < length) {
+  char *text = malloc(lengthIncludingCarriageReturns + 1);
+
+  // Ignore the return value of fread() and check ftell() instead because
+  // on Windows, ftell() treats newlines as "\r\n" while fread() treats them
+  // as "\n". This means the counts aren't comparable and will cause errors.
+  size_t lengthExcludingCarriageReturns = fread(text, sizeof(char), lengthIncludingCarriageReturns, f);
+
+  if (ftell(f) < lengthIncludingCarriageReturns) {
     fclose(f);
     return NULL;
   }
+
+  // Make sure to end the text at the end of the translated character stream
+  text[lengthExcludingCarriageReturns] = '\0';
+
   fclose(f);
   return cstring_to_utf16(text);
 }
@@ -229,9 +260,16 @@ uint8_t IO_writeBinaryFile(const uint16_t *path, struct ByteArray *contents) {
 }
 
 int main(int argc, char *argv[]) {
+  #ifdef _WIN32
+    handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    GetConsoleScreenBufferInfo(handle, &info);
+  #endif
+
   setlocale(LC_ALL, "en_US.UTF-8");
+
   for (int i = 1; i < argc; i++) {
     main_addArgument(cstring_to_utf16(argv[i]));
   }
+
   return main_entry();
 }

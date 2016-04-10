@@ -26,6 +26,63 @@ function compile(compiler, sources) {
   };
 }
 
+function compileNativeUnix() {
+  try {
+    var command = [
+      'cc',
+      __dirname + '/lib/thinc.c',
+      __dirname + '/out/compiled.c',
+      '-o', __dirname + '/out/thinc',
+      '-Wall',
+      '-Wextra',
+      '-Wno-unused-parameter',
+      '-Wno-unused-function',
+      '-std=c99',
+      '-O3',
+    ];
+    console.log(command.join(' '));
+    var child = child_process.spawn(command.shift(), command, {stdio: 'inherit'});
+  } catch (e) {
+    console.log('failed to build the native compiler');
+  }
+}
+
+function compileNativeWindows() {
+  // Find all installed Visual Studio versions
+  var versions = [];
+  Object.keys(process.env).forEach(function(key) {
+    var match = /^VS(\d+)COMNTOOLS$/.exec(key);
+    if (match) {
+      versions.push(match[1] | 0);
+    }
+  });
+
+  // Try the compilers in descending order
+  versions.sort(function(a, b) {
+    return b - a;
+  });
+  next();
+
+  function next() {
+    if (!versions.length) {
+      console.log('failed to build the native compiler');
+      return;
+    }
+
+    var version = versions.shift();
+    var folder = process.env['VS' + version + 'COMNTOOLS'];
+    var child = child_process.spawn('cmd.exe', [], {cwd: __dirname, stdio: ['pipe', process.stdout, process.stderr]});
+    child.stdin.write('"' + folder + '/../../VC/bin/vcvars32.bat"\n');
+    child.stdin.write('cl.exe /O2 lib/thinc.c out/compiled.c /Fe"out/thinc.exe"\n');
+    child.stdin.end();
+    child.on('close', function(code) {
+      if (code !== 0 || !fs.existsSync(__dirname + '/out/thinc.exe')) {
+        next();
+      }
+    });
+  }
+}
+
 var sourceDir = __dirname + '/src';
 var sources = [];
 
@@ -33,7 +90,7 @@ fs.readdirSync(sourceDir).forEach(function(entry) {
   if (/\.thin$/.test(entry)) {
     sources.push({
       name: entry,
-      contents: fs.readFileSync(sourceDir + '/' + entry, 'utf8'),
+      contents: fs.readFileSync(sourceDir + '/' + entry, 'utf8').replace(/\r\n/g, '\n'),
     });
   }
 });
@@ -59,20 +116,5 @@ fs.writeFileSync(__dirname + '/out/compiled.wasm', Buffer(compiled.wasm));
 console.log('wrote to "out/compiled.wasm"');
 
 console.log('building the native compiler...');
-try {
-  var command = [
-    'cc',
-    __dirname + '/lib/thinc.c',
-    __dirname + '/out/compiled.c',
-    '-o', __dirname + '/out/thinc',
-    '-Wall',
-    '-Wextra',
-    '-Wno-unused-parameter',
-    '-Wno-unused-function',
-    '-std=c99',
-    '-O3',
-  ];
-  console.log(command.join(' '));
-  var child = child_process.spawn(command.shift(), command, {stdio: 'inherit'});
-} catch (e) {
-}
+if (process.platform === 'win32') compileNativeWindows();
+else compileNativeUnix();
