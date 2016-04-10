@@ -259,6 +259,40 @@ function library(): string {
         return memcmp(this as *byte + 4 + (thisLength - textLength) * 2, text as *byte + 4, textLength as uint * 2) == 0;
       }
     }
+
+    indexOf(text: string): int {
+      var thisLength = this.length;
+      var textLength = text.length;
+      if (thisLength >= textLength) {
+        var i = 0;
+        while (i < thisLength - textLength) {
+          unsafe {
+            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {
+              return i;
+            }
+          }
+          i = i + 1;
+        }
+      }
+      return -1;
+    }
+
+    lastIndexOf(text: string): int {
+      var thisLength = this.length;
+      var textLength = text.length;
+      if (thisLength >= textLength) {
+        var i = thisLength - textLength;
+        while (i >= 0) {
+          unsafe {
+            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {
+              return i;
+            }
+          }
+          i = i - 1;
+        }
+      }
+      return -1;
+    }
   }
 
 #else
@@ -295,6 +329,8 @@ function library(): string {
     charAt(index: int): string;
     charCodeAt(index: int): ushort;
     get length(): int;
+    indexOf(text: string): int;
+    lastIndexOf(text: string): int;
     operator == (other: string): bool;
     operator [] (index: int): ushort { return this.charCodeAt(index); }
     slice(start: int, end: int): string;
