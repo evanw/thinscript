@@ -62,17 +62,17 @@ console.log('building the native compiler...');
 try {
   var command = [
     'cc',
-    '"' + __dirname + '/lib/thinc.c"',
-    '"' + __dirname + '/out/compiled.c"',
-    '-o "' + __dirname + '/out/thinc"',
+    __dirname + '/lib/thinc.c',
+    __dirname + '/out/compiled.c',
+    '-o', __dirname + '/out/thinc',
     '-Wall',
     '-Wextra',
-    '-Wpedantic',
     '-Wno-unused-parameter',
     '-Wno-unused-function',
+    '-std=c99',
     '-O3',
   ];
   console.log(command.join(' '));
-  child_process.execSync(command.join(' '), {stdio: 'inherit'});
+  var child = child_process.spawn(command.shift(), command, {stdio: 'inherit'});
 } catch (e) {
 }

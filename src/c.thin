@@ -81,16 +81,13 @@ class CResult {
     var parentKind = node.parent.kind;
     var code = this.code;
 
-    // Clang warns about "&&" inside "||" or "&" inside "|" without parentheses
+    // Try to avoid warnings from Clang and GCC
     if (parentKind == NodeKind.LOGICAL_OR && kind == NodeKind.LOGICAL_AND ||
-        parentKind == NodeKind.BITWISE_OR && kind == NodeKind.BITWISE_AND) {
-      needsParentheses = true;
-    }
-
-    // Clang and GCC also warn about add/subtract inside bitwise operations and shifts without parentheses
-    else if ((kind == NodeKind.ADD || kind == NodeKind.SUBTRACT) && (
-        parentKind == NodeKind.BITWISE_AND || parentKind == NodeKind.BITWISE_OR || parentKind == NodeKind.BITWISE_XOR ||
-        parentKind == NodeKind.SHIFT_LEFT || parentKind == NodeKind.SHIFT_RIGHT)) {
+        parentKind == NodeKind.BITWISE_OR && kind == NodeKind.BITWISE_AND ||
+        (parentKind == NodeKind.EQUAL || parentKind == NodeKind.NOT_EQUAL) && (kind == NodeKind.EQUAL || kind == NodeKind.NOT_EQUAL) ||
+        (kind == NodeKind.ADD || kind == NodeKind.SUBTRACT) && (
+          parentKind == NodeKind.BITWISE_AND || parentKind == NodeKind.BITWISE_OR || parentKind == NodeKind.BITWISE_XOR ||
+          parentKind == NodeKind.SHIFT_LEFT || parentKind == NodeKind.SHIFT_RIGHT)) {
       needsParentheses = true;
     }
 

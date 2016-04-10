@@ -170,11 +170,7 @@
     var parentKind = node.parent.kind;
     var code = this.code;
 
-    if (parentKind === 57 && kind === 56 || parentKind === 47 && kind === 46) {
-      needsParentheses = true;
-    }
-
-    else if ((kind === 44 || kind === 63) && (parentKind === 46 || parentKind === 47 || parentKind === 48 || parentKind === 61 || parentKind === 62)) {
+    if (parentKind === 57 && kind === 56 || parentKind === 47 && kind === 46 || (parentKind === 50 || parentKind === 59) && (kind === 50 || kind === 59) || (kind === 44 || kind === 63) && (parentKind === 46 || parentKind === 47 || parentKind === 48 || parentKind === 61 || parentKind === 62)) {
       needsParentheses = true;
     }
 
@@ -4180,7 +4176,6 @@
 
   Source.prototype.indexToLineColumn = function(index) {
     var contents = this.contents;
-    var lastNewline = 0;
     var column = 0;
     var line = 0;
     var i = 0;
@@ -4189,7 +4184,6 @@
       var c = string_op_get(contents, i);
 
       if (c === 10) {
-        lastNewline = i + 1 | 0;
         line = line + 1 | 0;
         column = 0;
       }

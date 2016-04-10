@@ -196,7 +196,10 @@ const uint16_t *IO_readTextFile(const uint16_t *path) {
   size_t length = ftell(f);
   fseek(f, 0, SEEK_SET);
   char *text = calloc(1, length + 1);
-  fread(text, sizeof(char), length, f);
+  if (fread(text, sizeof(char), length, f) < length) {
+    fclose(f);
+    return NULL;
+  }
   fclose(f);
   return cstring_to_utf16(text);
 }
@@ -205,7 +208,11 @@ uint8_t IO_writeTextFile(const uint16_t *path, const uint16_t *contents) {
   FILE *f = fopen(utf16_to_cstring(path), "w");
   if (f == NULL) return 0;
   const char *text = utf16_to_cstring(contents);
-  fwrite(text, sizeof(char), strlen(text), f);
+  size_t length = strlen(text);
+  if (fwrite(text, sizeof(char), length, f) < length) {
+    fclose(f);
+    return 0;
+  }
   fclose(f);
   return 1;
 }
@@ -213,7 +220,10 @@ uint8_t IO_writeTextFile(const uint16_t *path, const uint16_t *contents) {
 uint8_t IO_writeBinaryFile(const uint16_t *path, struct ByteArray *contents) {
   FILE *f = fopen(utf16_to_cstring(path), "wb");
   if (f == NULL) return 0;
-  fwrite(contents->_data, sizeof(uint8_t), contents->_length, f);
+  if (fwrite(contents->_data, sizeof(uint8_t), contents->_length, f) < contents->_length) {
+    fclose(f);
+    return 0;
+  }
   fclose(f);
   return 1;
 }

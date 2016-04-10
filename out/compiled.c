@@ -1489,11 +1489,7 @@ static void CResult_emitBinary(struct CResult *this, struct Node *node, int32_t 
   int32_t parentKind = node->parent->kind;
   struct StringBuilder *code = this->code;
 
-  if ((parentKind == 57 && kind == 56) || (parentKind == 47 && kind == 46)) {
-    needsParentheses = 1;
-  }
-
-  else if ((kind == 44 || kind == 63) && (parentKind == 46 || parentKind == 47 || parentKind == 48 || parentKind == 61 || parentKind == 62)) {
+  if ((parentKind == 57 && kind == 56) || (parentKind == 47 && kind == 46) || ((parentKind == 50 || parentKind == 59) && (kind == 50 || kind == 59)) || ((kind == 44 || kind == 63) && (parentKind == 46 || parentKind == 47 || parentKind == 48 || parentKind == 61 || parentKind == 62))) {
     needsParentheses = 1;
   }
 
@@ -2272,7 +2268,7 @@ static void initialize(struct CheckContext *context, struct Node *node, struct S
   if (node->parent != NULL) {
     int32_t parentKind = node->parent->kind;
 
-    if (kind != 2 && kind != 15 && (kind != 11 || parentKind != 5) && parentKind == 0 != (kind == 5 || kind == 9 || kind == 11 || kind == 6)) {
+    if (kind != 2 && kind != 15 && (kind != 11 || parentKind != 5) && (parentKind == 0) != (kind == 5 || kind == 9 || kind == 11 || kind == 6)) {
       Log_error(context->log, node->range, (const uint16_t *)__string_101_This_statement_is_not_allowed_he);
     }
   }
@@ -5436,7 +5432,6 @@ static const uint16_t *library() {
 
 static struct LineColumn *Source_indexToLineColumn(struct Source *this, int32_t index) {
   const uint16_t *contents = this->contents;
-  int32_t lastNewline = 0;
   int32_t column = 0;
   int32_t line = 0;
   int32_t i = 0;
@@ -5445,7 +5440,6 @@ static struct LineColumn *Source_indexToLineColumn(struct Source *this, int32_t 
     uint16_t c = string_op_get(contents, i);
 
     if (c == 10) {
-      lastNewline = i + 1;
       line = line + 1;
       column = 0;
     }
@@ -8299,7 +8293,7 @@ static int32_t Preprocessor_parseInfix(struct Preprocessor *this, int32_t preced
       return 2;
     }
 
-    return operator == 14 == (left == right) ? 1 : 0;
+    return (operator == 14) == (left == right) ? 1 : 0;
   }
 
   if (precedence < 3 && Preprocessor_eat(this, 23)) {

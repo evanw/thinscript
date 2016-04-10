@@ -15,7 +15,6 @@ class Source {
 
   indexToLineColumn(index: int): LineColumn {
     var contents = this.contents;
-    var lastNewline = 0;
     var column = 0;
     var line = 0;
     var i = 0;
@@ -25,7 +24,6 @@ class Source {
       var c = contents[i];
 
       if (c == '\n') {
-        lastNewline = i + 1;
         line = line + 1;
         column = 0;
       }
