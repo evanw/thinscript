@@ -4181,13 +4181,21 @@
   Source.prototype.indexToLineColumn = function(index) {
     var contents = this.contents;
     var lastNewline = 0;
+    var column = 0;
     var line = 0;
     var i = 0;
 
     while (i < index) {
-      if (string_op_get(contents, i) === 10) {
+      var c = string_op_get(contents, i);
+
+      if (c === 10) {
         lastNewline = i + 1 | 0;
         line = line + 1 | 0;
+        column = 0;
+      }
+
+      else if (c < 56320 || c > 57343) {
+        column = column + 1 | 0;
       }
 
       i = i + 1 | 0;
@@ -4195,7 +4203,7 @@
 
     var location = new LineColumn();
     location.line = line;
-    location.column = index - lastNewline | 0;
+    location.column = column;
 
     return location;
   };
@@ -4274,17 +4282,8 @@
   };
 
   Diagnostic.prototype.appendLineContents = function(builder, location) {
-    var range = this.range;
-    var contents = range.source.contents;
-    var length = contents.length;
-    var start = range.start - location.column | 0;
-    var end = range.start;
-
-    while (end < length && string_op_get(contents, end) !== 10) {
-      end = end + 1 | 0;
-    }
-
-    builder.appendSlice(contents, start, end).appendChar(10);
+    var range = this.range.enclosingLine();
+    builder.appendSlice(range.source.contents, range.start, range.end).appendChar(10);
   };
 
   Diagnostic.prototype.appendRange = function(builder, location) {

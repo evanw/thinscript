@@ -5437,13 +5437,21 @@ static const uint16_t *library() {
 static struct LineColumn *Source_indexToLineColumn(struct Source *this, int32_t index) {
   const uint16_t *contents = this->contents;
   int32_t lastNewline = 0;
+  int32_t column = 0;
   int32_t line = 0;
   int32_t i = 0;
 
   while (i < index) {
-    if (string_op_get(contents, i) == 10) {
+    uint16_t c = string_op_get(contents, i);
+
+    if (c == 10) {
       lastNewline = i + 1;
       line = line + 1;
+      column = 0;
+    }
+
+    else if (c < 56320 || c > 57343) {
+      column = column + 1;
     }
 
     i = i + 1;
@@ -5451,7 +5459,7 @@ static struct LineColumn *Source_indexToLineColumn(struct Source *this, int32_t 
 
   struct LineColumn *location = calloc(1, sizeof(struct LineColumn));
   location->line = line;
-  location->column = index - lastNewline;
+  location->column = column;
 
   return location;
 }
@@ -5517,17 +5525,8 @@ static void Diagnostic_appendMessage(struct Diagnostic *this, struct StringBuild
 }
 
 static void Diagnostic_appendLineContents(struct Diagnostic *this, struct StringBuilder *builder, struct LineColumn *location) {
-  struct Range *range = this->range;
-  const uint16_t *contents = range->source->contents;
-  int32_t length = string_length(contents);
-  int32_t start = range->start - location->column;
-  int32_t end = range->start;
-
-  while (end < length && string_op_get(contents, end) != 10) {
-    end = end + 1;
-  }
-
-  StringBuilder_appendChar(StringBuilder_appendSlice(builder, contents, start, end), 10);
+  struct Range *range = Range_enclosingLine(this->range);
+  StringBuilder_appendChar(StringBuilder_appendSlice(builder, range->source->contents, range->start, range->end), 10);
 }
 
 static void Diagnostic_appendRange(struct Diagnostic *this, struct StringBuilder *builder, struct LineColumn *location) {

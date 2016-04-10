@@ -16,21 +16,31 @@ class Source {
   indexToLineColumn(index: int): LineColumn {
     var contents = this.contents;
     var lastNewline = 0;
+    var column = 0;
     var line = 0;
     var i = 0;
 
     // Just count the number of lines from the beginning of the file for now
     while (i < index) {
-      if (contents[i] == '\n') {
+      var c = contents[i];
+
+      if (c == '\n') {
         lastNewline = i + 1;
         line = line + 1;
+        column = 0;
       }
+
+      // Ignore low surrogates
+      else if (c < 0xDC00 || c > 0xDFFF) {
+        column = column + 1;
+      }
+
       i = i + 1;
     }
 
     var location = new LineColumn();
     location.line = line;
-    location.column = index - lastNewline;
+    location.column = column;
     return location;
   }
 }
@@ -119,17 +129,8 @@ class Diagnostic {
   }
 
   appendLineContents(builder: StringBuilder, location: LineColumn): void {
-    var range = this.range;
-    var contents = range.source.contents;
-    var length = contents.length;
-    var start = range.start - location.column;
-    var end = range.start;
-
-    while (end < length && contents[end] != '\n') {
-      end = end + 1;
-    }
-
-    builder.appendSlice(contents, start, end).appendChar('\n');
+    var range = this.range.enclosingLine();
+    builder.appendSlice(range.source.contents, range.start, range.end).appendChar('\n');
   }
 
   appendRange(builder: StringBuilder, location: LineColumn): void {
