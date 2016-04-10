@@ -3,6 +3,14 @@
     return __this.charCodeAt(index);
   }
 
+  function string_startsWith(__this, text) {
+    return __this.slice(0, text.length) === text;
+  }
+
+  function string_endsWith(__this, text) {
+    return __this.slice(-text.length | 0, __this.length) === text;
+  }
+
   function ByteArray_set16(array, index, value) {
     array.set(index, value & 255);
     array.set(index + 1 | 0, value >> 8 & 255);
@@ -65,10 +73,6 @@
     var index = this._length;
     this.resize(index + 1 | 0);
     this._data[index] = value;
-  };
-
-  ByteArray.prototype.bytes = function() {
-    return this._data.subarray(0, this._length);
   };
 
   ByteArray.prototype.resize = function(length) {
@@ -166,11 +170,7 @@
     var parentKind = node.parent.kind;
     var code = this.code;
 
-    if (parentKind === 57 && kind === 56 || parentKind === 47 && kind === 46) {
-      needsParentheses = true;
-    }
-
-    else if ((kind === 44 || kind === 63) && (parentKind === 46 || parentKind === 47 || parentKind === 48 || parentKind === 61 || parentKind === 62)) {
+    if (parentKind === 57 && kind === 56 || parentKind === 47 && kind === 46 || (parentKind === 50 || parentKind === 59) && (kind === 50 || kind === 59) || (kind === 44 || kind === 63) && (parentKind === 46 || parentKind === 47 || parentKind === 48 || parentKind === 61 || parentKind === 62)) {
       needsParentheses = true;
     }
 
@@ -2281,13 +2281,6 @@
     }
   }
 
-  __extern.CompileTarget = {
-    NONE: 0,
-    C: 1,
-    JAVASCRIPT: 2,
-    WEBASSEMBLY: 3
-  };
-
   function Compiler() {
     this.log = null;
     this.global = null;
@@ -2445,43 +2438,6 @@
     __declare.Profiler_end("emitting");
 
     return true;
-  };
-
-  var Compiler_new = __extern.Compiler_new = function(target) {
-    var compiler = new Compiler();
-    compiler.initialize(target);
-
-    return compiler;
-  };
-
-  var Compiler_callAddInput = __extern.Compiler_callAddInput = function(compiler, name, contents) {
-    compiler.addInput(name, contents);
-  };
-
-  var Compiler_define = __extern.Compiler_define = function(compiler, text) {
-    compiler.preprocessor.define(text, true);
-  };
-
-  var Compiler_callFinish = __extern.Compiler_callFinish = function(compiler) {
-    compiler.finish();
-
-    return !compiler.log.hasErrors();
-  };
-
-  var Compiler_wasm = __extern.Compiler_wasm = function(compiler) {
-    return compiler.wasm;
-  };
-
-  var Compiler_js = __extern.Compiler_js = function(compiler) {
-    return compiler.js;
-  };
-
-  var Compiler_c = __extern.Compiler_c = function(compiler) {
-    return compiler.c;
-  };
-
-  var Compiler_log = __extern.Compiler_log = function(compiler) {
-    return compiler.log.toString();
   };
 
   function isPositivePowerOf2(value) {
@@ -4220,14 +4176,20 @@
 
   Source.prototype.indexToLineColumn = function(index) {
     var contents = this.contents;
-    var lastNewline = 0;
+    var column = 0;
     var line = 0;
     var i = 0;
 
     while (i < index) {
-      if (string_op_get(contents, i) === 10) {
-        lastNewline = i + 1 | 0;
+      var c = string_op_get(contents, i);
+
+      if (c === 10) {
         line = line + 1 | 0;
+        column = 0;
+      }
+
+      else if (c < 56320 || c > 57343) {
+        column = column + 1 | 0;
       }
 
       i = i + 1 | 0;
@@ -4235,7 +4197,7 @@
 
     var location = new LineColumn();
     location.line = line;
-    location.column = index - lastNewline | 0;
+    location.column = column;
 
     return location;
   };
@@ -4314,17 +4276,8 @@
   };
 
   Diagnostic.prototype.appendLineContents = function(builder, location) {
-    var range = this.range;
-    var contents = range.source.contents;
-    var length = contents.length;
-    var start = range.start - location.column | 0;
-    var end = range.start;
-
-    while (end < length && string_op_get(contents, end) !== 10) {
-      end = end + 1 | 0;
-    }
-
-    builder.appendSlice(contents, start, end).appendChar(10);
+    var range = this.range.enclosingLine();
+    builder.appendSlice(range.source.contents, range.start, range.end).appendChar(10);
   };
 
   Diagnostic.prototype.appendRange = function(builder, location) {
@@ -4412,6 +4365,222 @@
     }
 
     return false;
+  };
+
+  __extern.Color = {
+    DEFAULT: 0,
+    BOLD: 1,
+    RED: 2,
+    GREEN: 3,
+    MAGENTA: 4
+  };
+
+  function writeLogToTerminal(log) {
+    var diagnostic = log.first;
+
+    while (diagnostic !== null) {
+      var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
+      var builder = StringBuilder_new();
+      diagnostic.appendSourceName(builder, location);
+      __declare.Terminal_setColor(1);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendKind(builder);
+      __declare.Terminal_setColor(diagnostic.kind === 0 ? 2 : 4);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendMessage(builder);
+      __declare.Terminal_setColor(1);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendLineContents(builder, location);
+      __declare.Terminal_setColor(0);
+      __declare.Terminal_write(builder.finish());
+      builder = StringBuilder_new();
+      diagnostic.appendRange(builder, location);
+      __declare.Terminal_setColor(3);
+      __declare.Terminal_write(builder.finish());
+      diagnostic = diagnostic.next;
+    }
+
+    __declare.Terminal_setColor(0);
+  }
+
+  function printError(text) {
+    __declare.Terminal_setColor(2);
+    __declare.Terminal_write("error: ");
+    __declare.Terminal_setColor(1);
+    __declare.Terminal_write(text);
+    __declare.Terminal_write("\n");
+    __declare.Terminal_setColor(0);
+  }
+
+  function CommandLineArgument() {
+    this.text = null;
+    this.next = null;
+  }
+
+  var firstArgument = null;
+  var lastArgument = null;
+
+  var main_addArgument = __extern.main_addArgument = function(text) {
+    var argument = new CommandLineArgument();
+    argument.text = text;
+
+    if (firstArgument === null) {
+      firstArgument = argument;
+    }
+
+    else {
+      lastArgument.next = argument;
+    }
+
+    lastArgument = argument;
+  };
+
+  var main_reset = __extern.main_reset = function() {
+    firstArgument = null;
+    lastArgument = null;
+  };
+
+  function printUsage() {
+    __declare.Terminal_write("\nUsage: thinc [FLAGS] [INPUTS]\n\n  --help           Print this message.\n  --out [PATH]     Save the generated code to PATH.\n  --define [NAME]  Define the flag NAME in all input files.\n\nExamples:\n\n  thinc main.thin --out main.js\n  thinc src/*.thin --out main.wasm\n  thinc native.thin --out main.c --define ENABLE_TESTS\n\n");
+  }
+
+  var main_entry = __extern.main_entry = function() {
+    var target = 0;
+    var argument = firstArgument;
+    var inputCount = 0;
+    var output = null;
+
+    if (firstArgument === null) {
+      printUsage();
+
+      return 1;
+    }
+
+    while (argument !== null) {
+      var text = argument.text;
+
+      if (string_startsWith(text, "-")) {
+        if (text === "-h" || text === "-help" || text === "--help" || text === "/?") {
+          printUsage();
+
+          return 0;
+        }
+
+        else if (text === "--c") {
+          target = 1;
+        }
+
+        else if (text === "--js") {
+          target = 2;
+        }
+
+        else if (text === "--wasm") {
+          target = 3;
+        }
+
+        else if (text === "--define" && argument.next !== null) {
+          argument = argument.next;
+        }
+
+        else if (text === "--out" && argument.next !== null) {
+          argument = argument.next;
+          output = argument.text;
+        }
+
+        else {
+          printError(StringBuilder_new().append("Invalid flag: ").append(text).finish());
+
+          return 1;
+        }
+      }
+
+      else {
+        inputCount = inputCount + 1 | 0;
+      }
+
+      argument = argument.next;
+    }
+
+    if (inputCount === 0) {
+      printError("No input files");
+
+      return 1;
+    }
+
+    if (output === null) {
+      printError("Missing an output file (use the --out flag)");
+
+      return 1;
+    }
+
+    if (target === 0) {
+      if (string_endsWith(output, ".c")) {
+        target = 1;
+      }
+
+      else if (string_endsWith(output, ".js")) {
+        target = 2;
+      }
+
+      else if (string_endsWith(output, ".wasm")) {
+        target = 3;
+      }
+
+      else {
+        printError("Missing a target (use either --c, --js, or --wasm)");
+
+        return 1;
+      }
+    }
+
+    var compiler = new Compiler();
+    compiler.initialize(target);
+    argument = firstArgument;
+
+    while (argument !== null) {
+      var text = argument.text;
+
+      if (text === "--define") {
+        argument = argument.next;
+        compiler.preprocessor.define(argument.text, true);
+      }
+
+      else if (text === "--out") {
+        argument = argument.next;
+      }
+
+      else if (!string_startsWith(text, "-")) {
+        var contents = __declare.IO_readTextFile(text);
+
+        if (contents === null) {
+          printError(StringBuilder_new().append("Cannot read from ").append(text).finish());
+
+          return 1;
+        }
+
+        compiler.addInput(text, contents);
+      }
+
+      argument = argument.next;
+    }
+
+    compiler.finish();
+    writeLogToTerminal(compiler.log);
+
+    if (!compiler.log.hasErrors()) {
+      var success = target === 1 ? __declare.IO_writeTextFile(output, compiler.c) : target === 2 ? __declare.IO_writeTextFile(output, compiler.js) : target === 3 ? __declare.IO_writeBinaryFile(output, compiler.wasm) : false;
+
+      if (!success) {
+        printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
+
+        return 1;
+      }
+    }
+
+    return 0;
   };
 
   function isUnary(kind) {
@@ -7382,46 +7551,6 @@
     offset = alignToNextMultipleOf(offset, maxAlignment);
     this.byteSize = offset;
     this.maxAlignment = maxAlignment;
-  };
-
-  __extern.Color = {
-    DEFAULT: 0,
-    BOLD: 1,
-    RED: 2,
-    GREEN: 3,
-    MAGENTA: 4
-  };
-
-  var Compiler_writeLogToTerminal = __extern.Compiler_writeLogToTerminal = function(compiler) {
-    var diagnostic = compiler.log.first;
-    var builder = null;
-
-    while (diagnostic !== null) {
-      var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
-      builder = StringBuilder_new();
-      diagnostic.appendSourceName(builder, location);
-      __declare.Terminal_setColor(1);
-      __declare.Terminal_write(builder.finish());
-      builder = StringBuilder_new();
-      diagnostic.appendKind(builder);
-      __declare.Terminal_setColor(diagnostic.kind === 0 ? 2 : 4);
-      __declare.Terminal_write(builder.finish());
-      builder = StringBuilder_new();
-      diagnostic.appendMessage(builder);
-      __declare.Terminal_setColor(1);
-      __declare.Terminal_write(builder.finish());
-      builder = StringBuilder_new();
-      diagnostic.appendLineContents(builder, location);
-      __declare.Terminal_setColor(0);
-      __declare.Terminal_write(builder.finish());
-      builder = StringBuilder_new();
-      diagnostic.appendRange(builder, location);
-      __declare.Terminal_setColor(3);
-      __declare.Terminal_write(builder.finish());
-      diagnostic = diagnostic.next;
-    }
-
-    __declare.Terminal_setColor(0);
   };
 
   function Type() {
