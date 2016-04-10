@@ -1,4 +1,4 @@
-extern enum CompileTarget {
+enum CompileTarget {
   NONE,
   C,
   JAVASCRIPT,
@@ -163,49 +163,3 @@ class Compiler {
     return true;
   }
 }
-
-extern function Compiler_new(target: CompileTarget): Compiler {
-  var compiler = new Compiler();
-  compiler.initialize(target);
-  return compiler;
-}
-
-extern function Compiler_callAddInput(compiler: Compiler, name: string, contents: string): void {
-  compiler.addInput(name, contents);
-}
-
-extern function Compiler_define(compiler: Compiler, text: string): void {
-  compiler.preprocessor.define(text, true);
-}
-
-extern function Compiler_callFinish(compiler: Compiler): bool {
-  compiler.finish();
-  return !compiler.log.hasErrors();
-}
-
-extern function Compiler_wasm(compiler: Compiler): ByteArray {
-  return compiler.wasm;
-}
-
-extern function Compiler_js(compiler: Compiler): string {
-  return compiler.js;
-}
-
-extern function Compiler_c(compiler: Compiler): string {
-  return compiler.c;
-}
-
-extern function Compiler_log(compiler: Compiler): string {
-  return compiler.log.toString();
-}
-
-#if WASM
-  extern unsafe function Compiler_allocateString(length: uint): string {
-    return string_new(length);
-  }
-
-  extern unsafe function Compiler_resetHeapPointer(): void {
-    currentHeapPointer = originalHeapPointer; // Reset the heap
-    stringBuilderPool = null;
-  }
-#endif

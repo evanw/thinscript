@@ -1,0 +1,196 @@
+extern enum Color {
+  DEFAULT,
+  BOLD,
+  RED,
+  GREEN,
+  MAGENTA,
+}
+
+declare function Terminal_setColor(color: Color): void;
+declare function Terminal_write(text: string): void;
+
+declare function IO_readTextFile(path: string): string;
+declare function IO_writeTextFile(path: string, contents: string): bool;
+declare function IO_writeBinaryFile(path: string, contents: ByteArray): bool;
+
+function writeLogToTerminal(log: Log): void {
+  var diagnostic = log.first;
+
+  while (diagnostic != null) {
+    var location = diagnostic.range.source.indexToLineColumn(diagnostic.range.start);
+
+    // Source
+    var builder = StringBuilder_new();
+    diagnostic.appendSourceName(builder, location);
+    Terminal_setColor(Color.BOLD);
+    Terminal_write(builder.finish());
+
+    // Kind
+    builder = StringBuilder_new();
+    diagnostic.appendKind(builder);
+    Terminal_setColor(diagnostic.kind == DiagnosticKind.ERROR ? Color.RED : Color.MAGENTA);
+    Terminal_write(builder.finish());
+
+    // Message
+    builder = StringBuilder_new();
+    diagnostic.appendMessage(builder);
+    Terminal_setColor(Color.BOLD);
+    Terminal_write(builder.finish());
+
+    // Line contents
+    builder = StringBuilder_new();
+    diagnostic.appendLineContents(builder, location);
+    Terminal_setColor(Color.DEFAULT);
+    Terminal_write(builder.finish());
+
+    // Range
+    builder = StringBuilder_new();
+    diagnostic.appendRange(builder, location);
+    Terminal_setColor(Color.GREEN);
+    Terminal_write(builder.finish());
+
+    diagnostic = diagnostic.next;
+  }
+
+  Terminal_setColor(Color.DEFAULT);
+}
+
+function printError(text: string): void {
+  Terminal_setColor(Color.RED);
+  Terminal_write("error: ");
+  Terminal_setColor(Color.BOLD);
+  Terminal_write(text);
+  Terminal_write("\n");
+  Terminal_setColor(Color.DEFAULT);
+}
+
+class CommandLineArgument {
+  text: string;
+  next: CommandLineArgument;
+}
+
+var firstArgument: CommandLineArgument;
+var lastArgument: CommandLineArgument;
+
+extern function main_addArgument(text: string): void {
+  var argument = new CommandLineArgument();
+  argument.text = text;
+
+  if (firstArgument == null) firstArgument = argument;
+  else lastArgument.next = argument;
+  lastArgument = argument;
+}
+
+#if WASM || C
+  extern unsafe function main_newString(length: uint): string {
+    return string_new(length);
+  }
+#endif
+
+extern unsafe function main_reset(): void {
+  firstArgument = null;
+  lastArgument = null;
+
+  #if WASM
+    currentHeapPointer = originalHeapPointer; // Reset the heap
+    stringBuilderPool = null;
+  #endif
+}
+
+extern function main(): int {
+  var target = CompileTarget.NONE;
+  var argument = firstArgument;
+  var inputCount = 0;
+  var output: string;
+
+  // Initial pass over the argument list
+  while (argument != null) {
+    var text = argument.text;
+    if (text.startsWith("-")) {
+      if (text == "--c") {
+        target = CompileTarget.C;
+      } else if (text == "--js") {
+        target = CompileTarget.JAVASCRIPT;
+      } else if (text == "--wasm") {
+        target = CompileTarget.WEBASSEMBLY;
+      } else if (text == "--define" && argument.next != null) {
+        argument = argument.next;
+      } else if (text == "--out" && argument.next != null) {
+        argument = argument.next;
+        output = argument.text;
+      } else {
+        printError(StringBuilder_new().append("Invalid flag: ").append(text).finish());
+        return 1;
+      }
+    } else {
+      inputCount = inputCount + 1;
+    }
+    argument = argument.next;
+  }
+
+  // Must have inputs
+  if (inputCount == 0) {
+    printError("No input files");
+    return 1;
+  }
+
+  // Must have an output
+  if (output == null) {
+    printError("Missing an output file (use the --out flag)");
+    return 1;
+  }
+
+  // Automatically set the target based on the file extension
+  if (target == CompileTarget.NONE) {
+    if (output.endsWith(".c")) target = CompileTarget.C;
+    else if (output.endsWith(".js")) target = CompileTarget.JAVASCRIPT;
+    else if (output.endsWith(".wasm")) target = CompileTarget.WEBASSEMBLY;
+    else {
+      printError("Missing a target (use either --c, --js, or --wasm)");
+      return 1;
+    }
+  }
+
+  // Start the compilation
+  var compiler = new Compiler();
+  compiler.initialize(target);
+
+  // Second pass over the argument list
+  argument = firstArgument;
+  while (argument != null) {
+    var text = argument.text;
+    if (text == "--define") {
+      argument = argument.next;
+      compiler.preprocessor.define(argument.text, true);
+    } else if (text == "--out") {
+      argument = argument.next;
+    } else if (!text.startsWith("-")) {
+      var contents = IO_readTextFile(text);
+      if (contents == null) {
+        printError(StringBuilder_new().append("Cannot read from ").append(text).finish());
+        return 1;
+      }
+      compiler.addInput(text, contents);
+    }
+    argument = argument.next;
+  }
+
+  // Finish the compilation
+  compiler.finish();
+  writeLogToTerminal(compiler.log);
+
+  // Only emit the output if the compilation succeeded
+  if (!compiler.log.hasErrors()) {
+    var success =
+      target == CompileTarget.C ? IO_writeTextFile(output, compiler.c) :
+      target == CompileTarget.JAVASCRIPT ? IO_writeTextFile(output, compiler.js) :
+      target == CompileTarget.WEBASSEMBLY ? IO_writeBinaryFile(output, compiler.wasm) :
+      false;
+    if (!success) {
+      printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
+      return 1;
+    }
+  }
+
+  return 0;
+}

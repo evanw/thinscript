@@ -68,7 +68,12 @@
   textarea {
     width: 100%;
     height: 400px;
+    min-height: 400px;
     resize: vertical;
+    margin: 0;
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    padding: 5px;
   }
 
   button:active:not(:disabled) {
@@ -93,14 +98,12 @@
     cursor: default;
   }
 
-  textarea, code {
-    font: 12px/130% Consolas, monospace;
+  button::-moz-focus-inner {
+    border: none;
   }
 
-  textarea {
-    border: 1px solid #CCC;
-    border-radius: 5px;
-    padding: 5px;
+  textarea, code {
+    font: 12px/130% Consolas, monospace;
   }
 
   section {
@@ -136,12 +139,12 @@
 
   <section>
     <h2>Input</h2>
-    <textarea id="input" autofocus></textarea>
+    <textarea id="input" autofocus autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
   </section>
 
   <section>
     <h2>Output</h2>
-    <textarea id="output" readonly></textarea>
+    <textarea id="output" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
     <button id="download">Download</button>
   </section>
 
@@ -154,20 +157,22 @@
     <label><input type="radio" name="target" id="target-js"> JavaScript</label>
     <label><input type="radio" name="target" id="target-wasm" checked> WebAssembly<span class="not-supported-warning-text"> (not supported by your browser)</span></label>
     <label><input type="radio" name="target" id="target-c"> C</label>
-    <br>Compile time: <span id="compileTime"></span>
+    <br>
+    <b>Compile time:</b>
+    <span id="compileTime"></span>
   </p>
 
   <div class="spacer"></div>
 
   <section>
     <h2>Usage</h2>
-    <textarea id="usage" readonly></textarea>
-    <button id="run">Run</button>
+    <textarea id="usage" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+    <button id="shim">Run</button>
   </section>
 
   <section>
     <h2>Log</h2>
-    <textarea id="log" readonly></textarea>
+    <textarea id="log" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
     <button id="clear" disabled>Clear</button>
   </section>
 </body>
@@ -175,7 +180,7 @@
 <script>
 
 (function() {
-  var run = document.getElementById('run');
+  var shim = document.getElementById('shim');
   var clear = document.getElementById('clear');
   var input = document.getElementById('input');
   var output = document.getElementById('output');
@@ -194,10 +199,11 @@
   var compiledWebAssembly = null;
   var compiledJavaScript = null;
 
+  var shimName = null;
+  var shimContents = null;
+
   var downloadName = null;
-  var javaScriptToRun = null;
-  var otherCodeToRun = null;
-  var blobToDownload = null;
+  var downloadContents = null;
 
   function joinLines(lines) {
     return lines.join('\n');
@@ -284,10 +290,7 @@
   }
 
   function compile() {
-    var target =
-      targetC.checked ? CompileTarget.C :
-      targetJavaScript.checked ? CompileTarget.JAVASCRIPT :
-      CompileTarget.WEBASSEMBLY;
+    var target = targetC.checked ? 'C' : targetJavaScript.checked ? 'JavaScript' : 'WebAssembly';
     var sources = [{
       name: '<stdin>',
       contents: input.value,
@@ -295,56 +298,33 @@
 
     try {
       if (backendWebAssembly.checked) {
-        var compilerJS = compiledWebAssembly(sources, CompileTarget.JAVASCRIPT);
-        var compilerOther = target === CompileTarget.JavaScript ? null : compiledWebAssembly(sources, target);
+        var compiled = compiledWebAssembly(sources, target);
       } else {
-        var compilerJS = compiledJavaScript(sources, CompileTarget.JAVASCRIPT);
-        var compilerOther = target === CompileTarget.JavaScript ? null : compiledJavaScript(sources, target);
+        var compiled = compiledJavaScript(sources, target);
       }
     } catch (e) {
       var message = e + '';
       if (e.stack) {
         message = e.stack.indexOf(message) !== -1 ? e.stack : message + '\n' + e.stack;
       }
-      output.value = message;
-      downloadName = 'error.txt';
-      blobToDownload = new Blob([message], {type: 'text/plain'});
-      return;
+      compiled = { stdout: message, totalTime: 0 };
     }
 
-    var log = (targetJavaScript.checked ? compilerJS : compilerOther).log;
-
-    if (log) {
-      output.value = log;
+    if (compiled.stdout) {
+      output.value = compiled.stdout;
       downloadName = 'log.txt';
-      javaScriptToRun = otherCodeToRun = '';
-      blobToDownload = new Blob([log], {type: 'text/plain'});
+      shimContents = '';
+      shimName = null;
+      downloadContents = compiled.stdout;
     }
 
     else {
-      javaScriptToRun = joinLines([
-        'function compileAndRunJavaScript(compiled) {',
-        '  var global = {',
-        '    print: function(text) {',
-        '      console.log(text);',
-        '    },',
-        '  };',
-        '  var exports = {};',
-        '  var code = new Function("global", "exports", compiled)',
-        '  code(global, exports);',
-        '  var result = exports.demo();',
-        '  console.log("result:", result);',
-        '}',
-        '',
-        'compileAndRunJavaScript(' + JSON.stringify(compilerJS.js || compilerJS.log) + ');',
-      ]);
-
       switch (target) {
-        case CompileTarget.C: {
-          output.value = compilerOther.c;
+        case 'C': {
+          output.value = compiled.output;
           downloadName = 'compiled.c';
-          blobToDownload = new Blob([compilerOther.c], {type: 'text/plain'});
-          otherCodeToRun = joinLines([
+          downloadContents = compiled.output;
+          shimContents = joinLines([
             '// Compile with "cc compiled.c main.c" assuming this file is called "main.c"',
             '',
             '#include <stdio.h>',
@@ -365,22 +345,39 @@
             '  return demo();',
             '}',
           ]);
+          shimName = 'main.c';
           break;
         }
 
-        case CompileTarget.JAVASCRIPT: {
-          output.value = compilerJS.js;
+        case 'JavaScript': {
+          output.value = compiled.output;
           downloadName = 'compiled.js';
-          blobToDownload = new Blob([compilerJS.js], {type: 'text/plain'});
-          otherCodeToRun = '';
+          downloadContents = compiled.output;
+          shimContents = joinLines([
+            'function compileAndRunJavaScript(compiled) {',
+            '  var global = {',
+            '    print: function(text) {',
+            '      console.log(text);',
+            '    },',
+            '  };',
+            '  var exports = {};',
+            '  var code = new Function("global", "exports", compiled)',
+            '  code(global, exports);',
+            '  var result = exports.demo();',
+            '  console.log("result:", result);',
+            '}',
+            '',
+            'compileAndRunJavaScript(' + JSON.stringify(compiled.output) + ');',
+          ]);
+          shimName = 'main.js';
           break;
         }
 
-        case CompileTarget.WEBASSEMBLY: {
-          output.value = compilerOther.wasm && hexdump(compilerOther.wasm);
+        case 'WebAssembly': {
+          output.value = hexdump(compiled.output);
           downloadName = 'compiled.wasm';
-          blobToDownload = new Blob([compilerOther.wasm], {type: 'application/octet-stream'});
-          otherCodeToRun = joinLines([
+          downloadContents = compiled.output;
+          shimContents = joinLines([
             'function compileAndRunWebAssembly(compiled) {',
             '  var extractLengthPrefixedString = function(ptr) {',
             '    var text = "", length = ints[ptr >> 2], i = ptr + 4 >> 1;',
@@ -399,24 +396,36 @@
             '  console.log("result:", result);',
             '}',
             '',
-            'compileAndRunWebAssembly(new Uint8Array([' + (compilerOther.wasm ? Array.prototype.slice.call(compilerOther.wasm).join(', ') : '') + ']));',
+            'compileAndRunWebAssembly(new Uint8Array([' + Array.prototype.slice.call(compiled.output).join(', ') + ']));',
           ]);
+          shimName = 'main.js';
           break;
+        }
+
+        default: {
+          throw new Error('Invalid target: ' + target);
         }
       }
     }
 
-    usage.textContent = target !== CompileTarget.JAVASCRIPT ? otherCodeToRun : javaScriptToRun;
-    compileTime.textContent = (target !== CompileTarget.JAVASCRIPT ? compilerOther : compilerJS).totalTime + 'ms';
+    usage.textContent = shimContents;
+    compileTime.textContent = compiled.totalTime + 'ms';
+
+    shim.textContent = target === 'JavaScript' || target === 'WebAssembly' && supportsWebAssembly() ? 'Run' : 'Download';
+    shim.disabled = shimName === null;
   }
 
-  function downloadCompiledResult() {
+  function triggerDownload(name, contents) {
     var link = document.createElement('a');
-    link.href = URL.createObjectURL(blobToDownload);
-    link.download = downloadName;
+    link.href = URL.createObjectURL(new Blob([contents], {type: typeof contents === 'string' ? 'text/plain' : 'application/octet-stream'}));
+    link.download = name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  function downloadCompiledResult() {
+    triggerDownload(downloadName, downloadContents);
   }
 
   function logAppend() {
@@ -427,18 +436,21 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function runCompiledResult() {
-    var code = new Function('console', targetWebAssembly.checked && supportsWebAssembly() ? otherCodeToRun : javaScriptToRun);
-    var target =
-      targetC.checked ? 'JavaScript (cannot compile C in the browser)' :
-      targetJavaScript.checked ? 'JavaScript' :
-      supportsWebAssembly() ? 'WebAssembly' :
-      'JavaScript (WebAssembly is not supported by your browser)';
+  function runOrDownloadShim() {
+    if (shim.disabled) {
+      return;
+    }
+
+    if (shim.textContent === 'Download') {
+      triggerDownload(shimName, shimContents);
+      return;
+    }
+
+    if (log.value !== '') log.value += '\n';
     clear.disabled = false;
-    log.value += (log.value !== '' ? '\n\n' : '') + 'Running using ' + target + ':';
 
     try {
-      code({ log: logAppend });
+      new Function('console', shimContents)({ log: logAppend });
     } catch (e) {
       logAppend(e + '');
     }
@@ -463,7 +475,7 @@
         targetC.onchange = compile;
         input.oninput = compile;
         download.onclick = downloadCompiledResult;
-        run.onclick = runCompiledResult;
+        shim.onclick = runOrDownloadShim;
         clear.onclick = clearLog;
 
         compiledJavaScript = compileJavaScript(js);

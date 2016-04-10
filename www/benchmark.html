@@ -142,7 +142,7 @@
 
           var tickJS = function() {
             var before = now();
-            var result = compiledJS(sources, CompileTarget.WEBASSEMBLY);
+            var result = compiledJS(sources, 'WebAssembly');
             var time = Math.round(now() - before);
             console.log('total time for JavaScript: ' + time + 'ms');
             jsTimes.push(time);
@@ -160,7 +160,7 @@
 
           var tickWASM = function() {
             var before = now();
-            var result = compiledWASM(sources, CompileTarget.WEBASSEMBLY);
+            var result = compiledWASM(sources, 'WebAssembly');
             var time = Math.round(now() - before);
             console.log('total time for WebAssembly: ' + time + 'ms');
             wasmTimes.push(time);

@@ -71,10 +71,6 @@ function ByteArray_append32(array: ByteArray, value: int): void {
       this._data[index] = value;
     }
 
-    bytes(): Uint8Array {
-      return this._data.subarray(0, this._length);
-    }
-
     resize(length: int): void {
       if (length > (this._data != null ? this._data.length : 0)) {
         var capacity = length * 2;

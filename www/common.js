@@ -1,13 +1,25 @@
 function loadStdlibForWebAssembly() {
   var stdlib = {
-    strings: [],
+    exports: null,
     bytes: null,
     chars: null,
     ints: null,
+    stdout: '',
+    fs: {},
+
+    reset: function() {
+      stdlib.stdout = '';
+      stdlib.fs = {};
+    },
+
+    createLengthPrefixedString: function(text) {
+      var chars = stdlib.chars, length = text.length, result = stdlib.exports.main_newString(length), ptr = result + 4 >> 1;
+      for (var i = 0; i < length; i++) chars[ptr + i] = text.charCodeAt(i);
+      return result;
+    },
 
     extractLengthPrefixedString: function(index) {
-      var chars = stdlib.chars;
-      var text = '', length = stdlib.ints[index >> 2], i = index + 4 >> 1;
+      var chars = stdlib.chars, text = '', length = stdlib.ints[index >> 2], i = index + 4 >> 1;
       while (length-- > 0) text += String.fromCharCode(chars[i++]);
       return text;
     },
@@ -18,6 +30,30 @@ function loadStdlibForWebAssembly() {
       }
     },
 
+    Terminal_setColor: function(color) {
+    },
+
+    Terminal_write: function(text) {
+      stdlib.stdout += stdlib.extractLengthPrefixedString(text);
+    },
+
+    IO_readTextFile: function(path) {
+      var contents = stdlib.fs[stdlib.extractLengthPrefixedString(path)];
+      return typeof contents === 'string' ? stdlib.createLengthPrefixedString(contents) : null;
+    },
+
+    IO_writeTextFile: function(path, contents) {
+      stdlib.fs[stdlib.extractLengthPrefixedString(path)] = stdlib.extractLengthPrefixedString(contents);
+      return true;
+    },
+
+    IO_writeBinaryFile: function(path, contents) {
+      var data = stdlib.ints[contents >> 2];
+      var length = stdlib.ints[contents + 4 >> 2];
+      stdlib.fs[stdlib.extractLengthPrefixedString(path)] = stdlib.bytes.subarray(data, data + length);
+      return true;
+    },
+
     Profiler_begin: function() {
       time = now();
     },
@@ -26,6 +62,7 @@ function loadStdlibForWebAssembly() {
       console.log(stdlib.extractLengthPrefixedString(text) + ': ' + Math.round(now() - time) + 'ms');
     },
   };
+
   return stdlib;
 }
 
@@ -33,10 +70,40 @@ function loadStdlibForJavaScript() {
   var time = 0;
 
   return {
+    stdout: '',
+    fs: {},
+
+    reset: function() {
+      this.stdout = '';
+      this.fs = {};
+    },
+
     assert: function(truth) {
       if (!truth) {
         throw new Error('Assertion failed');
       }
+    },
+
+    Terminal_setColor: function(color) {
+    },
+
+    Terminal_write: function(text) {
+      this.stdout += text;
+    },
+
+    IO_readTextFile: function(path) {
+      var contents = this.fs[path];
+      return typeof contents === 'string' ? contents : null;
+    },
+
+    IO_writeTextFile: function(path, contents) {
+      this.fs[path] = contents;
+      return true;
+    },
+
+    IO_writeBinaryFile: function(path, contents) {
+      this.fs[path] = contents._data.subarray(0, contents._length);
+      return true;
     },
 
     Profiler_begin: function() {
@@ -81,70 +148,47 @@ function loadWebAssembly(callback) {
   });
 }
 
-var CompileTarget = {
-  C: 1,
-  JAVASCRIPT: 2,
-  WEBASSEMBLY: 3,
-
-  toString: function(target) {
-    if (target === CompileTarget.C) return 'C';
-    if (target === CompileTarget.JAVASCRIPT) return 'JavaScript';
-    if (target === CompileTarget.WEBASSEMBLY) return 'WebAssembly';
-  },
-};
-
 function compileWebAssembly(code) {
   var stdlib = loadStdlibForWebAssembly();
   var module = Wasm.instantiateModule(code, {global: stdlib});
   var exports = module.exports;
   var memory = exports.memory;
+  stdlib.exports = exports;
   stdlib.bytes = new Uint8Array(memory);
   stdlib.chars = new Uint16Array(memory);
   stdlib.ints = new Int32Array(memory);
 
   return function(sources, target) {
-    console.log('compiling to ' + CompileTarget.toString(target) + ' using WebAssembly');
+    console.log('compiling to ' + target + ' using JavaScript');
     var before = now();
 
-    stdlib.strings = [];
-
-    exports.Compiler_resetHeapPointer();
-    var compiler = exports.Compiler_new(target);
+    stdlib.reset();
+    exports.main_reset();
 
     sources.forEach(function(source) {
-      var name = source.name;
-      var contents = source.contents;
-      var nameString = exports.Compiler_allocateString(name.length);
-      var contentsString = exports.Compiler_allocateString(contents.length);
-      var chars = stdlib.chars;
-
-      for (var i = 0, j = nameString + 4 >> 1, length = name.length; i < length; i++, j++) {
-        chars[j] = name.charCodeAt(i);
-      }
-
-      for (var i = 0, j = contentsString + 4 >> 1, length = contents.length; i < length; i++, j++) {
-        chars[j] = contents.charCodeAt(i);
-      }
-
-      exports.Compiler_callAddInput(compiler, nameString, contentsString);
+      stdlib.fs[source.name] = source.contents;
+      exports.main_addArgument(stdlib.createLengthPrefixedString(source.name));
     });
 
-    var success = exports.Compiler_callFinish(compiler);
+    exports.main_addArgument(stdlib.createLengthPrefixedString('--out'));
+    exports.main_addArgument(stdlib.createLengthPrefixedString('output'));
 
-    var wasm = exports.Compiler_wasm(compiler);
-    var wasmData = wasm && stdlib.ints[wasm >> 2];
-    var wasmLength = wasm && stdlib.ints[(wasm + 4) >> 2];
+    switch (target) {
+      case 'C': exports.main_addArgument(stdlib.createLengthPrefixedString('--c')); break;
+      case 'JavaScript': exports.main_addArgument(stdlib.createLengthPrefixedString('--js')); break;
+      case 'WebAssembly': exports.main_addArgument(stdlib.createLengthPrefixedString('--wasm')); break;
+      default: throw new Error('Invalid target: ' + target);
+    }
 
+    var success = exports.main() === 0;
     var after = now();
     var totalTime = Math.round(after - before);
     console.log('total time: ' + totalTime + 'ms');
 
     return {
-      wasm: wasm ? stdlib.bytes.subarray(wasmData, wasmData + wasmLength) : null,
-      log: stdlib.extractLengthPrefixedString(exports.Compiler_log(compiler)) || '',
-      js: stdlib.extractLengthPrefixedString(exports.Compiler_js(compiler)) || '',
-      c: stdlib.extractLengthPrefixedString(exports.Compiler_c(compiler)) || '',
+      output: success ? stdlib.fs.output : null,
       totalTime: totalTime,
+      stdout: stdlib.stdout,
       success: success,
     };
   };
@@ -155,36 +199,37 @@ function compileJavaScript(code) {
   var exports = {};
   new Function('global', 'exports', code)(stdlib, exports);
 
-
-  return function(sources, target, defines) {
-    console.log('compiling to ' + CompileTarget.toString(target) + ' using JavaScript');
+  return function(sources, target) {
+    console.log('compiling to ' + target + ' using JavaScript');
     var before = now();
 
-    var compiler = exports.Compiler_new(target);
+    stdlib.reset();
+    exports.main_reset();
 
     sources.forEach(function(source) {
-      exports.Compiler_callAddInput(compiler, source.name, source.contents);
+      stdlib.fs[source.name] = source.contents;
+      exports.main_addArgument(source.name);
     });
 
-    if (defines) {
-      defines.forEach(function(define) {
-        exports.Compiler_define(compiler, define);
-      });
+    exports.main_addArgument('--out');
+    exports.main_addArgument('output');
+
+    switch (target) {
+      case 'C': exports.main_addArgument('--c'); break;
+      case 'JavaScript': exports.main_addArgument('--js'); break;
+      case 'WebAssembly': exports.main_addArgument('--wasm'); break;
+      default: throw new Error('Invalid target: ' + target);
     }
 
-    var success = exports.Compiler_callFinish(compiler);
-    var wasm = exports.Compiler_wasm(compiler);
-
+    var success = exports.main() === 0;
     var after = now();
     var totalTime = Math.round(after - before);
     console.log('total time: ' + totalTime + 'ms');
 
     return {
-      wasm: wasm ? wasm._data.subarray(0, wasm._length) : null,
-      log: exports.Compiler_log(compiler),
-      js: exports.Compiler_js(compiler),
-      c: exports.Compiler_c(compiler),
+      output: success ? stdlib.fs.output : null,
       totalTime: totalTime,
+      stdout: stdlib.stdout,
       success: success,
     };
   };
