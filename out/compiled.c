@@ -529,95 +529,100 @@ static const uint32_t __string_517_error[] = {7, S('e', 'r'), S('r', 'o'), S('r'
 static const uint32_t __string_518_warning[] = {9, S('w', 'a'), S('r', 'n'), S('i', 'n'), S('g', ':'), S(' ', 0)};
 static const uint32_t __string_519_error[] = {7, S('e', 'r'), S('r', 'o'), S('r', ':'), S(' ', 0)};
 static const uint32_t __string_520[] = {1, S('\n', 0)};
-static const uint32_t __string_521[] = {1, S('-', 0)};
-static const uint32_t __string_522_c[] = {3, S('-', '-'), S('c', 0)};
-static const uint32_t __string_523_js[] = {4, S('-', '-'), S('j', 's')};
-static const uint32_t __string_524_wasm[] = {6, S('-', '-'), S('w', 'a'), S('s', 'm')};
-static const uint32_t __string_525_define[] = {8, S('-', '-'), S('d', 'e'), S('f', 'i'), S('n', 'e')};
-static const uint32_t __string_526_out[] = {5, S('-', '-'), S('o', 'u'), S('t', 0)};
-static const uint32_t __string_527_Invalid_flag[] = {14, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('f', 'l'), S('a', 'g'), S(':', ' ')};
-static const uint32_t __string_528_No_input_files[] = {14, S('N', 'o'), S(' ', 'i'), S('n', 'p'), S('u', 't'), S(' ', 'f'), S('i', 'l'), S('e', 's')};
-static const uint32_t __string_529_Missing_an_output_file_use_the[] = {43, S('M', 'i'), S('s', 's'), S('i', 'n'), S('g', ' '), S('a', 'n'), S(' ', 'o'), S('u', 't'), S('p', 'u'), S('t', ' '), S('f', 'i'), S('l', 'e'), S(' ', '('), S('u', 's'), S('e', ' '), S('t', 'h'), S('e', 160), S('-', '-'), S('o', 'u'), S('t', ' '), S('f', 'l'), S('a', 'g'), S(')', 0)};
-static const uint32_t __string_530_c[] = {2, S('.', 'c')};
-static const uint32_t __string_531_js[] = {3, S('.', 'j'), S('s', 0)};
-static const uint32_t __string_532_wasm[] = {5, S('.', 'w'), S('a', 's'), S('m', 0)};
-static const uint32_t __string_533_Missing_a_target_use_either_c[] = {50, S('M', 'i'), S('s', 's'), S('i', 'n'), S('g', ' '), S('a', ' '), S('t', 'a'), S('r', 'g'), S('e', 't'), S(' ', '('), S('u', 's'), S('e', ' '), S('e', 'i'), S('t', 'h'), S('e', 'r'), S(' ', '-'), S('-', 'c'), S(',', ' '), S('-', '-'), S('j', 's'), S(',', ' '), S('o', 'r'), S(' ', '-'), S('-', 'w'), S('a', 's'), S('m', ')')};
-static const uint32_t __string_534_define[] = {8, S('-', '-'), S('d', 'e'), S('f', 'i'), S('n', 'e')};
-static const uint32_t __string_535_out[] = {5, S('-', '-'), S('o', 'u'), S('t', 0)};
-static const uint32_t __string_536[] = {1, S('-', 0)};
-static const uint32_t __string_537_Cannot_read_from[] = {17, S('C', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'r'), S('e', 'a'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', 0)};
-static const uint32_t __string_538_Cannot_write_to[] = {16, S('C', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'w'), S('r', 'i'), S('t', 'e'), S(' ', 't'), S('o', ' ')};
-static const uint32_t __string_539[] = {1, S('%', 0)};
-static const uint32_t __string_540[] = {1, S('&', 0)};
-static const uint32_t __string_541[] = {1, S('*', 0)};
-static const uint32_t __string_542[] = {2, S('*', '*')};
-static const uint32_t __string_543[] = {1, S('/', 0)};
-static const uint32_t __string_544[] = {1, S('<', 0)};
-static const uint32_t __string_545[] = {2, S('<', '<')};
-static const uint32_t __string_546[] = {2, S('=', '=')};
-static const uint32_t __string_547[] = {1, S('>', 0)};
-static const uint32_t __string_548[] = {2, S('>', '>')};
-static const uint32_t __string_549[] = {2, S('[', ']')};
-static const uint32_t __string_550[] = {1, S('^', 0)};
-static const uint32_t __string_551[] = {1, S('|', 0)};
-static const uint32_t __string_552[] = {3, S('[', ']'), S('=', 0)};
-static const uint32_t __string_553_Unexpected[] = {11, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
-static const uint32_t __string_554_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
-static const uint32_t __string_555_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
-static const uint32_t __string_556_but_found[] = {11, S(' ', 'b'), S('u', 't'), S(' ', 'f'), S('o', 'u'), S('n', 'd'), S(' ', 0)};
-static const uint32_t __string_557_Invalid_escape_code[] = {21, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('e', 's'), S('c', 'a'), S('p', 'e'), S(' ', 'c'), S('o', 'd'), S('e', ' '), S('\'', 0)};
-static const uint32_t __string_558_Invalid_character_literal_strin[] = {53, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('c', 'h'), S('a', 'r'), S('a', 'c'), S('t', 'e'), S('r', ' '), S('l', 'i'), S('t', 'e'), S('r', 'a'), S('l', ' '), S('(', 's'), S('t', 'r'), S('i', 'n'), S('g', 's'), S(' ', 'u'), S('s', 'e'), S(' ', 'd'), S('o', 'u'), S('b', 'l'), S('e', ' '), S('q', 'u'), S('o', 't'), S('e', 's'), S(')', 0)};
-static const uint32_t __string_559_operator[] = {8, S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r')};
-static const uint32_t __string_560_get[] = {3, S('g', 'e'), S('t', 0)};
-static const uint32_t __string_561_set[] = {3, S('s', 'e'), S('t', 0)};
-static const uint32_t __string_562_Instance_functions_don_t_need_th[] = {52, S('I', 'n'), S('s', 't'), S('a', 'n'), S('c', 'e'), S(' ', 'f'), S('u', 'n'), S('c', 't'), S('i', 'o'), S('n', 's'), S(' ', 'd'), S('o', 'n'), S('\'', 't'), S(' ', 'n'), S('e', 'e'), S('d', ' '), S('t', 'h'), S('e', ' '), S('\'', 'f'), S('u', 'n'), S('c', 't'), S('i', 'o'), S('n', '\''), S(' ', 'k'), S('e', 'y'), S('w', 'o'), S('r', 'd')};
-static const uint32_t __string_563_Instance_variables_don_t_need_th[] = {35, S('I', 'n'), S('s', 't'), S('a', 'n'), S('c', 'e'), S(' ', 'v'), S('a', 'r'), S('i', 'a'), S('b', 'l'), S('e', 's'), S(' ', 'd'), S('o', 'n'), S('\'', 't'), S(' ', 'n'), S('e', 'e'), S('d', ' '), S('t', 'h'), S('e', ' '), S('\'', 0)};
-static const uint32_t __string_564_keyword[] = {9, S('\'', ' '), S('k', 'e'), S('y', 'w'), S('o', 'r'), S('d', 0)};
-static const uint32_t __string_565[] = {3, S('[', ']'), S('=', 0)};
-static const uint32_t __string_566[] = {2, S('[', ']')};
-static const uint32_t __string_567_The_operator[] = {14, S('T', 'h'), S('e', ' '), S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r'), S(' ', '\'')};
-static const uint32_t __string_568_cannot_be_implemented[] = {23, S('\'', ' '), S('c', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'b'), S('e', ' '), S('i', 'm'), S('p', 'l'), S('e', 'm'), S('e', 'n'), S('t', 'e'), S('d', 0)};
-static const uint32_t __string_569_it_is_automatically_derived_fr[] = {40, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('=', '='), S('\'', ')')};
-static const uint32_t __string_570_it_is_automatically_derived_fr[] = {39, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('>', '\''), S(')', 0)};
-static const uint32_t __string_571_it_is_automatically_derived_fr[] = {39, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('<', '\''), S(')', 0)};
-static const uint32_t __string_572[] = {0};
-static const uint32_t __string_573_Inline_initialization_of_instanc[] = {64, S('I', 'n'), S('l', 'i'), S('n', 'e'), S(' ', 'i'), S('n', 'i'), S('t', 'i'), S('a', 'l'), S('i', 'z'), S('a', 't'), S('i', 'o'), S('n', ' '), S('o', 'f'), S(' ', 'i'), S('n', 's'), S('t', 'a'), S('n', 'c'), S('e', ' '), S('v', 'a'), S('r', 'i'), S('a', 'b'), S('l', 'e'), S('s', ' '), S('i', 's'), S(' ', 'n'), S('o', 't'), S(' ', 's'), S('u', 'p'), S('p', 'o'), S('r', 't'), S('e', 'd'), S(' ', 'y'), S('e', 't')};
-static const uint32_t __string_574_Use_the_0o_prefix_for_octal_in[] = {38, S('U', 's'), S('e', ' '), S('t', 'h'), S('e', ' '), S('\'', '0'), S('o', '\''), S(' ', 'p'), S('r', 'e'), S('f', 'i'), S('x', ' '), S('f', 'o'), S('r', ' '), S('o', 'c'), S('t', 'a'), S('l', ' '), S('i', 'n'), S('t', 'e'), S('g', 'e'), S('r', 's')};
-static const uint32_t __string_575_Integer_literal_is_too_big_to_fi[] = {44, S('I', 'n'), S('t', 'e'), S('g', 'e'), S('r', ' '), S('l', 'i'), S('t', 'e'), S('r', 'a'), S('l', ' '), S('i', 's'), S(' ', 't'), S('o', 'o'), S(' ', 'b'), S('i', 'g'), S(' ', 't'), S('o', ' '), S('f', 'i'), S('t', ' '), S('i', 'n'), S(' ', '3'), S('2', ' '), S('b', 'i'), S('t', 's')};
-static const uint32_t __string_576_Unexpected[] = {11, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
-static const uint32_t __string_577_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
-static const uint32_t __string_578_but_found[] = {11, S(' ', 'b'), S('u', 't'), S(' ', 'f'), S('o', 'u'), S('n', 'd'), S(' ', 0)};
-static const uint32_t __string_579_0[] = {1, S('0', 0)};
-static const uint32_t __string_580_Use_undef_to_turn_a_preproces[] = {44, S('U', 's'), S('e', ' '), S('\'', '#'), S('u', 'n'), S('d', 'e'), S('f', '\''), S(' ', 't'), S('o', ' '), S('t', 'u'), S('r', 'n'), S(' ', 'a'), S(' ', 'p'), S('r', 'e'), S('p', 'r'), S('o', 'c'), S('e', 's'), S('s', 'o'), S('r', ' '), S('f', 'l'), S('a', 'g'), S(' ', 'o'), S('f', 'f')};
-static const uint32_t __string_581_All_define_and_undef_direc[] = {68, S('A', 'l'), S('l', ' '), S('\'', '#'), S('d', 'e'), S('f', 'i'), S('n', 'e'), S('\'', ' '), S('a', 'n'), S('d', ' '), S('\'', '#'), S('u', 'n'), S('d', 'e'), S('f', '\''), S(' ', 'd'), S('i', 'r'), S('e', 'c'), S('t', 'i'), S('v', 'e'), S('s', ' '), S('m', 'u'), S('s', 't'), S(' ', 'b'), S('e', ' '), S('a', 't'), S(' ', 't'), S('h', 'e'), S(' ', 't'), S('o', 'p'), S(' ', 'o'), S('f', ' '), S('t', 'h'), S('e', ' '), S('f', 'i'), S('l', 'e')};
-static const uint32_t __string_582_defined[] = {7, S('d', 'e'), S('f', 'i'), S('n', 'e'), S('d', 0)};
-static const uint32_t __string_583_There_is_no_defined_operator[] = {30, S('T', 'h'), S('e', 'r'), S('e', ' '), S('i', 's'), S(' ', 'n'), S('o', ' '), S('\'', 'd'), S('e', 'f'), S('i', 'n'), S('e', 'd'), S('\'', ' '), S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r')};
-static const uint32_t __string_584_just_use[] = {12, S(' ', '('), S('j', 'u'), S('s', 't'), S(' ', 'u'), S('s', 'e'), S(' ', '\'')};
-static const uint32_t __string_585_instead[] = {10, S('\'', ' '), S('i', 'n'), S('s', 't'), S('e', 'a'), S('d', ')')};
-static const uint32_t __string_586_0[] = {1, S('0', 0)};
-static const uint32_t __string_587_Unexpected_integer_did_you_mean[] = {34, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 'i'), S('n', 't'), S('e', 'g'), S('e', 'r'), S(' ', '('), S('d', 'i'), S('d', ' '), S('y', 'o'), S('u', ' '), S('m', 'e'), S('a', 'n'), S(' ', '\'')};
-static const uint32_t __string_588_true[] = {4, S('t', 'r'), S('u', 'e')};
-static const uint32_t __string_589_false[] = {5, S('f', 'a'), S('l', 's'), S('e', 0)};
-static const uint32_t __string_590[] = {3, S('\'', ')'), S('?', 0)};
-static const uint32_t __string_591_Duplicate_symbol[] = {18, S('D', 'u'), S('p', 'l'), S('i', 'c'), S('a', 't'), S('e', ' '), S('s', 'y'), S('m', 'b'), S('o', 'l'), S(' ', '\'')};
-static const uint32_t __string_592[] = {1, S('\'', 0)};
-static const uint32_t __string_593[] = {2, S('\\', '"')};
-static const uint32_t __string_594_0[] = {2, S('\\', '0')};
-static const uint32_t __string_595_t[] = {2, S('\\', 't')};
-static const uint32_t __string_596_r[] = {2, S('\\', 'r')};
-static const uint32_t __string_597_n[] = {2, S('\\', 'n')};
-static const uint32_t __string_598[] = {2, S('\\', '\\')};
-static const uint32_t __string_599_signatures[] = {10, S('s', 'i'), S('g', 'n'), S('a', 't'), S('u', 'r'), S('e', 's')};
-static const uint32_t __string_600_import_table[] = {12, S('i', 'm'), S('p', 'o'), S('r', 't'), S('_', 't'), S('a', 'b'), S('l', 'e')};
-static const uint32_t __string_601_function_signatures[] = {19, S('f', 'u'), S('n', 'c'), S('t', 'i'), S('o', 'n'), S('_', 's'), S('i', 'g'), S('n', 'a'), S('t', 'u'), S('r', 'e'), S('s', 0)};
-static const uint32_t __string_602_memory[] = {6, S('m', 'e'), S('m', 'o'), S('r', 'y')};
-static const uint32_t __string_603_export_table[] = {12, S('e', 'x'), S('p', 'o'), S('r', 't'), S('_', 't'), S('a', 'b'), S('l', 'e')};
-static const uint32_t __string_604_function_bodies[] = {15, S('f', 'u'), S('n', 'c'), S('t', 'i'), S('o', 'n'), S('_', 'b'), S('o', 'd'), S('i', 'e'), S('s', 0)};
-static const uint32_t __string_605_data_segments[] = {13, S('d', 'a'), S('t', 'a'), S('_', 's'), S('e', 'g'), S('m', 'e'), S('n', 't'), S('s', 0)};
-static const uint32_t __string_606_currentHeapPointer[] = {18, S('c', 'u'), S('r', 'r'), S('e', 'n'), S('t', 'H'), S('e', 'a'), S('p', 'P'), S('o', 'i'), S('n', 't'), S('e', 'r')};
-static const uint32_t __string_607_originalHeapPointer[] = {19, S('o', 'r'), S('i', 'g'), S('i', 'n'), S('a', 'l'), S('H', 'e'), S('a', 'p'), S('P', 'o'), S('i', 'n'), S('t', 'e'), S('r', 0)};
-static const uint32_t __string_608_global[] = {6, S('g', 'l'), S('o', 'b'), S('a', 'l')};
-static const uint32_t __string_609_malloc[] = {6, S('m', 'a'), S('l', 'l'), S('o', 'c')};
+static const uint32_t __string_521_Usage_thinc_FLAGS_INPUTS[] = {318, S('\n', 'U'), S('s', 'a'), S('g', 'e'), S(':', ' '), S('t', 'h'), S('i', 'n'), S('c', ' '), S('[', 'F'), S('L', 'A'), S('G', 'S'), S(']', ' '), S('[', 'I'), S('N', 'P'), S('U', 'T'), S('S', ']'), S('\n', '\n'), S(' ', ' '), S('-', '-'), S('h', 'e'), S('l', 'p'), S(' ', ' '), S(' ', ' '), S(' ', ' '), S(' ', ' '), S(' ', ' '), S(' ', 'P'), S('r', 'i'), S('n', 't'), S(' ', 't'), S('h', 'i'), S('s', ' '), S('m', 'e'), S('s', 's'), S('a', 'g'), S('e', '.'), S('\n', ' '), S(' ', '-'), S('-', 'o'), S('u', 't'), S(' ', '['), S('P', 'A'), S('T', 'H'), S(']', ' '), S(' ', ' '), S(' ', ' '), S('S', 'a'), S('v', 'e'), S(' ', 't'), S('h', 'e'), S(' ', 'g'), S('e', 'n'), S('e', 'r'), S('a', 't'), S('e', 'd'), S(' ', 'c'), S('o', 'd'), S('e', ' '), S('t', 'o'), S(' ', 'P'), S('A', 'T'), S('H', '.'), S('\n', ' '), S(' ', '-'), S('-', 'd'), S('e', 'f'), S('i', 'n'), S('e', ' '), S('[', 'N'), S('A', 'M'), S('E', ']'), S(' ', ' '), S('D', 'e'), S('f', 'i'), S('n', 'e'), S(' ', 't'), S('h', 'e'), S(' ', 'f'), S('l', 'a'), S('g', ' '), S('N', 'A'), S('M', 'E'), S(' ', 'i'), S('n', ' '), S('a', 'l'), S('l', ' '), S('i', 'n'), S('p', 'u'), S('t', ' '), S('f', 'i'), S('l', 'e'), S('s', '.'), S('\n', '\n'), S('E', 'x'), S('a', 'm'), S('p', 'l'), S('e', 's'), S(':', '\n'), S('\n', ' '), S(' ', 't'), S('h', 'i'), S('n', 'c'), S(' ', 'm'), S('a', 'i'), S('n', '.'), S('t', 'h'), S('i', 'n'), S(' ', '-'), S('-', 'o'), S('u', 't'), S(' ', 'm'), S('a', 'i'), S('n', '.'), S('j', 's'), S('\n', ' '), S(' ', 't'), S('h', 'i'), S('n', 'c'), S(' ', 's'), S('r', 'c'), S('/', '*'), S('.', 't'), S('h', 'i'), S('n', ' '), S('-', '-'), S('o', 'u'), S('t', ' '), S('m', 'a'), S('i', 'n'), S('.', 'w'), S('a', 's'), S('m', '\n'), S(' ', ' '), S('t', 'h'), S('i', 'n'), S('c', ' '), S('n', 'a'), S('t', 'i'), S('v', 'e'), S('.', 't'), S('h', 'i'), S('n', ' '), S('-', '-'), S('o', 'u'), S('t', ' '), S('m', 'a'), S('i', 'n'), S('.', 'c'), S(' ', '-'), S('-', 'd'), S('e', 'f'), S('i', 'n'), S('e', ' '), S('E', 'N'), S('A', 'B'), S('L', 'E'), S('_', 'T'), S('E', 'S'), S('T', 'S'), S('\n', '\n')};
+static const uint32_t __string_522[] = {1, S('-', 0)};
+static const uint32_t __string_523_h[] = {2, S('-', 'h')};
+static const uint32_t __string_524_help[] = {5, S('-', 'h'), S('e', 'l'), S('p', 0)};
+static const uint32_t __string_525_help[] = {6, S('-', '-'), S('h', 'e'), S('l', 'p')};
+static const uint32_t __string_526[] = {2, S('/', '?')};
+static const uint32_t __string_527_c[] = {3, S('-', '-'), S('c', 0)};
+static const uint32_t __string_528_js[] = {4, S('-', '-'), S('j', 's')};
+static const uint32_t __string_529_wasm[] = {6, S('-', '-'), S('w', 'a'), S('s', 'm')};
+static const uint32_t __string_530_define[] = {8, S('-', '-'), S('d', 'e'), S('f', 'i'), S('n', 'e')};
+static const uint32_t __string_531_out[] = {5, S('-', '-'), S('o', 'u'), S('t', 0)};
+static const uint32_t __string_532_Invalid_flag[] = {14, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('f', 'l'), S('a', 'g'), S(':', ' ')};
+static const uint32_t __string_533_No_input_files[] = {14, S('N', 'o'), S(' ', 'i'), S('n', 'p'), S('u', 't'), S(' ', 'f'), S('i', 'l'), S('e', 's')};
+static const uint32_t __string_534_Missing_an_output_file_use_the[] = {43, S('M', 'i'), S('s', 's'), S('i', 'n'), S('g', ' '), S('a', 'n'), S(' ', 'o'), S('u', 't'), S('p', 'u'), S('t', ' '), S('f', 'i'), S('l', 'e'), S(' ', '('), S('u', 's'), S('e', ' '), S('t', 'h'), S('e', 160), S('-', '-'), S('o', 'u'), S('t', ' '), S('f', 'l'), S('a', 'g'), S(')', 0)};
+static const uint32_t __string_535_c[] = {2, S('.', 'c')};
+static const uint32_t __string_536_js[] = {3, S('.', 'j'), S('s', 0)};
+static const uint32_t __string_537_wasm[] = {5, S('.', 'w'), S('a', 's'), S('m', 0)};
+static const uint32_t __string_538_Missing_a_target_use_either_c[] = {50, S('M', 'i'), S('s', 's'), S('i', 'n'), S('g', ' '), S('a', ' '), S('t', 'a'), S('r', 'g'), S('e', 't'), S(' ', '('), S('u', 's'), S('e', ' '), S('e', 'i'), S('t', 'h'), S('e', 'r'), S(' ', '-'), S('-', 'c'), S(',', ' '), S('-', '-'), S('j', 's'), S(',', ' '), S('o', 'r'), S(' ', '-'), S('-', 'w'), S('a', 's'), S('m', ')')};
+static const uint32_t __string_539_define[] = {8, S('-', '-'), S('d', 'e'), S('f', 'i'), S('n', 'e')};
+static const uint32_t __string_540_out[] = {5, S('-', '-'), S('o', 'u'), S('t', 0)};
+static const uint32_t __string_541[] = {1, S('-', 0)};
+static const uint32_t __string_542_Cannot_read_from[] = {17, S('C', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'r'), S('e', 'a'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', 0)};
+static const uint32_t __string_543_Cannot_write_to[] = {16, S('C', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'w'), S('r', 'i'), S('t', 'e'), S(' ', 't'), S('o', ' ')};
+static const uint32_t __string_544[] = {1, S('%', 0)};
+static const uint32_t __string_545[] = {1, S('&', 0)};
+static const uint32_t __string_546[] = {1, S('*', 0)};
+static const uint32_t __string_547[] = {2, S('*', '*')};
+static const uint32_t __string_548[] = {1, S('/', 0)};
+static const uint32_t __string_549[] = {1, S('<', 0)};
+static const uint32_t __string_550[] = {2, S('<', '<')};
+static const uint32_t __string_551[] = {2, S('=', '=')};
+static const uint32_t __string_552[] = {1, S('>', 0)};
+static const uint32_t __string_553[] = {2, S('>', '>')};
+static const uint32_t __string_554[] = {2, S('[', ']')};
+static const uint32_t __string_555[] = {1, S('^', 0)};
+static const uint32_t __string_556[] = {1, S('|', 0)};
+static const uint32_t __string_557[] = {3, S('[', ']'), S('=', 0)};
+static const uint32_t __string_558_Unexpected[] = {11, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
+static const uint32_t __string_559_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
+static const uint32_t __string_560_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
+static const uint32_t __string_561_but_found[] = {11, S(' ', 'b'), S('u', 't'), S(' ', 'f'), S('o', 'u'), S('n', 'd'), S(' ', 0)};
+static const uint32_t __string_562_Invalid_escape_code[] = {21, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('e', 's'), S('c', 'a'), S('p', 'e'), S(' ', 'c'), S('o', 'd'), S('e', ' '), S('\'', 0)};
+static const uint32_t __string_563_Invalid_character_literal_strin[] = {53, S('I', 'n'), S('v', 'a'), S('l', 'i'), S('d', ' '), S('c', 'h'), S('a', 'r'), S('a', 'c'), S('t', 'e'), S('r', ' '), S('l', 'i'), S('t', 'e'), S('r', 'a'), S('l', ' '), S('(', 's'), S('t', 'r'), S('i', 'n'), S('g', 's'), S(' ', 'u'), S('s', 'e'), S(' ', 'd'), S('o', 'u'), S('b', 'l'), S('e', ' '), S('q', 'u'), S('o', 't'), S('e', 's'), S(')', 0)};
+static const uint32_t __string_564_operator[] = {8, S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r')};
+static const uint32_t __string_565_get[] = {3, S('g', 'e'), S('t', 0)};
+static const uint32_t __string_566_set[] = {3, S('s', 'e'), S('t', 0)};
+static const uint32_t __string_567_Instance_functions_don_t_need_th[] = {52, S('I', 'n'), S('s', 't'), S('a', 'n'), S('c', 'e'), S(' ', 'f'), S('u', 'n'), S('c', 't'), S('i', 'o'), S('n', 's'), S(' ', 'd'), S('o', 'n'), S('\'', 't'), S(' ', 'n'), S('e', 'e'), S('d', ' '), S('t', 'h'), S('e', ' '), S('\'', 'f'), S('u', 'n'), S('c', 't'), S('i', 'o'), S('n', '\''), S(' ', 'k'), S('e', 'y'), S('w', 'o'), S('r', 'd')};
+static const uint32_t __string_568_Instance_variables_don_t_need_th[] = {35, S('I', 'n'), S('s', 't'), S('a', 'n'), S('c', 'e'), S(' ', 'v'), S('a', 'r'), S('i', 'a'), S('b', 'l'), S('e', 's'), S(' ', 'd'), S('o', 'n'), S('\'', 't'), S(' ', 'n'), S('e', 'e'), S('d', ' '), S('t', 'h'), S('e', ' '), S('\'', 0)};
+static const uint32_t __string_569_keyword[] = {9, S('\'', ' '), S('k', 'e'), S('y', 'w'), S('o', 'r'), S('d', 0)};
+static const uint32_t __string_570[] = {3, S('[', ']'), S('=', 0)};
+static const uint32_t __string_571[] = {2, S('[', ']')};
+static const uint32_t __string_572_The_operator[] = {14, S('T', 'h'), S('e', ' '), S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r'), S(' ', '\'')};
+static const uint32_t __string_573_cannot_be_implemented[] = {23, S('\'', ' '), S('c', 'a'), S('n', 'n'), S('o', 't'), S(' ', 'b'), S('e', ' '), S('i', 'm'), S('p', 'l'), S('e', 'm'), S('e', 'n'), S('t', 'e'), S('d', 0)};
+static const uint32_t __string_574_it_is_automatically_derived_fr[] = {40, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('=', '='), S('\'', ')')};
+static const uint32_t __string_575_it_is_automatically_derived_fr[] = {39, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('>', '\''), S(')', 0)};
+static const uint32_t __string_576_it_is_automatically_derived_fr[] = {39, S(' ', '('), S('i', 't'), S(' ', 'i'), S('s', ' '), S('a', 'u'), S('t', 'o'), S('m', 'a'), S('t', 'i'), S('c', 'a'), S('l', 'l'), S('y', ' '), S('d', 'e'), S('r', 'i'), S('v', 'e'), S('d', ' '), S('f', 'r'), S('o', 'm'), S(' ', '\''), S('<', '\''), S(')', 0)};
+static const uint32_t __string_577[] = {0};
+static const uint32_t __string_578_Inline_initialization_of_instanc[] = {64, S('I', 'n'), S('l', 'i'), S('n', 'e'), S(' ', 'i'), S('n', 'i'), S('t', 'i'), S('a', 'l'), S('i', 'z'), S('a', 't'), S('i', 'o'), S('n', ' '), S('o', 'f'), S(' ', 'i'), S('n', 's'), S('t', 'a'), S('n', 'c'), S('e', ' '), S('v', 'a'), S('r', 'i'), S('a', 'b'), S('l', 'e'), S('s', ' '), S('i', 's'), S(' ', 'n'), S('o', 't'), S(' ', 's'), S('u', 'p'), S('p', 'o'), S('r', 't'), S('e', 'd'), S(' ', 'y'), S('e', 't')};
+static const uint32_t __string_579_Use_the_0o_prefix_for_octal_in[] = {38, S('U', 's'), S('e', ' '), S('t', 'h'), S('e', ' '), S('\'', '0'), S('o', '\''), S(' ', 'p'), S('r', 'e'), S('f', 'i'), S('x', ' '), S('f', 'o'), S('r', ' '), S('o', 'c'), S('t', 'a'), S('l', ' '), S('i', 'n'), S('t', 'e'), S('g', 'e'), S('r', 's')};
+static const uint32_t __string_580_Integer_literal_is_too_big_to_fi[] = {44, S('I', 'n'), S('t', 'e'), S('g', 'e'), S('r', ' '), S('l', 'i'), S('t', 'e'), S('r', 'a'), S('l', ' '), S('i', 's'), S(' ', 't'), S('o', 'o'), S(' ', 'b'), S('i', 'g'), S(' ', 't'), S('o', ' '), S('f', 'i'), S('t', ' '), S('i', 'n'), S(' ', '3'), S('2', ' '), S('b', 'i'), S('t', 's')};
+static const uint32_t __string_581_Unexpected[] = {11, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
+static const uint32_t __string_582_Expected[] = {9, S('E', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 0)};
+static const uint32_t __string_583_but_found[] = {11, S(' ', 'b'), S('u', 't'), S(' ', 'f'), S('o', 'u'), S('n', 'd'), S(' ', 0)};
+static const uint32_t __string_584_0[] = {1, S('0', 0)};
+static const uint32_t __string_585_Use_undef_to_turn_a_preproces[] = {44, S('U', 's'), S('e', ' '), S('\'', '#'), S('u', 'n'), S('d', 'e'), S('f', '\''), S(' ', 't'), S('o', ' '), S('t', 'u'), S('r', 'n'), S(' ', 'a'), S(' ', 'p'), S('r', 'e'), S('p', 'r'), S('o', 'c'), S('e', 's'), S('s', 'o'), S('r', ' '), S('f', 'l'), S('a', 'g'), S(' ', 'o'), S('f', 'f')};
+static const uint32_t __string_586_All_define_and_undef_direc[] = {68, S('A', 'l'), S('l', ' '), S('\'', '#'), S('d', 'e'), S('f', 'i'), S('n', 'e'), S('\'', ' '), S('a', 'n'), S('d', ' '), S('\'', '#'), S('u', 'n'), S('d', 'e'), S('f', '\''), S(' ', 'd'), S('i', 'r'), S('e', 'c'), S('t', 'i'), S('v', 'e'), S('s', ' '), S('m', 'u'), S('s', 't'), S(' ', 'b'), S('e', ' '), S('a', 't'), S(' ', 't'), S('h', 'e'), S(' ', 't'), S('o', 'p'), S(' ', 'o'), S('f', ' '), S('t', 'h'), S('e', ' '), S('f', 'i'), S('l', 'e')};
+static const uint32_t __string_587_defined[] = {7, S('d', 'e'), S('f', 'i'), S('n', 'e'), S('d', 0)};
+static const uint32_t __string_588_There_is_no_defined_operator[] = {30, S('T', 'h'), S('e', 'r'), S('e', ' '), S('i', 's'), S(' ', 'n'), S('o', ' '), S('\'', 'd'), S('e', 'f'), S('i', 'n'), S('e', 'd'), S('\'', ' '), S('o', 'p'), S('e', 'r'), S('a', 't'), S('o', 'r')};
+static const uint32_t __string_589_just_use[] = {12, S(' ', '('), S('j', 'u'), S('s', 't'), S(' ', 'u'), S('s', 'e'), S(' ', '\'')};
+static const uint32_t __string_590_instead[] = {10, S('\'', ' '), S('i', 'n'), S('s', 't'), S('e', 'a'), S('d', ')')};
+static const uint32_t __string_591_0[] = {1, S('0', 0)};
+static const uint32_t __string_592_Unexpected_integer_did_you_mean[] = {34, S('U', 'n'), S('e', 'x'), S('p', 'e'), S('c', 't'), S('e', 'd'), S(' ', 'i'), S('n', 't'), S('e', 'g'), S('e', 'r'), S(' ', '('), S('d', 'i'), S('d', ' '), S('y', 'o'), S('u', ' '), S('m', 'e'), S('a', 'n'), S(' ', '\'')};
+static const uint32_t __string_593_true[] = {4, S('t', 'r'), S('u', 'e')};
+static const uint32_t __string_594_false[] = {5, S('f', 'a'), S('l', 's'), S('e', 0)};
+static const uint32_t __string_595[] = {3, S('\'', ')'), S('?', 0)};
+static const uint32_t __string_596_Duplicate_symbol[] = {18, S('D', 'u'), S('p', 'l'), S('i', 'c'), S('a', 't'), S('e', ' '), S('s', 'y'), S('m', 'b'), S('o', 'l'), S(' ', '\'')};
+static const uint32_t __string_597[] = {1, S('\'', 0)};
+static const uint32_t __string_598[] = {2, S('\\', '"')};
+static const uint32_t __string_599_0[] = {2, S('\\', '0')};
+static const uint32_t __string_600_t[] = {2, S('\\', 't')};
+static const uint32_t __string_601_r[] = {2, S('\\', 'r')};
+static const uint32_t __string_602_n[] = {2, S('\\', 'n')};
+static const uint32_t __string_603[] = {2, S('\\', '\\')};
+static const uint32_t __string_604_signatures[] = {10, S('s', 'i'), S('g', 'n'), S('a', 't'), S('u', 'r'), S('e', 's')};
+static const uint32_t __string_605_import_table[] = {12, S('i', 'm'), S('p', 'o'), S('r', 't'), S('_', 't'), S('a', 'b'), S('l', 'e')};
+static const uint32_t __string_606_function_signatures[] = {19, S('f', 'u'), S('n', 'c'), S('t', 'i'), S('o', 'n'), S('_', 's'), S('i', 'g'), S('n', 'a'), S('t', 'u'), S('r', 'e'), S('s', 0)};
+static const uint32_t __string_607_memory[] = {6, S('m', 'e'), S('m', 'o'), S('r', 'y')};
+static const uint32_t __string_608_export_table[] = {12, S('e', 'x'), S('p', 'o'), S('r', 't'), S('_', 't'), S('a', 'b'), S('l', 'e')};
+static const uint32_t __string_609_function_bodies[] = {15, S('f', 'u'), S('n', 'c'), S('t', 'i'), S('o', 'n'), S('_', 'b'), S('o', 'd'), S('i', 'e'), S('s', 0)};
+static const uint32_t __string_610_data_segments[] = {13, S('d', 'a'), S('t', 'a'), S('_', 's'), S('e', 'g'), S('m', 'e'), S('n', 't'), S('s', 0)};
+static const uint32_t __string_611_currentHeapPointer[] = {18, S('c', 'u'), S('r', 'r'), S('e', 'n'), S('t', 'H'), S('e', 'a'), S('p', 'P'), S('o', 'i'), S('n', 't'), S('e', 'r')};
+static const uint32_t __string_612_originalHeapPointer[] = {19, S('o', 'r'), S('i', 'g'), S('i', 'n'), S('a', 'l'), S('H', 'e'), S('a', 'p'), S('P', 'o'), S('i', 'n'), S('t', 'e'), S('r', 0)};
+static const uint32_t __string_613_global[] = {6, S('g', 'l'), S('o', 'b'), S('a', 'l')};
+static const uint32_t __string_614_malloc[] = {6, S('m', 'a'), S('l', 'l'), S('o', 'c')};
 
 #undef S
 
@@ -1002,6 +1007,7 @@ static void printError(const uint16_t *text);
 void main_addArgument(const uint16_t *text);
 const uint16_t *main_newString(uint32_t length);
 void main_reset();
+static void printUsage();
 int32_t main_entry();
 static uint8_t isUnary(int32_t kind);
 static uint8_t isUnaryPostfix(int32_t kind);
@@ -5669,39 +5675,55 @@ void main_reset() {
   lastArgument = NULL;
 }
 
+static void printUsage() {
+  Terminal_write((const uint16_t *)__string_521_Usage_thinc_FLAGS_INPUTS);
+}
+
 int32_t main_entry() {
   int32_t target = 0;
   struct CommandLineArgument *argument = firstArgument;
   int32_t inputCount = 0;
   const uint16_t *output = NULL;
 
+  if (firstArgument == NULL) {
+    printUsage();
+
+    return 1;
+  }
+
   while (argument != NULL) {
     const uint16_t *text = argument->text;
 
-    if (string_startsWith(text, (const uint16_t *)__string_521)) {
-      if (string_op_equals(text, (const uint16_t *)__string_522_c)) {
+    if (string_startsWith(text, (const uint16_t *)__string_522)) {
+      if (string_op_equals(text, (const uint16_t *)__string_523_h) || string_op_equals(text, (const uint16_t *)__string_524_help) || string_op_equals(text, (const uint16_t *)__string_525_help) || string_op_equals(text, (const uint16_t *)__string_526)) {
+        printUsage();
+
+        return 0;
+      }
+
+      else if (string_op_equals(text, (const uint16_t *)__string_527_c)) {
         target = 1;
       }
 
-      else if (string_op_equals(text, (const uint16_t *)__string_523_js)) {
+      else if (string_op_equals(text, (const uint16_t *)__string_528_js)) {
         target = 2;
       }
 
-      else if (string_op_equals(text, (const uint16_t *)__string_524_wasm)) {
+      else if (string_op_equals(text, (const uint16_t *)__string_529_wasm)) {
         target = 3;
       }
 
-      else if (string_op_equals(text, (const uint16_t *)__string_525_define) && argument->next != NULL) {
+      else if (string_op_equals(text, (const uint16_t *)__string_530_define) && argument->next != NULL) {
         argument = argument->next;
       }
 
-      else if (string_op_equals(text, (const uint16_t *)__string_526_out) && argument->next != NULL) {
+      else if (string_op_equals(text, (const uint16_t *)__string_531_out) && argument->next != NULL) {
         argument = argument->next;
         output = argument->text;
       }
 
       else {
-        printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_527_Invalid_flag), text)));
+        printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_532_Invalid_flag), text)));
 
         return 1;
       }
@@ -5715,32 +5737,32 @@ int32_t main_entry() {
   }
 
   if (inputCount == 0) {
-    printError((const uint16_t *)__string_528_No_input_files);
+    printError((const uint16_t *)__string_533_No_input_files);
 
     return 1;
   }
 
   if (string_op_equals(output, NULL)) {
-    printError((const uint16_t *)__string_529_Missing_an_output_file_use_the);
+    printError((const uint16_t *)__string_534_Missing_an_output_file_use_the);
 
     return 1;
   }
 
   if (target == 0) {
-    if (string_endsWith(output, (const uint16_t *)__string_530_c)) {
+    if (string_endsWith(output, (const uint16_t *)__string_535_c)) {
       target = 1;
     }
 
-    else if (string_endsWith(output, (const uint16_t *)__string_531_js)) {
+    else if (string_endsWith(output, (const uint16_t *)__string_536_js)) {
       target = 2;
     }
 
-    else if (string_endsWith(output, (const uint16_t *)__string_532_wasm)) {
+    else if (string_endsWith(output, (const uint16_t *)__string_537_wasm)) {
       target = 3;
     }
 
     else {
-      printError((const uint16_t *)__string_533_Missing_a_target_use_either_c);
+      printError((const uint16_t *)__string_538_Missing_a_target_use_either_c);
 
       return 1;
     }
@@ -5753,20 +5775,20 @@ int32_t main_entry() {
   while (argument != NULL) {
     const uint16_t *text = argument->text;
 
-    if (string_op_equals(text, (const uint16_t *)__string_534_define)) {
+    if (string_op_equals(text, (const uint16_t *)__string_539_define)) {
       argument = argument->next;
       Preprocessor_define(compiler->preprocessor, argument->text, 1);
     }
 
-    else if (string_op_equals(text, (const uint16_t *)__string_535_out)) {
+    else if (string_op_equals(text, (const uint16_t *)__string_540_out)) {
       argument = argument->next;
     }
 
-    else if (!string_startsWith(text, (const uint16_t *)__string_536)) {
+    else if (!string_startsWith(text, (const uint16_t *)__string_541)) {
       const uint16_t *contents = IO_readTextFile(text);
 
       if (string_op_equals(contents, NULL)) {
-        printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_537_Cannot_read_from), text)));
+        printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_542_Cannot_read_from), text)));
 
         return 1;
       }
@@ -5784,7 +5806,7 @@ int32_t main_entry() {
     uint8_t success = target == 1 ? IO_writeTextFile(output, compiler->c) : target == 2 ? IO_writeTextFile(output, compiler->js) : target == 3 ? IO_writeBinaryFile(output, compiler->wasm) : 0;
 
     if (!success) {
-      printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_538_Cannot_write_to), output)));
+      printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_543_Cannot_write_to), output)));
 
       return 1;
     }
@@ -6346,55 +6368,55 @@ static uint8_t Node_expandCallIntoOperatorTree(struct Node *this) {
   if (value->kind == 21 && Node_isOperator(symbol->node) && Node_isDeclare(symbol->node)) {
     int32_t binaryKind = 27;
 
-    if (string_op_equals(symbol->name, (const uint16_t *)__string_539)) {
+    if (string_op_equals(symbol->name, (const uint16_t *)__string_544)) {
       binaryKind = 60;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_540)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_545)) {
       binaryKind = 46;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_541)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_546)) {
       binaryKind = 58;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_542)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_547)) {
       binaryKind = 51;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_543)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_548)) {
       binaryKind = 49;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_544)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_549)) {
       binaryKind = 54;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_545)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_550)) {
       binaryKind = 61;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_546)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_551)) {
       binaryKind = 50;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_547)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_552)) {
       binaryKind = 52;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_548)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_553)) {
       binaryKind = 62;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_549)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_554)) {
       binaryKind = 23;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_550)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_555)) {
       binaryKind = 48;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_551)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_556)) {
       binaryKind = 47;
     }
 
@@ -6406,7 +6428,7 @@ static uint8_t Node_expandCallIntoOperatorTree(struct Node *this) {
       return 1;
     }
 
-    else if (string_op_equals(symbol->name, (const uint16_t *)__string_552)) {
+    else if (string_op_equals(symbol->name, (const uint16_t *)__string_557)) {
       this->kind = 45;
       struct Node *target = createIndex(Node_remove(Node_dotTarget(Node_remove(value))));
       Node_appendChild(target, Node_remove(this->firstChild));
@@ -6759,7 +6781,7 @@ static void ParserContext_advance(struct ParserContext *this) {
 static void ParserContext_unexpectedToken(struct ParserContext *this) {
   if (this->lastError != this->current) {
     this->lastError = this->current;
-    Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_553_Unexpected), tokenToString(this->current->kind))));
+    Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_558_Unexpected), tokenToString(this->current->kind))));
   }
 }
 
@@ -6771,11 +6793,11 @@ static uint8_t ParserContext_expect(struct ParserContext *this, int32_t kind) {
       struct Range *currentLine = Range_enclosingLine(this->current->range);
 
       if (kind != 2 && !Range_equals(previousLine, currentLine)) {
-        Log_error(this->log, Range_rangeAtEnd(previousLine), StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_554_Expected), tokenToString(kind))));
+        Log_error(this->log, Range_rangeAtEnd(previousLine), StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_559_Expected), tokenToString(kind))));
       }
 
       else {
-        Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_555_Expected), tokenToString(kind)), (const uint16_t *)__string_556_but_found), tokenToString(this->current->kind))));
+        Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_560_Expected), tokenToString(kind)), (const uint16_t *)__string_561_but_found), tokenToString(this->current->kind))));
       }
     }
 
@@ -6867,7 +6889,7 @@ static const uint16_t *ParserContext_parseQuotedString(struct ParserContext *thi
 
       else {
         struct Range *escape = createRange(range->source, range->start + end - 1, range->start + end + 1);
-        Log_error(this->log, escape, StringBuilder_finish(StringBuilder_appendChar(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_557_Invalid_escape_code), Range_toString(escape)), 39)));
+        Log_error(this->log, escape, StringBuilder_finish(StringBuilder_appendChar(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_562_Invalid_escape_code), Range_toString(escape)), 39)));
 
         return NULL;
       }
@@ -6915,7 +6937,7 @@ static struct Node *ParserContext_parsePrefix(struct ParserContext *this, int32_
       ParserContext_advance(this);
 
       if (string_length(text) != 1) {
-        Log_error(this->log, token->range, (const uint16_t *)__string_558_Invalid_character_literal_strin);
+        Log_error(this->log, token->range, (const uint16_t *)__string_563_Invalid_character_literal_strin);
 
         return Node_withRange(createParseError(), token->range);
       }
@@ -7492,7 +7514,7 @@ static struct Node *ParserContext_parseClass(struct ParserContext *this, struct 
 
     const uint16_t *text = Range_toString(childName->range);
 
-    if (string_op_equals(text, (const uint16_t *)__string_559_operator) && !ParserContext_peek(this, 20) && !ParserContext_peek(this, 2)) {
+    if (string_op_equals(text, (const uint16_t *)__string_564_operator) && !ParserContext_peek(this, 20) && !ParserContext_peek(this, 2)) {
       childName->kind = 61;
       this->current = childName;
 
@@ -7504,8 +7526,8 @@ static struct Node *ParserContext_parseClass(struct ParserContext *this, struct 
     }
 
     else if (ParserContext_peek(this, 2)) {
-      uint8_t isGet = string_op_equals(text, (const uint16_t *)__string_560_get);
-      uint8_t isSet = string_op_equals(text, (const uint16_t *)__string_561_set);
+      uint8_t isGet = string_op_equals(text, (const uint16_t *)__string_565_get);
+      uint8_t isSet = string_op_equals(text, (const uint16_t *)__string_566_set);
 
       if (isGet || isSet) {
         childFlags = appendFlag(childFlags, isGet ? 8 : 512, childName->range);
@@ -7514,13 +7536,13 @@ static struct Node *ParserContext_parseClass(struct ParserContext *this, struct 
       }
 
       else if (oldKind == 53) {
-        Log_error(this->log, childName->range, (const uint16_t *)__string_562_Instance_functions_don_t_need_th);
+        Log_error(this->log, childName->range, (const uint16_t *)__string_567_Instance_functions_don_t_need_th);
         childName = this->current;
         ParserContext_advance(this);
       }
 
       else if (oldKind == 44 || oldKind == 58 || oldKind == 71) {
-        Log_error(this->log, childName->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_563_Instance_variables_don_t_need_th), Range_toString(childName->range)), (const uint16_t *)__string_564_keyword)));
+        Log_error(this->log, childName->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_568_Instance_variables_don_t_need_th), Range_toString(childName->range)), (const uint16_t *)__string_569_keyword)));
         childName = this->current;
         ParserContext_advance(this);
       }
@@ -7568,13 +7590,13 @@ static struct Node *ParserContext_parseFunction(struct ParserContext *this, stru
 
       if (ParserContext_peek(this, 5)) {
         nameRange = spanRanges(token->range, this->current->range);
-        name = (const uint16_t *)__string_565;
+        name = (const uint16_t *)__string_570;
         ParserContext_advance(this);
       }
 
       else {
         nameRange = spanRanges(token->range, end->range);
-        name = (const uint16_t *)__string_566;
+        name = (const uint16_t *)__string_571;
       }
 
       isOperator = 1;
@@ -7589,7 +7611,7 @@ static struct Node *ParserContext_parseFunction(struct ParserContext *this, stru
     else if (ParserContext_eat(this, 5) || ParserContext_eat(this, 17) || ParserContext_eat(this, 22) || ParserContext_eat(this, 23) || ParserContext_eat(this, 24) || ParserContext_eat(this, 28) || ParserContext_eat(this, 29)) {
       nameRange = end->range;
       name = Range_toString(nameRange);
-      Log_error(this->log, nameRange, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_567_The_operator), name), (const uint16_t *)__string_568_cannot_be_implemented), end->kind == 29 ? (const uint16_t *)__string_569_it_is_automatically_derived_fr : end->kind == 22 ? (const uint16_t *)__string_570_it_is_automatically_derived_fr : end->kind == 17 ? (const uint16_t *)__string_571_it_is_automatically_derived_fr : (const uint16_t *)__string_572)));
+      Log_error(this->log, nameRange, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_572_The_operator), name), (const uint16_t *)__string_573_cannot_be_implemented), end->kind == 29 ? (const uint16_t *)__string_574_it_is_automatically_derived_fr : end->kind == 22 ? (const uint16_t *)__string_575_it_is_automatically_derived_fr : end->kind == 17 ? (const uint16_t *)__string_576_it_is_automatically_derived_fr : (const uint16_t *)__string_577)));
     }
 
     else {
@@ -7758,7 +7780,7 @@ static struct Node *ParserContext_parseVariables(struct ParserContext *this, str
       }
 
       if (parent != NULL) {
-        Log_error(this->log, value->range, (const uint16_t *)__string_573_Inline_initialization_of_instanc);
+        Log_error(this->log, value->range, (const uint16_t *)__string_578_Inline_initialization_of_instanc);
       }
     }
 
@@ -7970,7 +7992,7 @@ static uint8_t ParserContext_parseInt(struct ParserContext *this, struct Range *
     }
 
     else {
-      Log_error(this->log, range, (const uint16_t *)__string_574_Use_the_0o_prefix_for_octal_in);
+      Log_error(this->log, range, (const uint16_t *)__string_579_Use_the_0o_prefix_for_octal_in);
 
       return 0;
     }
@@ -7986,7 +8008,7 @@ static uint8_t ParserContext_parseInt(struct ParserContext *this, struct Range *
     uint32_t baseValue = value * base;
 
     if (baseValue / base != value || baseValue > 4294967295 - digit) {
-      Log_error(this->log, range, (const uint16_t *)__string_575_Integer_literal_is_too_big_to_fi);
+      Log_error(this->log, range, (const uint16_t *)__string_580_Integer_literal_is_too_big_to_fi);
 
       return 0;
     }
@@ -8037,12 +8059,12 @@ static void Preprocessor_advance(struct Preprocessor *this) {
 }
 
 static void Preprocessor_unexpectedToken(struct Preprocessor *this) {
-  Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_576_Unexpected), tokenToString(this->current->kind))));
+  Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_581_Unexpected), tokenToString(this->current->kind))));
 }
 
 static uint8_t Preprocessor_expect(struct Preprocessor *this, int32_t kind) {
   if (!Preprocessor_peek(this, kind)) {
-    Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_577_Expected), tokenToString(kind)), (const uint16_t *)__string_578_but_found), tokenToString(this->current->kind))));
+    Log_error(this->log, this->current->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_582_Expected), tokenToString(kind)), (const uint16_t *)__string_583_but_found), tokenToString(this->current->kind))));
 
     return 0;
   }
@@ -8114,8 +8136,8 @@ static uint8_t Preprocessor_scan(struct Preprocessor *this, uint8_t isParentLive
         Preprocessor_define(this, Range_toString(this->previous->range), current->kind == 73);
       }
 
-      if (Preprocessor_eat(this, 52) || (Preprocessor_eat(this, 3) && string_op_equals(Range_toString(this->previous->range), (const uint16_t *)__string_579_0))) {
-        Log_error(this->log, this->previous->range, (const uint16_t *)__string_580_Use_undef_to_turn_a_preproces);
+      if (Preprocessor_eat(this, 52) || (Preprocessor_eat(this, 3) && string_op_equals(Range_toString(this->previous->range), (const uint16_t *)__string_584_0))) {
+        Log_error(this->log, this->previous->range, (const uint16_t *)__string_585_Use_undef_to_turn_a_preproces);
       }
 
       if (!Preprocessor_peek(this, 0) && !Preprocessor_expect(this, 80)) {
@@ -8125,7 +8147,7 @@ static uint8_t Preprocessor_scan(struct Preprocessor *this, uint8_t isParentLive
       }
 
       if (!this->isDefineAndUndefAllowed) {
-        Log_error(this->log, spanRanges(current->range, this->previous->range), (const uint16_t *)__string_581_All_define_and_undef_direc);
+        Log_error(this->log, spanRanges(current->range, this->previous->range), (const uint16_t *)__string_586_All_define_and_undef_direc);
       }
 
       Preprocessor_removeTokensFrom(this, previous);
@@ -8229,7 +8251,7 @@ static int32_t Preprocessor_parsePrefix(struct Preprocessor *this) {
   if (Preprocessor_eat(this, 2)) {
     const uint16_t *name = Range_toString(this->previous->range);
 
-    if (Preprocessor_peek(this, 20) && string_op_equals(name, (const uint16_t *)__string_582_defined)) {
+    if (Preprocessor_peek(this, 20) && string_op_equals(name, (const uint16_t *)__string_587_defined)) {
       isDefinedOperator = 1;
     }
 
@@ -8259,10 +8281,10 @@ static int32_t Preprocessor_parsePrefix(struct Preprocessor *this) {
     }
 
     if (isDefinedOperator) {
-      struct StringBuilder *builder = StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_583_There_is_no_defined_operator);
+      struct StringBuilder *builder = StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_588_There_is_no_defined_operator);
 
       if (first->kind == 2 && this->previous == first->next) {
-        StringBuilder_append(StringBuilder_append(StringBuilder_append(builder, (const uint16_t *)__string_584_just_use), Range_toString(first->range)), (const uint16_t *)__string_585_instead);
+        StringBuilder_append(StringBuilder_append(StringBuilder_append(builder, (const uint16_t *)__string_589_just_use), Range_toString(first->range)), (const uint16_t *)__string_590_instead);
       }
 
       Log_error(this->log, spanRanges(start->range, this->previous->range), StringBuilder_finish(builder));
@@ -8272,8 +8294,8 @@ static int32_t Preprocessor_parsePrefix(struct Preprocessor *this) {
   }
 
   if (Preprocessor_eat(this, 3)) {
-    uint8_t isTrue = !string_op_equals(Range_toString(this->previous->range), (const uint16_t *)__string_586_0);
-    Log_error(this->log, this->previous->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_587_Unexpected_integer_did_you_mean), isTrue ? (const uint16_t *)__string_588_true : (const uint16_t *)__string_589_false), (const uint16_t *)__string_590)));
+    uint8_t isTrue = !string_op_equals(Range_toString(this->previous->range), (const uint16_t *)__string_591_0);
+    Log_error(this->log, this->previous->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_592_Unexpected_integer_did_you_mean), isTrue ? (const uint16_t *)__string_593_true : (const uint16_t *)__string_594_false), (const uint16_t *)__string_595)));
 
     return isTrue ? 1 : 0;
   }
@@ -8401,7 +8423,7 @@ static uint8_t Scope_define(struct Scope *this, struct Log *log, struct Symbol *
   struct Symbol *existing = Scope_findLocal(this, symbol->name, hint);
 
   if (existing != NULL) {
-    Log_error(log, symbol->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_591_Duplicate_symbol), symbol->name), (const uint16_t *)__string_592)));
+    Log_error(log, symbol->range, StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_596_Duplicate_symbol), symbol->name), (const uint16_t *)__string_597)));
 
     return 0;
   }
@@ -8529,27 +8551,27 @@ static void StringBuilder_appendQuoted(struct StringBuilder *sb, const uint16_t 
     uint16_t c = string_op_get(text, end);
 
     if (c == 34) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_593);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_598);
     }
 
     else if (c == 0) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_594_0);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_599_0);
     }
 
     else if (c == 9) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_595_t);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_600_t);
     }
 
     else if (c == 13) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_596_r);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_601_r);
     }
 
     else if (c == 10) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_597_n);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_602_n);
     }
 
     else if (c == 92) {
-      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_598);
+      StringBuilder_append(StringBuilder_appendSlice(sb, text, start, end), (const uint16_t *)__string_603);
     }
 
     else {
@@ -8908,7 +8930,7 @@ static void WasmModule_emitModule(struct WasmModule *this, struct ByteArray *arr
 }
 
 static void WasmModule_emitSignatures(struct WasmModule *this, struct ByteArray *array) {
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_599_signatures);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_604_signatures);
   wasmWriteVarUnsigned(array, this->signatureCount);
   struct WasmSignature *signature = this->firstSignature;
 
@@ -8941,7 +8963,7 @@ static void WasmModule_emitImportTable(struct WasmModule *this, struct ByteArray
     return;
   }
 
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_600_import_table);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_605_import_table);
   wasmWriteVarUnsigned(array, this->importCount);
   struct WasmImport *current = this->firstImport;
 
@@ -8960,7 +8982,7 @@ static void WasmModule_emitFunctionSignatures(struct WasmModule *this, struct By
     return;
   }
 
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_601_function_signatures);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_606_function_signatures);
   wasmWriteVarUnsigned(array, this->functionCount);
   struct WasmFunction *fn = this->firstFunction;
 
@@ -8973,7 +8995,7 @@ static void WasmModule_emitFunctionSignatures(struct WasmModule *this, struct By
 }
 
 static void WasmModule_emitMemory(struct WasmModule *this, struct ByteArray *array) {
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_602_memory);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_607_memory);
   wasmWriteVarUnsigned(array, 256);
   wasmWriteVarUnsigned(array, 256);
   wasmWriteVarUnsigned(array, 1);
@@ -8996,7 +9018,7 @@ static void WasmModule_emitExportTable(struct WasmModule *this, struct ByteArray
     return;
   }
 
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_603_export_table);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_608_export_table);
   wasmWriteVarUnsigned(array, exportedCount);
   int32_t i = 0;
   fn = this->firstFunction;
@@ -9019,7 +9041,7 @@ static void WasmModule_emitFunctionBodies(struct WasmModule *this, struct ByteAr
     return;
   }
 
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_604_function_bodies);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_609_function_bodies);
   wasmWriteVarUnsigned(array, this->functionCount);
   struct WasmFunction *fn = this->firstFunction;
 
@@ -9058,7 +9080,7 @@ static void WasmModule_emitDataSegments(struct WasmModule *this, struct ByteArra
   int32_t initialHeapPointer = alignToNextMultipleOf(initializerLength + 8, 8);
   ByteArray_set32(memoryInitializer, this->currentHeapPointer, initialHeapPointer);
   ByteArray_set32(memoryInitializer, this->originalHeapPointer, initialHeapPointer);
-  int32_t section = wasmStartSection(array, (const uint16_t *)__string_605_data_segments);
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_610_data_segments);
   wasmWriteVarUnsigned(array, 1);
   wasmWriteVarUnsigned(array, 8);
   wasmWriteVarUnsigned(array, initializerLength);
@@ -9109,12 +9131,12 @@ static void WasmModule_prepareToEmit(struct WasmModule *this, struct Node *node)
         assert(0);
       }
 
-      if (string_op_equals(symbol->name, (const uint16_t *)__string_606_currentHeapPointer)) {
+      if (string_op_equals(symbol->name, (const uint16_t *)__string_611_currentHeapPointer)) {
         assert(this->currentHeapPointer == -1);
         this->currentHeapPointer = symbol->offset;
       }
 
-      else if (string_op_equals(symbol->name, (const uint16_t *)__string_607_originalHeapPointer)) {
+      else if (string_op_equals(symbol->name, (const uint16_t *)__string_612_originalHeapPointer)) {
         assert(this->originalHeapPointer == -1);
         this->originalHeapPointer = symbol->offset;
       }
@@ -9149,7 +9171,7 @@ static void WasmModule_prepareToEmit(struct WasmModule *this, struct Node *node)
     struct Symbol *symbol = node->symbol;
 
     if (body == NULL) {
-      const uint16_t *moduleName = symbol->kind == 4 ? Symbol_parent(symbol)->name : (const uint16_t *)__string_608_global;
+      const uint16_t *moduleName = symbol->kind == 4 ? Symbol_parent(symbol)->name : (const uint16_t *)__string_613_global;
       symbol->offset = this->importCount;
       WasmModule_allocateImport(this, signatureIndex, moduleName, symbol->name);
       node = node->nextSibling;
@@ -9160,7 +9182,7 @@ static void WasmModule_prepareToEmit(struct WasmModule *this, struct Node *node)
     symbol->offset = this->functionCount;
     struct WasmFunction *fn = WasmModule_allocateFunction(this, symbol->name, signatureIndex, body);
 
-    if (symbol->kind == 5 && string_op_equals(symbol->name, (const uint16_t *)__string_609_malloc)) {
+    if (symbol->kind == 5 && string_op_equals(symbol->name, (const uint16_t *)__string_614_malloc)) {
       assert(this->mallocFunctionIndex == -1);
       this->mallocFunctionIndex = symbol->offset;
     }

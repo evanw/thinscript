@@ -1,0 +1,10 @@
+/build.js
+/lib/thinc.c
+/out/benchmark.html
+/out/benchmark.thin
+/out/common.js
+/out/compiled.c
+/out/compiled.wasm
+/out/index.html
+/out/thinc
+/src

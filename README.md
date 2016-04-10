@@ -5,10 +5,8 @@ It's meant to be a thin layer on top of WebAssembly that makes it easier to work
 The syntax is inspired by TypeScript and the compiler is open source and bootstrapped (it can compile itself).
 
 This is still an experiment and isn't intended for real use yet.
-The generated code currently doesn't delete anything.
-WebAssembly is a volatile work-in-progress and the binary format will be changed before the final release.
-Debugging support for WebAssembly is non-existent in current implementations.
-You get the idea.
+The biggest issue is that the generated code currently doesn't delete anything (garbage collection is planned but not yet implemented).
+Also the WebAssembly specification is still being developed and the current binary format will stop working when WebAssembly is officially released.
 
 ## Demo
 
@@ -64,3 +62,9 @@ extern function main(): int {
   return total;
 }
 ```
+
+# Building
+
+Run `node build.js` to build the compiler using itself.
+This generates updated versions of `out/compiled.js`, `out/compiled.wasm`, and `out/compiled.c`.
+If you have a C compiler installed, this also builds a native version of the compiler by compiling `out/compiled.c` and `lib/thinc.c` together into the `out/thinc` binary.

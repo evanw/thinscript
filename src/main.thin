@@ -97,17 +97,43 @@ extern unsafe function main_reset(): void {
   #endif
 }
 
+function printUsage(): void {
+  Terminal_write(`
+Usage: thinc [FLAGS] [INPUTS]
+
+  --help           Print this message.
+  --out [PATH]     Save the generated code to PATH.
+  --define [NAME]  Define the flag NAME in all input files.
+
+Examples:
+
+  thinc main.thin --out main.js
+  thinc src/*.thin --out main.wasm
+  thinc native.thin --out main.c --define ENABLE_TESTS
+
+`);
+}
+
 extern function main_entry(): int {
   var target = CompileTarget.NONE;
   var argument = firstArgument;
   var inputCount = 0;
   var output: string;
 
+  // Print usage by default
+  if (firstArgument == null) {
+    printUsage();
+    return 1;
+  }
+
   // Initial pass over the argument list
   while (argument != null) {
     var text = argument.text;
     if (text.startsWith("-")) {
-      if (text == "--c") {
+      if (text == "-h" || text == "-help" || text == "--help" || text == "/?") {
+        printUsage();
+        return 0;
+      } else if (text == "--c") {
         target = CompileTarget.C;
       } else if (text == "--js") {
         target = CompileTarget.JAVASCRIPT;

@@ -4443,17 +4443,33 @@
     lastArgument = null;
   };
 
+  function printUsage() {
+    __declare.Terminal_write("\nUsage: thinc [FLAGS] [INPUTS]\n\n  --help           Print this message.\n  --out [PATH]     Save the generated code to PATH.\n  --define [NAME]  Define the flag NAME in all input files.\n\nExamples:\n\n  thinc main.thin --out main.js\n  thinc src/*.thin --out main.wasm\n  thinc native.thin --out main.c --define ENABLE_TESTS\n\n");
+  }
+
   var main_entry = __extern.main_entry = function() {
     var target = 0;
     var argument = firstArgument;
     var inputCount = 0;
     var output = null;
 
+    if (firstArgument === null) {
+      printUsage();
+
+      return 1;
+    }
+
     while (argument !== null) {
       var text = argument.text;
 
       if (string_startsWith(text, "-")) {
-        if (text === "--c") {
+        if (text === "-h" || text === "-help" || text === "--help" || text === "/?") {
+          printUsage();
+
+          return 0;
+        }
+
+        else if (text === "--c") {
           target = 1;
         }
 
