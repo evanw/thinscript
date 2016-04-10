@@ -97,7 +97,7 @@ extern unsafe function main_reset(): void {
   #endif
 }
 
-extern function main(): int {
+extern function main_entry(): int {
   var target = CompileTarget.NONE;
   var argument = firstArgument;
   var inputCount = 0;

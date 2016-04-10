@@ -4450,7 +4450,7 @@
     lastArgument = null;
   };
 
-  var main = __extern.main = function() {
+  var main_entry = __extern.main_entry = function() {
     var target = 0;
     var argument = firstArgument;
     var inputCount = 0;

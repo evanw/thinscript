@@ -180,7 +180,7 @@ function compileWebAssembly(code) {
       default: throw new Error('Invalid target: ' + target);
     }
 
-    var success = exports.main() === 0;
+    var success = exports.main_entry() === 0;
     var after = now();
     var totalTime = Math.round(after - before);
     console.log('total time: ' + totalTime + 'ms');
@@ -221,7 +221,7 @@ function compileJavaScript(code) {
       default: throw new Error('Invalid target: ' + target);
     }
 
-    var success = exports.main() === 0;
+    var success = exports.main_entry() === 0;
     var after = now();
     var totalTime = Math.round(after - before);
     console.log('total time: ' + totalTime + 'ms');
