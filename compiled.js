@@ -94,6 +94,7 @@
     this.context = null;
     this.code = null;
     this.codePrefix = null;
+    this.headerName = null;
     this.indent = 0;
     this.hasStrings = false;
     this.previousNode = null;
@@ -206,41 +207,6 @@
     this.code.append(symbol.rename !== null ? symbol.rename : symbol.name);
   };
 
-  CResult.prototype.emitCharacter = function(c) {
-    var codePrefix = this.codePrefix;
-
-    if (isASCII(c)) {
-      codePrefix.appendChar(39);
-
-      if (c === 92 || c === 39) {
-        codePrefix.appendChar(92);
-      }
-
-      codePrefix.appendChar(c);
-      codePrefix.appendChar(39);
-    }
-
-    else if (c === 0) {
-      codePrefix.append("'\\0'");
-    }
-
-    else if (c === 13) {
-      codePrefix.append("'\\r'");
-    }
-
-    else if (c === 10) {
-      codePrefix.append("'\\n'");
-    }
-
-    else if (c === 9) {
-      codePrefix.append("'\\t'");
-    }
-
-    else {
-      codePrefix.append(c.toString());
-    }
-  };
-
   CResult.prototype.emitExpression = function(node, parentPrecedence) {
     var code = this.code;
     __declare.assert(node.resolvedType !== null);
@@ -303,11 +269,11 @@
 
       while (i < length) {
         codePrefix.append(", S(");
-        this.emitCharacter(string_op_get(value, i));
+        cEmitCharacter(codePrefix, string_op_get(value, i));
 
         if ((i + 1 | 0) < length) {
           codePrefix.append(", ");
-          this.emitCharacter(string_op_get(value, i + 1 | 0));
+          cEmitCharacter(codePrefix, string_op_get(value, i + 1 | 0));
           codePrefix.appendChar(41);
         }
 
@@ -710,19 +676,24 @@
     }
   };
 
-  CResult.prototype.emitIncludes = function() {
-    var code = this.codePrefix;
-    code.append("#include <stdint.h>\n");
-    code.append("#include <stdlib.h>\n");
-    code.append("#include <string.h>\n");
+  CResult.prototype.emitIncludes = function(code, mode) {
+    if (mode === 0) {
+      code.append("#include <stdint.h>\n");
+    }
+
+    else {
+      code.append("#include \"").append(this.headerName).append("\"\n");
+      code.append("#include <stdlib.h>\n");
+      code.append("#include <string.h>\n");
+    }
   };
 
-  CResult.prototype.emitTypeDeclarations = function(node) {
+  CResult.prototype.emitTypeDeclarations = function(node, mode) {
     var code = this.code;
 
     while (node !== null) {
       if (node.kind === 5) {
-        if (this.shouldEmitClass(node)) {
+        if (this.shouldEmitClass(node) && (node.isDeclareOrExtern() ? mode === 0 : mode === 1)) {
           this.emitNewlineBefore(node);
           code.append("struct ").append(node.symbol.name).append(";\n");
         }
@@ -732,12 +703,12 @@
     }
   };
 
-  CResult.prototype.emitTypeDefinitions = function(node) {
+  CResult.prototype.emitTypeDefinitions = function(node, mode) {
     var code = this.code;
 
     while (node !== null) {
       if (node.kind === 5) {
-        if (this.shouldEmitClass(node)) {
+        if (this.shouldEmitClass(node) && mode !== 0) {
           this.emitNewlineBefore(node);
           code.append("struct ");
           this.emitSymbolName(node.symbol);
@@ -762,6 +733,32 @@
         }
       }
 
+      else if (node.kind === 9) {
+        if (mode === 0 && node.isExtern()) {
+          this.emitNewlineBefore(node);
+          code.append("enum {\n");
+          this.indent = this.indent + 1 | 0;
+          var child = node.firstChild;
+
+          while (child !== null) {
+            __declare.assert(child.kind === 2);
+            this.emitIndent();
+            this.emitSymbolName(node.symbol);
+            code.append("_");
+            this.emitSymbolName(child.symbol);
+            code.append(" = ");
+            code.append(child.symbol.offset.toString());
+            child = child.nextSibling;
+            code.append(child !== null ? ",\n" : "\n");
+          }
+
+          this.indent = this.indent - 1 | 0;
+          this.emitIndent();
+          code.append("};\n");
+          this.emitNewlineAfter(node);
+        }
+      }
+
       node = node.nextSibling;
     }
   };
@@ -770,11 +767,11 @@
     return symbol.kind !== 5 || symbol.name !== "malloc" && symbol.name !== "memcpy" && symbol.name !== "memcmp";
   };
 
-  CResult.prototype.emitFunctionDeclarations = function(node) {
+  CResult.prototype.emitFunctionDeclarations = function(node, mode) {
     var code = this.code;
 
     while (node !== null) {
-      if (node.kind === 11) {
+      if (node.kind === 11 && (mode !== 0 || node.isDeclareOrExtern())) {
         var symbol = node.symbol;
 
         if (this.shouldEmitFunction(symbol)) {
@@ -789,6 +786,10 @@
           this.emitType(returnType.resolvedType, 1);
           this.emitSymbolName(symbol);
           code.appendChar(40);
+
+          if (symbol.kind === 4) {
+            child.symbol.rename = "__this";
+          }
 
           while (child !== returnType) {
             __declare.assert(child.kind === 2);
@@ -806,18 +807,18 @@
       }
 
       else if (node.kind === 5) {
-        this.emitFunctionDeclarations(node.firstChild);
+        this.emitFunctionDeclarations(node.firstChild, mode);
       }
 
       node = node.nextSibling;
     }
   };
 
-  CResult.prototype.emitGlobalVariables = function(node) {
+  CResult.prototype.emitGlobalVariables = function(node, mode) {
     var code = this.code;
 
     while (node !== null) {
-      if (node.kind === 2) {
+      if (node.kind === 2 && (mode !== 0 || node.isExtern())) {
         var value = node.variableValue();
         this.emitNewlineBefore(node);
 
@@ -833,7 +834,7 @@
       }
 
       else if (node.kind === 15) {
-        this.emitGlobalVariables(node.firstChild);
+        this.emitGlobalVariables(node.firstChild, mode);
       }
 
       node = node.nextSibling;
@@ -887,38 +888,85 @@
     }
   };
 
-  CResult.prototype.finish = function() {
+  CResult.prototype.finishImplementation = function() {
     if (this.hasStrings) {
       this.codePrefix.append("\n#undef S\n");
     }
   };
 
-  function cEmit(compiler) {
-    var child = compiler.global.firstChild;
-    var code = StringBuilder_new();
-    var codePrefix = StringBuilder_new();
-    var result = new CResult();
-    result.context = compiler.context;
-    result.code = code;
-    result.codePrefix = codePrefix;
+  function cEmitCharacter(builder, c) {
+    if (isASCII(c)) {
+      builder.appendChar(39);
 
-    if (child !== null) {
-      result.emitIncludes();
-      result.emitNewlineAfter(child);
-      result.emitTypeDeclarations(child);
-      result.emitNewlineAfter(child);
-      result.emitTypeDefinitions(child);
-      result.emitNewlineAfter(child);
-      result.emitFunctionDeclarations(child);
-      result.emitNewlineAfter(child);
-      result.emitGlobalVariables(child);
-      result.emitNewlineAfter(child);
-      result.emitFunctionDefinitions(child);
-      result.finish();
+      if (c === 92 || c === 39) {
+        builder.appendChar(92);
+      }
+
+      builder.appendChar(c);
+      builder.appendChar(39);
     }
 
-    codePrefix.append(code.finish());
-    compiler.output_c = codePrefix.finish();
+    else if (c === 0) {
+      builder.append("'\\0'");
+    }
+
+    else if (c === 13) {
+      builder.append("'\\r'");
+    }
+
+    else if (c === 10) {
+      builder.append("'\\n'");
+    }
+
+    else if (c === 9) {
+      builder.append("'\\t'");
+    }
+
+    else {
+      builder.append(c.toString());
+    }
+  }
+
+  function cEmit(compiler) {
+    var child = compiler.global.firstChild;
+    var temporaryCode = StringBuilder_new();
+    var headerCode = StringBuilder_new();
+    var implementationCode = StringBuilder_new();
+    var result = new CResult();
+    result.context = compiler.context;
+    result.code = temporaryCode;
+    result.codePrefix = implementationCode;
+    result.headerName = replaceFileExtension(compiler.outputName, ".h");
+
+    if (child !== null) {
+      result.emitIncludes(implementationCode, 1);
+      result.emitNewlineAfter(child);
+      result.emitTypeDeclarations(child, 1);
+      result.emitNewlineAfter(child);
+      result.emitTypeDefinitions(child, 1);
+      result.emitNewlineAfter(child);
+      result.emitFunctionDeclarations(child, 1);
+      result.emitNewlineAfter(child);
+      result.emitGlobalVariables(child, 1);
+      result.emitNewlineAfter(child);
+      result.emitFunctionDefinitions(child);
+      result.finishImplementation();
+      implementationCode.append(temporaryCode.finish());
+      result.code = headerCode;
+      result.emitIncludes(headerCode, 0);
+      result.emitNewlineAfter(child);
+      result.emitTypeDeclarations(child, 0);
+      result.emitNewlineAfter(child);
+      result.emitTypeDefinitions(child, 0);
+      result.emitNewlineAfter(child);
+      result.emitFunctionDeclarations(child, 0);
+      result.emitNewlineAfter(child);
+      result.emitGlobalVariables(child, 0);
+      result.emitNewlineAfter(child);
+    }
+
+    compiler.outputC = implementationCode.finish();
+    compiler.outputH = headerCode.finish();
   }
 
   function CheckContext() {
@@ -1346,6 +1394,7 @@
 
     while (child !== null) {
       resolve(context, child, parentScope);
+      __declare.assert(child.resolvedType !== null);
       child = child.nextSibling;
     }
   }
@@ -1362,6 +1411,7 @@
   function resolveAsExpression(context, node, parentScope) {
     __declare.assert(isExpression(node));
     resolve(context, node, parentScope);
+    __declare.assert(node.resolvedType !== null);
 
     if (node.resolvedType !== context.errorType) {
       if (node.isType()) {
@@ -1379,6 +1429,7 @@
   function resolveAsType(context, node, parentScope) {
     __declare.assert(isExpression(node));
     resolve(context, node, parentScope);
+    __declare.assert(node.resolvedType !== null);
 
     if (node.resolvedType !== context.errorType && !node.isType()) {
       context.log.error(node.range, "Expected type but found expression");
@@ -2289,16 +2340,19 @@
     this.target = 0;
     this.context = null;
     this.librarySource = null;
-    this.output_wasm = null;
-    this.output_js = null;
-    this.output_c = null;
+    this.outputName = null;
+    this.outputWASM = null;
+    this.outputJS = null;
+    this.outputC = null;
+    this.outputH = null;
   }
 
-  Compiler.prototype.initialize = function(target) {
+  Compiler.prototype.initialize = function(target, outputName) {
     __declare.assert(this.log === null);
     this.log = new Log();
     this.preprocessor = new Preprocessor();
     this.target = target;
+    this.outputName = outputName;
     this.librarySource = this.addInput("<native>", library());
     this.librarySource.isLibrary = true;
     this.createGlobals();
@@ -2384,6 +2438,7 @@
     __declare.Profiler_begin();
     var global = this.global;
     var context = this.context;
+    var fullResolve = true;
     source = this.firstSource;
 
     while (source !== null) {
@@ -2406,10 +2461,19 @@
         }
       }
 
+      if (source === this.librarySource && this.log.hasErrors()) {
+        fullResolve = false;
+
+        break;
+      }
+
       source = source.next;
     }
 
-    resolve(context, global, global.scope);
+    if (fullResolve) {
+      resolve(context, global, global.scope);
+    }
+
     __declare.Profiler_end("checking");
 
     if (this.log.hasErrors()) {
@@ -2437,6 +2501,19 @@
 
     return true;
   };
+
+  function replaceFileExtension(path, extension) {
+    var builder = StringBuilder_new();
+    var dot = path.lastIndexOf(".");
+    var forward = path.lastIndexOf("/");
+    var backward = path.lastIndexOf("\\");
+
+    if (dot > 0 && dot > forward && dot > backward) {
+      path = path.slice(0, dot);
+    }
+
+    return builder.append(path).append(extension).finish();
+  }
 
   function isPositivePowerOf2(value) {
     return value > 0 && (value & value - 1) === 0;
@@ -3170,7 +3247,7 @@
     result.emitIndent();
     code.append("typeof exports !== 'undefined' ? exports : this\n");
     code.append("));\n");
-    compiler.output_js = code.finish();
+    compiler.outputJS = code.finish();
   }
 
   function isKeyword(kind) {
@@ -4154,7 +4231,7 @@
   }
 
   function library() {
-    return "\n#if WASM\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: *byte = null;\n  unsafe var originalHeapPointer: *byte = null;\n\n  extern unsafe function malloc(sizeOf: uint): *byte {\n    // Align all allocations to 8 bytes\n    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      *(ptr as *int) = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == null || target == null) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {\n      // Pick off the beginning\n      while ((target as uint) % 4 != 0) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        *(target + length) = *(source + length);\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        *(target as *int) = *(source as *int);\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  unsafe function memcmp(a: *byte, b: *byte, length: uint): int {\n    // No-op if either of the inputs are null\n    if (a == null || b == null) {\n      return 0;\n    }\n\n    // Return the first non-zero difference\n    while (length > 0) {\n      var delta = *a as int - *b as int;\n      if (delta != 0) {\n        return delta;\n      }\n      a = a + 1;\n      b = b + 1;\n      length = length - 1;\n    }\n\n    // Both inputs are identical\n    return 0;\n  }\n\n#elif C\n\n  declare unsafe function malloc(sizeOf: uint): *byte;\n  declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;\n  declare unsafe function memcmp(a: *byte, b: *byte, length: uint): int;\n\n#endif\n\n#if WASM || C\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as *byte;\n      var end = ptr + 4 + length * 2;\n\n      if (sign) {\n        *((ptr + 4) as *ushort) = '-';\n      }\n\n      while (value != 0) {\n        end = end + -2;\n        *(end as *ushort) = (value % 10 + '0') as ushort;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length * 2);\n      *(ptr as *uint) = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): ushort {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return *(this as *int);\n      }\n    }\n\n    operator [] (index: int): ushort {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return *((this as *byte + 4 + index * 2) as *ushort);\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as *byte == other as *byte) return true;\n        if (this as *byte == null || other as *byte == null) return false;\n        var length = this.length;\n        if (length != other.length) return false;\n        return memcmp(this as *byte + 4, other as *byte + 4, length as uint * 2) == 0;\n      }\n    }\n\n    slice(start: int, end: int): string {\n      var length = this.length;\n\n      if (start < 0) start = start + length;\n      if (end < 0) end = end + length;\n\n      if (start < 0) start = 0;\n      else if (start > length) start = length;\n\n      if (end < start) end = start;\n      else if (end > length) end = length;\n\n      unsafe {\n        var range = (end - start) as uint;\n        var ptr = string_new(range);\n        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, range * 2);\n        return ptr;\n      }\n    }\n\n    startsWith(text: string): bool {\n      var textLength = text.length;\n      if (this.length < textLength) return false;\n      unsafe {\n        return memcmp(this as *byte + 4, text as *byte + 4, textLength as uint * 2) == 0;\n      }\n    }\n\n    endsWith(text: string): bool {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength < textLength) return false;\n      unsafe {\n        return memcmp(this as *byte + 4 + (thisLength - textLength) * 2, text as *byte + 4, textLength as uint * 2) == 0;\n      }\n    }\n\n    indexOf(text: string): int {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength >= textLength) {\n        var i = 0;\n        while (i < thisLength - textLength) {\n          unsafe {\n            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {\n              return i;\n            }\n          }\n          i = i + 1;\n        }\n      }\n      return -1;\n    }\n\n    lastIndexOf(text: string): int {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength >= textLength) {\n        var i = thisLength - textLength;\n        while (i >= 0) {\n          unsafe {\n            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {\n              return i;\n            }\n          }\n          i = i - 1;\n        }\n      }\n      return -1;\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): ushort;\n    get length(): int;\n    indexOf(text: string): int;\n    lastIndexOf(text: string): int;\n    operator == (other: string): bool;\n    operator [] (index: int): ushort { return this.charCodeAt(index); }\n    slice(start: int, end: int): string;\n\n    #if JS\n      startsWith(text: string): bool { return this.slice(0, text.length) == text; }\n      endsWith(text: string): bool { return this.slice(-text.length, this.length) == text; }\n    #else\n      startsWith(text: string): bool;\n      endsWith(text: string): bool;\n    #endif\n  }\n\n#endif\n";
+    return "\n#if WASM\n\n  // These will be filled in by the WebAssembly code generator\n  unsafe var currentHeapPointer: *byte = null;\n  unsafe var originalHeapPointer: *byte = null;\n\n  extern unsafe function malloc(sizeOf: uint): *byte {\n    // Align all allocations to 8 bytes\n    var offset = ((currentHeapPointer as uint + 7) & ~7 as uint) as *byte;\n    sizeOf = (sizeOf + 7) & ~7 as uint;\n\n    // Use a simple bump allocator for now\n    var limit = offset + sizeOf;\n    currentHeapPointer = limit;\n\n    // Make sure the memory starts off at zero\n    var ptr = offset;\n    while (ptr < limit) {\n      *(ptr as *int) = 0;\n      ptr = ptr + 4;\n    }\n\n    return offset;\n  }\n\n  unsafe function memcpy(target: *byte, source: *byte, length: uint): void {\n    // No-op if either of the inputs are null\n    if (source == null || target == null) {\n      return;\n    }\n\n    // Optimized aligned copy\n    if (length >= 16 && (source as uint) % 4 == (target as uint) % 4) {\n      // Pick off the beginning\n      while ((target as uint) % 4 != 0) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n        length = length - 1;\n      }\n\n      // Pick off the end\n      while (length % 4 != 0) {\n        length = length - 1;\n        *(target + length) = *(source + length);\n      }\n\n      // Zip over the middle\n      var end = target + length;\n      while (target < end) {\n        *(target as *int) = *(source as *int);\n        target = target + 4;\n        source = source + 4;\n      }\n    }\n\n    // Slow unaligned copy\n    else {\n      var end = target + length;\n      while (target < end) {\n        *target = *source;\n        target = target + 1;\n        source = source + 1;\n      }\n    }\n  }\n\n  unsafe function memcmp(a: *byte, b: *byte, length: uint): int {\n    // No-op if either of the inputs are null\n    if (a == null || b == null) {\n      return 0;\n    }\n\n    // Return the first non-zero difference\n    while (length > 0) {\n      var delta = *a as int - *b as int;\n      if (delta != 0) {\n        return delta;\n      }\n      a = a + 1;\n      b = b + 1;\n      length = length - 1;\n    }\n\n    // Both inputs are identical\n    return 0;\n  }\n\n#elif C\n\n  declare unsafe function malloc(sizeOf: uint): *byte;\n  declare unsafe function memcpy(target: *byte, source: *byte, length: uint): void;\n  declare unsafe function memcmp(a: *byte, b: *byte, length: uint): int;\n\n#endif\n\n#if WASM || C\n\n  declare class bool {\n    toString(): string {\n      return this ? \"true\" : \"false\";\n    }\n  }\n\n  declare class sbyte {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class byte {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class short {\n    toString(): string {\n      return (this as int).toString();\n    }\n  }\n\n  declare class ushort {\n    toString(): string {\n      return (this as uint).toString();\n    }\n  }\n\n  declare class int {\n    toString(): string {\n      // Special-case this to keep the rest of the code simple\n      if (this == -2147483648) {\n        return \"-2147483648\";\n      }\n\n      // Treat this like an unsigned integer prefixed by '-' if it's negative\n      return internalIntToString((this < 0 ? -this : this) as uint, this < 0);\n    }\n  }\n\n  declare class uint {\n    toString(): string {\n      return internalIntToString(this, false);\n    }\n  }\n\n  function internalIntToString(value: uint, sign: bool): string {\n    // Avoid allocation for common cases\n    if (value == 0) return \"0\";\n    if (value == 1) return sign ? \"-1\" : \"1\";\n\n    unsafe {\n      // Determine how many digits we need\n      var length = ((sign ? 1 : 0) + (\n        value >= 100000000 ?\n          value >= 1000000000 ? 10 : 9 :\n        value >= 10000 ?\n          value >= 1000000 ?\n            value >= 10000000 ? 8 : 7 :\n            value >= 100000 ? 6 : 5 :\n          value >= 100 ?\n            value >= 1000 ? 4 : 3 :\n            value >= 10 ? 2 : 1)) as uint;\n\n      var ptr = string_new(length) as *byte;\n      var end = ptr + 4 + length * 2;\n\n      if (sign) {\n        *((ptr + 4) as *ushort) = '-';\n      }\n\n      while (value != 0) {\n        end = end + -2;\n        *(end as *ushort) = (value % 10 + '0') as ushort;\n        value = value / 10;\n      }\n\n      return ptr as string;\n    }\n  }\n\n  function string_new(length: uint): string {\n    unsafe {\n      var ptr = malloc(4 + length * 2);\n      *(ptr as *uint) = length;\n      return ptr as string;\n    }\n  }\n\n  declare class string {\n    charAt(index: int): string {\n      return this.slice(index, index + 1);\n    }\n\n    charCodeAt(index: int): ushort {\n      return this[index];\n    }\n\n    get length(): int {\n      unsafe {\n        return *(this as *int);\n      }\n    }\n\n    operator [] (index: int): ushort {\n      if (index as uint < this.length as uint) {\n        unsafe {\n          return *((this as *byte + 4 + index * 2) as *ushort);\n        }\n      }\n      return 0;\n    }\n\n    operator == (other: string): bool {\n      unsafe {\n        if (this as *byte == other as *byte) return true;\n        if (this as *byte == null || other as *byte == null) return false;\n        var length = this.length;\n        if (length != other.length) return false;\n        return memcmp(this as *byte + 4, other as *byte + 4, length as uint * 2) == 0;\n      }\n    }\n\n    slice(start: int, end: int): string {\n      var length = this.length;\n\n      if (start < 0) start = start + length;\n      if (end < 0) end = end + length;\n\n      if (start < 0) start = 0;\n      else if (start > length) start = length;\n\n      if (end < start) end = start;\n      else if (end > length) end = length;\n\n      unsafe {\n        var range = (end - start) as uint;\n        var ptr = string_new(range);\n        memcpy(ptr as *byte + 4, this as *byte + 4 + start * 2, range * 2);\n        return ptr;\n      }\n    }\n\n    startsWith(text: string): bool {\n      var textLength = text.length;\n      if (this.length < textLength) return false;\n      unsafe {\n        return memcmp(this as *byte + 4, text as *byte + 4, textLength as uint * 2) == 0;\n      }\n    }\n\n    endsWith(text: string): bool {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength < textLength) return false;\n      unsafe {\n        return memcmp(this as *byte + 4 + (thisLength - textLength) * 2, text as *byte + 4, textLength as uint * 2) == 0;\n      }\n    }\n\n    indexOf(text: string): int {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength >= textLength) {\n        var i = 0;\n        while (i < thisLength - textLength) {\n          unsafe {\n            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {\n              return i;\n            }\n          }\n          i = i + 1;\n        }\n      }\n      return -1;\n    }\n\n    lastIndexOf(text: string): int {\n      var thisLength = this.length;\n      var textLength = text.length;\n      if (thisLength >= textLength) {\n        var i = thisLength - textLength;\n        while (i >= 0) {\n          unsafe {\n            if (memcmp(this as *byte + 4 + i * 2, text as *byte + 4, textLength as uint * 2) == 0) {\n              return i;\n            }\n          }\n          i = i - 1;\n        }\n      }\n      return -1;\n    }\n  }\n\n#else\n\n  declare class bool {\n    toString(): string;\n  }\n\n  declare class sbyte {\n    toString(): string;\n  }\n\n  declare class byte {\n    toString(): string;\n  }\n\n  declare class short {\n    toString(): string;\n  }\n\n  declare class ushort {\n    toString(): string;\n  }\n\n  declare class int {\n    toString(): string;\n  }\n\n  declare class uint {\n    toString(): string;\n  }\n\n  declare class string {\n    charAt(index: int): string;\n    charCodeAt(index: int): ushort;\n    get length(): int;\n    indexOf(text: string): int;\n    lastIndexOf(text: string): int;\n    operator == (other: string): bool;\n    operator [] (index: int): ushort { return this.charCodeAt(index); }\n    slice(start: int, end: int): string;\n\n    #if JS\n      startsWith(text: string): bool { return this.slice(0, text.length) == text; }\n      endsWith(text: string): bool { return this.slice(-text.length, this.length) == text; }\n    #else\n      startsWith(text: string): bool;\n      endsWith(text: string): bool;\n    #endif\n  }\n\n#endif\n\n#if C\n\n  extern unsafe function cstring_to_utf16(utf8: *byte): string {\n    if (utf8 == null) {\n      return null;\n    }\n\n    var utf16_length: uint = 0;\n    var a: byte, b: byte, c: byte, d: byte;\n\n    // Measure text\n    var i: uint = 0;\n    while ((a = *(utf8 + i)) != '\\0') {\n      i = i + 1;\n      var codePoint: uint;\n\n      // Decode UTF-8\n      if ((b = *(utf8 + i)) != '\\0' && a >= 0xC0) {\n        i = i + 1;\n        if ((c = *(utf8 + i)) != '\\0' && a >= 0xE0) {\n          i = i + 1;\n          if ((d = *(utf8 + i)) != '\\0' && a >= 0xF0) {\n            i = i + 1;\n            codePoint = ((a & 0x07) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);\n          } else {\n            codePoint = ((a & 0x0F) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);\n          }\n        } else {\n          codePoint = ((a & 0x1F) << 6) | (b & 0x3F);\n        }\n      } else {\n        codePoint = a;\n      }\n\n      // Encode UTF-16\n      utf16_length = utf16_length + (codePoint < 0x10000 ? 1 : 2) as uint;\n    }\n\n    var output = string_new(utf16_length);\n    var utf16 = output as *ushort + 2;\n\n    // Convert text\n    i = 0;\n    while ((a = *(utf8 + i)) != '\\0') {\n      i = i + 1;\n      var codePoint: uint;\n\n      // Decode UTF-8\n      if ((b = *(utf8 + i)) != '\\0' && a >= 0xC0) {\n        i = i + 1;\n        if ((c = *(utf8 + i)) != '\\0' && a >= 0xE0) {\n          i = i + 1;\n          if ((d = *(utf8 + i)) != '\\0' && a >= 0xF0) {\n            i = i + 1;\n            codePoint = ((a & 0x07) << 18) | ((b & 0x3F) << 12) | ((c & 0x3F) << 6) | (d & 0x3F);\n          } else {\n            codePoint = ((a & 0x0F) << 12) | ((b & 0x3F) << 6) | (c & 0x3F);\n          }\n        } else {\n          codePoint = ((a & 0x1F) << 6) | (b & 0x3F);\n        }\n      } else {\n        codePoint = a;\n      }\n\n      // Encode UTF-16\n      if (codePoint < 0x10000) {\n        *utf16 = codePoint as ushort;\n      } else {\n        *utf16 = ((codePoint >> 10) + (0xD800 - (0x10000 >> 10))) as ushort;\n        utf16 = utf16 + 1;\n        *utf16 = ((codePoint & 0x3FF) + 0xDC00) as ushort;\n      }\n      utf16 = utf16 + 1;\n    }\n\n    return output;\n  }\n\n  extern unsafe function utf16_to_cstring(input: string): *byte {\n    if (input as *uint == null) {\n      return null;\n    }\n\n    var utf16_length = *(input as *uint);\n    var utf8_length: uint = 0;\n    var utf16 = input as *ushort + 2;\n\n    // Measure text\n    var i: uint = 0;\n    while (i < utf16_length) {\n      var codePoint: uint;\n\n      // Decode UTF-16\n      var a = *(utf16 + i);\n      i = i + 1;\n      if (i < utf16_length && a >= 0xD800 && a <= 0xDBFF) {\n        var b = *(utf16 + i);\n        i = i + 1;\n        codePoint = (a << 10) + b + (0x10000 - (0xD800 << 10) - 0xDC00) as uint;\n      } else {\n        codePoint = a;\n      }\n\n      // Encode UTF-8\n      utf8_length = utf8_length + (\n        codePoint < 0x80 ? 1 :\n        codePoint < 0x800 ? 2 :\n        codePoint < 0x10000 ? 3 :\n        4) as uint;\n    }\n\n    var utf8 = malloc(utf8_length + 1);\n    var next = utf8;\n\n    // Convert text\n    i = 0;\n    while (i < utf16_length) {\n      var codePoint: uint;\n\n      // Decode UTF-16\n      var a = *(utf16 + i);\n      i = i + 1;\n      if (i < utf16_length && a >= 0xD800 && a <= 0xDBFF) {\n        var b = *(utf16 + i);\n        i = i + 1;\n        codePoint = (a << 10) + b + (0x10000 - (0xD800 << 10) - 0xDC00) as uint;\n      } else {\n        codePoint = a;\n      }\n\n      // Encode UTF-8\n      if (codePoint < 0x80) {\n        *next = codePoint as byte;\n      } else {\n        if (codePoint < 0x800) {\n          *next = (((codePoint >> 6) & 0x1F) | 0xC0) as byte;\n        } else {\n          if (codePoint < 0x10000) {\n            *next = (((codePoint >> 12) & 0x0F) | 0xE0) as byte;\n          } else {\n            *next = (((codePoint >> 18) & 0x07) | 0xF0) as byte;\n            next = next + 1;\n            *next = (((codePoint >> 12) & 0x3F) | 0x80) as byte;\n          }\n          next = next + 1;\n          *next = (((codePoint >> 6) & 0x3F) | 0x80) as byte;\n        }\n        next = next + 1;\n        *next = ((codePoint & 0x3F) | 0x80) as byte;\n      }\n      next = next + 1;\n    }\n\n    // C strings are null-terminated\n    *next = '\\0';\n\n    return utf8;\n  }\n\n#endif\n";
   }
 
   function LineColumn() {
@@ -4441,7 +4518,7 @@
   };
 
   function printUsage() {
-    __declare.Terminal_write("\nUsage: thinc [FLAGS] [INPUTS]\n\n  --help           Print this message.\n  --out [PATH]     Save the generated code to PATH.\n  --define [NAME]  Define the flag NAME in all input files.\n\nExamples:\n\n  thinc main.thin --out main.js\n  thinc src/*.thin --out main.wasm\n  thinc native.thin --out main.c --define ENABLE_TESTS\n\n");
+    __declare.Terminal_write("\nUsage: thinc [FLAGS] [INPUTS]\n\n  --help           Print this message.\n  --out [PATH]     Emit code to PATH (the target format is the file extension).\n  --define [NAME]  Define the flag NAME in all input files.\n\nExamples:\n\n  thinc main.thin --out main.js\n  thinc src/*.thin --out main.wasm\n  thinc native.thin --out main.c --define ENABLE_TESTS\n\n");
   }
 
   var main_entry = __extern.main_entry = function() {
@@ -4534,7 +4611,7 @@
     }
 
     var compiler = new Compiler();
-    compiler.initialize(target);
+    compiler.initialize(target, output);
     argument = firstArgument;
 
     while (argument !== null) {
@@ -4568,7 +4645,7 @@
     writeLogToTerminal(compiler.log);
 
     if (!compiler.log.hasErrors()) {
-      if (target === 1 && __declare.IO_writeTextFile(output, compiler.output_c) || target === 2 && __declare.IO_writeTextFile(output, compiler.output_js) || target === 3 && __declare.IO_writeBinaryFile(output, compiler.output_wasm)) {
+      if (target === 1 && __declare.IO_writeTextFile(output, compiler.outputC) && __declare.IO_writeTextFile(replaceFileExtension(output, ".h"), compiler.outputH) || target === 2 && __declare.IO_writeTextFile(output, compiler.outputJS) || target === 3 && __declare.IO_writeBinaryFile(output, compiler.outputWASM)) {
         return 0;
       }
 
@@ -5787,14 +5864,9 @@
         }
 
         var type = this.parseType();
-
-        if (type === null) {
-          return null;
-        }
-
         var close = this.current;
 
-        if (!this.expect(36)) {
+        if (type === null || !this.expect(36)) {
           return null;
         }
 
@@ -5807,14 +5879,9 @@
         }
 
         var type = this.parseType();
-
-        if (type === null) {
-          return null;
-        }
-
         var close = this.current;
 
-        if (!this.expect(36)) {
+        if (type === null || !this.expect(36)) {
           return null;
         }
 
@@ -5823,12 +5890,13 @@
 
       if (this.eat(20)) {
         var value = this.parseExpression(0, 0);
+        var close = this.current;
 
         if (value === null || !this.expect(36)) {
           return null;
         }
 
-        return value;
+        return value.withRange(spanRanges(token.range, close.range));
       }
 
       if (this.peek(6)) {
@@ -8732,8 +8800,8 @@
     __declare.assert(module.mallocFunctionIndex !== -1);
     __declare.assert(module.currentHeapPointer !== -1);
     __declare.assert(module.originalHeapPointer !== -1);
-    compiler.output_wasm = new ByteArray();
-    module.emitModule(compiler.output_wasm);
+    compiler.outputWASM = new ByteArray();
+    module.emitModule(compiler.outputWASM);
   }
 
   var __imul = Math.imul || function(a, b) {

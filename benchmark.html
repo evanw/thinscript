@@ -122,8 +122,8 @@
     loadWebAssembly(function(wasm) {
       loadJavaScript(function(js) {
         fetch('benchmark.thin', 'text', function(input) {
-          var compiledWASM = compileWebAssembly(wasm);
-          var compiledJS = compileJavaScript(js);
+          var compiledWebAssembly = compileWebAssembly(wasm);
+          var compiledJavaScript = compileJavaScript(js);
           var sources = [{
             name: '<stdin>',
             contents: input,
@@ -142,7 +142,7 @@
 
           var tickJS = function() {
             var before = now();
-            var result = compiledJS(sources, 'WebAssembly');
+            var result = compiledJavaScript(sources, 'WebAssembly', 'compiled');
             var time = Math.round(now() - before);
             console.log('total time for JavaScript: ' + time + 'ms');
             jsTimes.push(time);
@@ -160,7 +160,7 @@
 
           var tickWASM = function() {
             var before = now();
-            var result = compiledWASM(sources, 'WebAssembly');
+            var result = compiledWebAssembly(sources, 'WebAssembly', 'compiled');
             var time = Math.round(now() - before);
             console.log('total time for WebAssembly: ' + time + 'ms');
             wasmTimes.push(time);

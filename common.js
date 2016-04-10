@@ -158,8 +158,16 @@ function compileWebAssembly(code) {
   stdlib.chars = new Uint16Array(memory);
   stdlib.ints = new Int32Array(memory);
 
-  return function(sources, target) {
-    console.log('compiling to ' + target + ' using JavaScript');
+  return function(sources, target, name) {
+    var output = name;
+    switch (target) {
+      case 'C': output += '.c'; break;
+      case 'JavaScript': output += '.js'; break;
+      case 'WebAssembly': output += '.wasm'; break;
+      default: throw new Error('Invalid target: ' + target);
+    }
+
+    console.log('compiling to ' + target + ' using WebAssembly');
     var before = now();
 
     stdlib.reset();
@@ -171,14 +179,7 @@ function compileWebAssembly(code) {
     });
 
     exports.main_addArgument(stdlib.createLengthPrefixedString('--out'));
-    exports.main_addArgument(stdlib.createLengthPrefixedString('output'));
-
-    switch (target) {
-      case 'C': exports.main_addArgument(stdlib.createLengthPrefixedString('--c')); break;
-      case 'JavaScript': exports.main_addArgument(stdlib.createLengthPrefixedString('--js')); break;
-      case 'WebAssembly': exports.main_addArgument(stdlib.createLengthPrefixedString('--wasm')); break;
-      default: throw new Error('Invalid target: ' + target);
-    }
+    exports.main_addArgument(stdlib.createLengthPrefixedString(output));
 
     var success = exports.main_entry() === 0;
     var after = now();
@@ -186,7 +187,8 @@ function compileWebAssembly(code) {
     console.log('total time: ' + totalTime + 'ms');
 
     return {
-      output: success ? stdlib.fs.output : null,
+      secondaryOutput: success && name + '.h' in stdlib.fs ? stdlib.fs[name + '.h'] : null,
+      output: success ? stdlib.fs[output] : null,
       totalTime: totalTime,
       stdout: stdlib.stdout,
       success: success,
@@ -199,7 +201,15 @@ function compileJavaScript(code) {
   var exports = {};
   new Function('global', 'exports', code)(stdlib, exports);
 
-  return function(sources, target) {
+  return function(sources, target, name) {
+    var output = name;
+    switch (target) {
+      case 'C': output += '.c'; break;
+      case 'JavaScript': output += '.js'; break;
+      case 'WebAssembly': output += '.wasm'; break;
+      default: throw new Error('Invalid target: ' + target);
+    }
+
     console.log('compiling to ' + target + ' using JavaScript');
     var before = now();
 
@@ -212,14 +222,7 @@ function compileJavaScript(code) {
     });
 
     exports.main_addArgument('--out');
-    exports.main_addArgument('output');
-
-    switch (target) {
-      case 'C': exports.main_addArgument('--c'); break;
-      case 'JavaScript': exports.main_addArgument('--js'); break;
-      case 'WebAssembly': exports.main_addArgument('--wasm'); break;
-      default: throw new Error('Invalid target: ' + target);
-    }
+    exports.main_addArgument(output);
 
     var success = exports.main_entry() === 0;
     var after = now();
@@ -227,7 +230,8 @@ function compileJavaScript(code) {
     console.log('total time: ' + totalTime + 'ms');
 
     return {
-      output: success ? stdlib.fs.output : null,
+      secondaryOutput: success && name + '.h' in stdlib.fs ? stdlib.fs[name + '.h'] : null,
+      output: success ? stdlib.fs[output] : null,
       totalTime: totalTime,
       stdout: stdlib.stdout,
       success: success,

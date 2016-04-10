@@ -76,6 +76,26 @@
     padding: 5px;
   }
 
+  .secondary {
+    margin-top: 50px;
+    position: relative;
+    display: none;
+  }
+
+  .secondary button {
+    top: 0;
+    right: 0;
+  }
+
+  .double-output .secondary {
+    display: block;
+  }
+
+  .double-output textarea {
+    height: 175px;
+    min-height: 175px;
+  }
+
   button:active:not(:disabled) {
     background: linear-gradient(#EEE, #F7F7F7);
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
@@ -143,7 +163,11 @@
   <section>
     <h2>Output</h2>
     <textarea id="output" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-    <button id="download">Download</button>
+    <button id="output-button">Download</button>
+    <div class="secondary">
+      <textarea id="secondary-output" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+      <button id="secondary-output-button">Download</button>
+    </div>
   </section>
 
   <p>
@@ -157,15 +181,15 @@
     <label><input type="radio" name="target" id="target-c"> C</label>
     <br>
     <b>Compile time:</b>
-    <span id="compileTime"></span>
+    <span id="compile-time"></span>
   </p>
 
   <div class="spacer"></div>
 
   <section>
     <h2>Usage</h2>
-    <textarea id="usage" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-    <button id="shim">Run</button>
+    <textarea id="shim" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+    <button id="shim-button">Run</button>
   </section>
 
   <section>
@@ -178,14 +202,16 @@
 <script>
 
 (function() {
-  var shim = document.getElementById('shim');
   var clear = document.getElementById('clear');
   var input = document.getElementById('input');
   var output = document.getElementById('output');
-  var usage = document.getElementById('usage');
+  var outputButton = document.getElementById('output-button');
+  var secondaryOutput = document.getElementById('secondary-output');
+  var secondaryOutputButton = document.getElementById('secondary-output-button');
+  var shim = document.getElementById('shim');
+  var shimButton = document.getElementById('shim-button');
   var log = document.getElementById('log');
-  var download = document.getElementById('download');
-  var compileTime = document.getElementById('compileTime');
+  var compileTime = document.getElementById('compile-time');
 
   var backendWebAssembly = document.getElementById('backend-wasm');
   var backendJavaScript = document.getElementById('backend-js');
@@ -200,8 +226,11 @@
   var shimName = null;
   var shimContents = null;
 
-  var downloadName = null;
-  var downloadContents = null;
+  var outputName = null;
+  var outputContents = null;
+
+  var secondaryOutputName = null;
+  var secondaryOutputContents = null;
 
   function joinLines(lines) {
     return lines.join('\n');
@@ -296,9 +325,9 @@
 
     try {
       if (backendWebAssembly.checked) {
-        var compiled = compiledWebAssembly(sources, target);
+        var compiled = compiledWebAssembly(sources, target, 'compiled');
       } else {
-        var compiled = compiledJavaScript(sources, target);
+        var compiled = compiledJavaScript(sources, target, 'compiled');
       }
     } catch (e) {
       var message = e + '';
@@ -308,49 +337,49 @@
       compiled = { stdout: message, totalTime: 0 };
     }
 
+    secondaryOutputName = null;
+    secondaryOutputContents = '';
+
+    shimName = null;
+    shimContents = '';
+
     if (compiled.stdout) {
       output.value = compiled.stdout;
-      downloadName = 'log.txt';
-      shimContents = '';
-      shimName = null;
-      downloadContents = compiled.stdout;
+      outputName = 'log.txt';
+      outputContents = compiled.stdout;
     }
 
     else {
       switch (target) {
         case 'C': {
-          output.value = compiled.output;
-          downloadName = 'compiled.c';
-          downloadContents = compiled.output;
+          output.value = compiled.secondaryOutput;
+          outputName = 'compiled.h';
+          outputContents = compiled.secondaryOutput;
+          secondaryOutputName = 'compiled.c';
+          secondaryOutputContents = compiled.output;
+          shimName = 'main.c';
           shimContents = joinLines([
-            '// Compile with "cc compiled.c main.c" assuming this file is called "main.c"',
+            '// Compile with "cc compiled.c main.c"',
             '',
+            '#include "compiled.h"',
             '#include <stdio.h>',
-            '#include <stdint.h>',
             '',
-            'int32_t demo();',
-            '',
-            '// Strings are UTF-16 like JavaScript and length-prefixed for speed',
             'void print(const uint16_t *text) {',
-            '  uint32_t length = *(uint32_t *)text;',
-            '  for (uint32_t i = 0; i < length; i++) {',
-            '    putchar(text[i + 2]);',
-            '  }',
-            '  putchar(\'\\n\');',
+            '  puts((const char *)utf16_to_cstring(text));',
             '}',
             '',
             'int main() {',
             '  return demo();',
             '}',
           ]);
-          shimName = 'main.c';
           break;
         }
 
         case 'JavaScript': {
           output.value = compiled.output;
-          downloadName = 'compiled.js';
-          downloadContents = compiled.output;
+          outputName = 'compiled.js';
+          outputContents = compiled.output;
+          shimName = 'main.js';
           shimContents = joinLines([
             'function compileAndRunJavaScript(compiled) {',
             '  var global = {',
@@ -367,14 +396,14 @@
             '',
             'compileAndRunJavaScript(' + JSON.stringify(compiled.output) + ');',
           ]);
-          shimName = 'main.js';
           break;
         }
 
         case 'WebAssembly': {
           output.value = hexdump(compiled.output);
-          downloadName = 'compiled.wasm';
-          downloadContents = compiled.output;
+          outputName = 'compiled.wasm';
+          outputContents = compiled.output;
+          shimName = 'main.js';
           shimContents = joinLines([
             'function compileAndRunWebAssembly(compiled) {',
             '  var extractLengthPrefixedString = function(ptr) {',
@@ -396,7 +425,6 @@
             '',
             'compileAndRunWebAssembly(new Uint8Array([' + Array.prototype.slice.call(compiled.output).join(', ') + ']));',
           ]);
-          shimName = 'main.js';
           break;
         }
 
@@ -406,11 +434,26 @@
       }
     }
 
-    usage.textContent = shimContents;
-    compileTime.textContent = compiled.totalTime + 'ms';
+    if (secondaryOutputName !== null) {
+      output.parentNode.classList.add('double-output');
+    } else {
+      output.parentNode.classList.remove('double-output');
+    }
+    secondaryOutput.value = secondaryOutputContents;
 
-    shim.textContent = target === 'JavaScript' || target === 'WebAssembly' && supportsWebAssembly() ? 'Run' : 'Download';
-    shim.disabled = shimName === null;
+    shim.textContent = shimContents;
+    shimButton.textContent = target === 'JavaScript' || target === 'WebAssembly' && supportsWebAssembly() ? 'Run' : 'Download';
+    shimButton.disabled = shimName === null;
+
+    resetSelection(output);
+    resetSelection(secondaryOutput);
+    resetSelection(shim);
+
+    compileTime.textContent = compiled.totalTime + 'ms';
+  }
+
+  function resetSelection(textarea) {
+    textarea.selectionStart = textarea.selectionEnd = 0;
   }
 
   function triggerDownload(name, contents) {
@@ -422,10 +465,6 @@
     document.body.removeChild(link);
   }
 
-  function downloadCompiledResult() {
-    triggerDownload(downloadName, downloadContents);
-  }
-
   function logAppend() {
     log.value += (log.value !== '' ? '\n' : '') + '> ' + Array.prototype.map.call(arguments, function(item) {
       var text = item + '';
@@ -435,11 +474,11 @@
   }
 
   function runOrDownloadShim() {
-    if (shim.disabled) {
+    if (shimButton.disabled) {
       return;
     }
 
-    if (shim.textContent === 'Download') {
+    if (shimButton.textContent === 'Download') {
       triggerDownload(shimName, shimContents);
       return;
     }
@@ -472,8 +511,9 @@
         targetJavaScript.onchange = compile;
         targetC.onchange = compile;
         input.oninput = compile;
-        download.onclick = downloadCompiledResult;
-        shim.onclick = runOrDownloadShim;
+        outputButton.onclick = function() { triggerDownload(outputName, outputContents); };
+        secondaryOutputButton.onclick = function() { triggerDownload(secondaryOutputName, secondaryOutputContents); };
+        shimButton.onclick = runOrDownloadShim;
         clear.onclick = clearLog;
 
         compiledJavaScript = compileJavaScript(js);
@@ -490,8 +530,7 @@
         }
 
         input.value = example;
-        input.selectionStart = 0;
-        input.selectionEnd = 0;
+        resetSelection(input);
         compile();
       });
     });
