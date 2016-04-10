@@ -620,15 +620,15 @@ function jsKindCastsOperandsToInt(kind: NodeKind): bool {
     kind == NodeKind.BITWISE_OR || kind == NodeKind.BITWISE_AND || kind == NodeKind.BITWISE_XOR;
 }
 
-function jsEmit(global: Node, context: CheckContext): string {
+function jsEmit(compiler: Compiler): void {
   var code = StringBuilder_new();
   var result = new JsResult();
-  result.context = context;
+  result.context = compiler.context;
   result.code = code;
 
   code.append("(function(__declare, __extern) {\n");
   result.indent = 1;
-  result.emitStatements(global.firstChild);
+  result.emitStatements(compiler.global.firstChild);
 
   if (result.foundMultiply) {
     code.appendChar('\n');
@@ -649,5 +649,5 @@ function jsEmit(global: Node, context: CheckContext): string {
   code.append("typeof exports !== 'undefined' ? exports : this\n");
   code.append("));\n");
 
-  return code.finish();
+  compiler.output_js = code.finish();
 }

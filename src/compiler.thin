@@ -14,9 +14,9 @@ class Compiler {
   target: CompileTarget;
   context: CheckContext;
   librarySource: Source;
-  wasm: ByteArray;
-  js: string;
-  c: string;
+  output_wasm: ByteArray;
+  output_js: string;
+  output_c: string;
 
   initialize(target: CompileTarget): void {
     assert(this.log == null);
@@ -146,16 +146,15 @@ class Compiler {
     Profiler_begin();
 
     if (this.target == CompileTarget.C) {
-      this.c = cEmit(global, context);
+      cEmit(this);
     }
 
     else if (this.target == CompileTarget.JAVASCRIPT) {
-      this.js = jsEmit(global, context);
+      jsEmit(this);
     }
 
     else if (this.target == CompileTarget.WEBASSEMBLY) {
-      this.wasm = new ByteArray();
-      wasmEmit(global, context, this.wasm);
+      wasmEmit(this);
     }
 
     Profiler_end("emitting");

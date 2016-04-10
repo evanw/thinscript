@@ -207,16 +207,14 @@ extern function main_entry(): int {
 
   // Only emit the output if the compilation succeeded
   if (!compiler.log.hasErrors()) {
-    var success =
-      target == CompileTarget.C ? IO_writeTextFile(output, compiler.c) :
-      target == CompileTarget.JAVASCRIPT ? IO_writeTextFile(output, compiler.js) :
-      target == CompileTarget.WEBASSEMBLY ? IO_writeBinaryFile(output, compiler.wasm) :
-      false;
-    if (!success) {
-      printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
-      return 1;
+    if (target == CompileTarget.C && IO_writeTextFile(output, compiler.output_c) ||
+        target == CompileTarget.JAVASCRIPT && IO_writeTextFile(output, compiler.output_js) ||
+        target == CompileTarget.WEBASSEMBLY && IO_writeBinaryFile(output, compiler.output_wasm)) {
+      return 0;
     }
+
+    printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
   }
 
-  return 0;
+  return 1;
 }

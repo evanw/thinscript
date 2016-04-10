@@ -656,12 +656,12 @@ class CResult {
   }
 }
 
-function cEmit(global: Node, context: CheckContext): string {
-  var child = global.firstChild;
+function cEmit(compiler: Compiler): void {
+  var child = compiler.global.firstChild;
   var code = StringBuilder_new();
   var codePrefix = StringBuilder_new();
   var result = new CResult();
-  result.context = context;
+  result.context = compiler.context;
   result.code = code;
   result.codePrefix = codePrefix;
 
@@ -686,5 +686,5 @@ function cEmit(global: Node, context: CheckContext): string {
   }
 
   codePrefix.append(code.finish());
-  return codePrefix.finish();
+  compiler.output_c = codePrefix.finish();
 }

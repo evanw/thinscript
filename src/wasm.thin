@@ -1210,9 +1210,9 @@ function wasmAssignLocalVariableOffsets(node: Node, shared: WasmSharedOffset): v
   }
 }
 
-function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
+function wasmEmit(compiler: Compiler): void {
   var module = new WasmModule();
-  module.context = context;
+  module.context = compiler.context;
   module.memoryInitializer = new ByteArray();
 
   // Set these to invalid values since "0" is valid
@@ -1221,12 +1221,13 @@ function wasmEmit(global: Node, context: CheckContext, array: ByteArray): void {
   module.originalHeapPointer = -1;
 
   // Emission requires two passes
-  module.prepareToEmit(global);
+  module.prepareToEmit(compiler.global);
 
   // The standard library must be included
   assert(module.mallocFunctionIndex != -1);
   assert(module.currentHeapPointer != -1);
   assert(module.originalHeapPointer != -1);
 
-  module.emitModule(array);
+  compiler.output_wasm = new ByteArray();
+  module.emitModule(compiler.output_wasm);
 }

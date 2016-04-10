@@ -893,12 +893,12 @@
     }
   };
 
-  function cEmit(global, context) {
-    var child = global.firstChild;
+  function cEmit(compiler) {
+    var child = compiler.global.firstChild;
     var code = StringBuilder_new();
     var codePrefix = StringBuilder_new();
     var result = new CResult();
-    result.context = context;
+    result.context = compiler.context;
     result.code = code;
     result.codePrefix = codePrefix;
 
@@ -918,8 +918,7 @@
     }
 
     codePrefix.append(code.finish());
-
-    return codePrefix.finish();
+    compiler.output_c = codePrefix.finish();
   }
 
   function CheckContext() {
@@ -2290,9 +2289,9 @@
     this.target = 0;
     this.context = null;
     this.librarySource = null;
-    this.wasm = null;
-    this.js = null;
-    this.c = null;
+    this.output_wasm = null;
+    this.output_js = null;
+    this.output_c = null;
   }
 
   Compiler.prototype.initialize = function(target) {
@@ -2423,16 +2422,15 @@
     __declare.Profiler_begin();
 
     if (this.target === 1) {
-      this.c = cEmit(global, context);
+      cEmit(this);
     }
 
     else if (this.target === 2) {
-      this.js = jsEmit(global, context);
+      jsEmit(this);
     }
 
     else if (this.target === 3) {
-      this.wasm = new ByteArray();
-      wasmEmit(global, context, this.wasm);
+      wasmEmit(this);
     }
 
     __declare.Profiler_end("emitting");
@@ -3145,14 +3143,14 @@
     return kind === 61 || kind === 62 || kind === 47 || kind === 46 || kind === 48;
   }
 
-  function jsEmit(global, context) {
+  function jsEmit(compiler) {
     var code = StringBuilder_new();
     var result = new JsResult();
-    result.context = context;
+    result.context = compiler.context;
     result.code = code;
     code.append("(function(__declare, __extern) {\n");
     result.indent = 1;
-    result.emitStatements(global.firstChild);
+    result.emitStatements(compiler.global.firstChild);
 
     if (result.foundMultiply) {
       code.appendChar(10);
@@ -3172,8 +3170,7 @@
     result.emitIndent();
     code.append("typeof exports !== 'undefined' ? exports : this\n");
     code.append("));\n");
-
-    return code.finish();
+    compiler.output_js = code.finish();
   }
 
   function isKeyword(kind) {
@@ -4571,16 +4568,14 @@
     writeLogToTerminal(compiler.log);
 
     if (!compiler.log.hasErrors()) {
-      var success = target === 1 ? __declare.IO_writeTextFile(output, compiler.c) : target === 2 ? __declare.IO_writeTextFile(output, compiler.js) : target === 3 ? __declare.IO_writeBinaryFile(output, compiler.wasm) : false;
-
-      if (!success) {
-        printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
-
-        return 1;
+      if (target === 1 && __declare.IO_writeTextFile(output, compiler.output_c) || target === 2 && __declare.IO_writeTextFile(output, compiler.output_js) || target === 3 && __declare.IO_writeBinaryFile(output, compiler.output_wasm)) {
+        return 0;
       }
+
+      printError(StringBuilder_new().append("Cannot write to ").append(output).finish());
     }
 
-    return 0;
+    return 1;
   };
 
   function isUnary(kind) {
@@ -8726,18 +8721,19 @@
     }
   }
 
-  function wasmEmit(global, context, array) {
+  function wasmEmit(compiler) {
     var module = new WasmModule();
-    module.context = context;
+    module.context = compiler.context;
     module.memoryInitializer = new ByteArray();
     module.mallocFunctionIndex = -1;
     module.currentHeapPointer = -1;
     module.originalHeapPointer = -1;
-    module.prepareToEmit(global);
+    module.prepareToEmit(compiler.global);
     __declare.assert(module.mallocFunctionIndex !== -1);
     __declare.assert(module.currentHeapPointer !== -1);
     __declare.assert(module.originalHeapPointer !== -1);
-    module.emitModule(array);
+    compiler.output_wasm = new ByteArray();
+    module.emitModule(compiler.output_wasm);
   }
 
   var __imul = Math.imul || function(a, b) {

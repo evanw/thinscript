@@ -700,9 +700,9 @@ struct Compiler {
   int32_t target;
   struct CheckContext *context;
   struct Source *librarySource;
-  struct ByteArray *wasm;
-  const uint16_t *js;
-  const uint16_t *c;
+  struct ByteArray *output_wasm;
+  const uint16_t *output_js;
+  const uint16_t *output_c;
 };
 
 struct JsResult {
@@ -928,7 +928,7 @@ static void CResult_emitFunctionDeclarations(struct CResult *this, struct Node *
 static void CResult_emitGlobalVariables(struct CResult *this, struct Node *node);
 static void CResult_emitFunctionDefinitions(struct CResult *this, struct Node *node);
 static void CResult_finish(struct CResult *this);
-static const uint16_t *cEmit(struct Node *global, struct CheckContext *context);
+static void cEmit(struct Compiler *compiler);
 static int32_t CheckContext_allocateGlobalVariableOffset(struct CheckContext *this, int32_t sizeOf, int32_t alignmentOf);
 static void addScopeToSymbol(struct Symbol *symbol, struct Scope *parentScope);
 static void linkSymbolToNode(struct Symbol *symbol, struct Node *node);
@@ -970,7 +970,7 @@ static void JsResult_emitExpression(struct JsResult *this, struct Node *node, in
 static void JsResult_emitSymbolName(struct JsResult *this, struct Symbol *symbol);
 static void JsResult_emitStatement(struct JsResult *this, struct Node *node);
 static uint8_t jsKindCastsOperandsToInt(int32_t kind);
-static const uint16_t *jsEmit(struct Node *global, struct CheckContext *context);
+static void jsEmit(struct Compiler *compiler);
 static uint8_t isKeyword(int32_t kind);
 static void splitToken(struct Token *first, int32_t firstKind, int32_t secondKind);
 static const uint16_t *tokenToString(int32_t token);
@@ -1223,7 +1223,7 @@ static int32_t wasmStartSection(struct ByteArray *array, const uint16_t *name);
 static void wasmFinishSection(struct ByteArray *array, int32_t offset);
 static struct WasmWrappedType *wasmWrapType(int32_t id);
 static void wasmAssignLocalVariableOffsets(struct Node *node, struct WasmSharedOffset *shared);
-static void wasmEmit(struct Node *global, struct CheckContext *context, struct ByteArray *array);
+static void wasmEmit(struct Compiler *compiler);
 
 static struct CommandLineArgument *firstArgument = NULL;
 static struct CommandLineArgument *lastArgument = NULL;
@@ -2218,12 +2218,12 @@ static void CResult_finish(struct CResult *this) {
   }
 }
 
-static const uint16_t *cEmit(struct Node *global, struct CheckContext *context) {
-  struct Node *child = global->firstChild;
+static void cEmit(struct Compiler *compiler) {
+  struct Node *child = compiler->global->firstChild;
   struct StringBuilder *code = StringBuilder_new();
   struct StringBuilder *codePrefix = StringBuilder_new();
   struct CResult *result = calloc(1, sizeof(struct CResult));
-  result->context = context;
+  result->context = compiler->context;
   result->code = code;
   result->codePrefix = codePrefix;
 
@@ -2243,8 +2243,7 @@ static const uint16_t *cEmit(struct Node *global, struct CheckContext *context) 
   }
 
   StringBuilder_append(codePrefix, StringBuilder_finish(code));
-
-  return StringBuilder_finish(codePrefix);
+  compiler->output_c = StringBuilder_finish(codePrefix);
 }
 
 static int32_t CheckContext_allocateGlobalVariableOffset(struct CheckContext *this, int32_t sizeOf, int32_t alignmentOf) {
@@ -3713,16 +3712,15 @@ static uint8_t Compiler_finish(struct Compiler *this) {
   Profiler_begin();
 
   if (this->target == 1) {
-    this->c = cEmit(global, context);
+    cEmit(this);
   }
 
   else if (this->target == 2) {
-    this->js = jsEmit(global, context);
+    jsEmit(this);
   }
 
   else if (this->target == 3) {
-    this->wasm = calloc(1, sizeof(struct ByteArray));
-    wasmEmit(global, context, this->wasm);
+    wasmEmit(this);
   }
 
   Profiler_end((const uint16_t *)__string_278_emitting);
@@ -4427,14 +4425,14 @@ static uint8_t jsKindCastsOperandsToInt(int32_t kind) {
   return kind == 61 || kind == 62 || kind == 47 || kind == 46 || kind == 48;
 }
 
-static const uint16_t *jsEmit(struct Node *global, struct CheckContext *context) {
+static void jsEmit(struct Compiler *compiler) {
   struct StringBuilder *code = StringBuilder_new();
   struct JsResult *result = calloc(1, sizeof(struct JsResult));
-  result->context = context;
+  result->context = compiler->context;
   result->code = code;
   StringBuilder_append(code, (const uint16_t *)__string_367_function___declare___extern);
   result->indent = 1;
-  JsResult_emitStatements(result, global->firstChild);
+  JsResult_emitStatements(result, compiler->global->firstChild);
 
   if (result->foundMultiply) {
     StringBuilder_appendChar(code, 10);
@@ -4454,8 +4452,7 @@ static const uint16_t *jsEmit(struct Node *global, struct CheckContext *context)
   JsResult_emitIndent(result);
   StringBuilder_append(code, (const uint16_t *)__string_373_typeof_exports_undefined);
   StringBuilder_append(code, (const uint16_t *)__string_374);
-
-  return StringBuilder_finish(code);
+  compiler->output_js = StringBuilder_finish(code);
 }
 
 static uint8_t isKeyword(int32_t kind) {
@@ -5803,16 +5800,14 @@ int32_t main_entry() {
   writeLogToTerminal(compiler->log);
 
   if (!Log_hasErrors(compiler->log)) {
-    uint8_t success = target == 1 ? IO_writeTextFile(output, compiler->c) : target == 2 ? IO_writeTextFile(output, compiler->js) : target == 3 ? IO_writeBinaryFile(output, compiler->wasm) : 0;
-
-    if (!success) {
-      printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_543_Cannot_write_to), output)));
-
-      return 1;
+    if ((target == 1 && IO_writeTextFile(output, compiler->output_c)) || (target == 2 && IO_writeTextFile(output, compiler->output_js)) || (target == 3 && IO_writeBinaryFile(output, compiler->output_wasm))) {
+      return 0;
     }
+
+    printError(StringBuilder_finish(StringBuilder_append(StringBuilder_append(StringBuilder_new(), (const uint16_t *)__string_543_Cannot_write_to), output)));
   }
 
-  return 0;
+  return 1;
 }
 
 static uint8_t isUnary(int32_t kind) {
@@ -9843,16 +9838,17 @@ static void wasmAssignLocalVariableOffsets(struct Node *node, struct WasmSharedO
   }
 }
 
-static void wasmEmit(struct Node *global, struct CheckContext *context, struct ByteArray *array) {
+static void wasmEmit(struct Compiler *compiler) {
   struct WasmModule *module = calloc(1, sizeof(struct WasmModule));
-  module->context = context;
+  module->context = compiler->context;
   module->memoryInitializer = calloc(1, sizeof(struct ByteArray));
   module->mallocFunctionIndex = -1;
   module->currentHeapPointer = -1;
   module->originalHeapPointer = -1;
-  WasmModule_prepareToEmit(module, global);
+  WasmModule_prepareToEmit(module, compiler->global);
   assert(module->mallocFunctionIndex != -1);
   assert(module->currentHeapPointer != -1);
   assert(module->originalHeapPointer != -1);
-  WasmModule_emitModule(module, array);
+  compiler->output_wasm = calloc(1, sizeof(struct ByteArray));
+  WasmModule_emitModule(module, compiler->output_wasm);
 }
