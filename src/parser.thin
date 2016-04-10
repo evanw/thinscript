@@ -261,11 +261,8 @@ class ParserContext {
           return null;
         }
         var type = this.parseType();
-        if (type == null) {
-          return null;
-        }
         var close = this.current;
-        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+        if (type == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
           return null;
         }
         return createAlignOf(type).withRange(spanRanges(token.range, close.range));
@@ -276,11 +273,8 @@ class ParserContext {
           return null;
         }
         var type = this.parseType();
-        if (type == null) {
-          return null;
-        }
         var close = this.current;
-        if (!this.expect(TokenKind.RIGHT_PARENTHESIS)) {
+        if (type == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
           return null;
         }
         return createSizeOf(type).withRange(spanRanges(token.range, close.range));
@@ -288,10 +282,11 @@ class ParserContext {
 
       if (this.eat(TokenKind.LEFT_PARENTHESIS)) {
         var value = this.parseExpression(Precedence.LOWEST, ParseKind.EXPRESSION);
+        var close = this.current;
         if (value == null || !this.expect(TokenKind.RIGHT_PARENTHESIS)) {
           return null;
         }
-        return value;
+        return value.withRange(spanRanges(token.range, close.range));
       }
 
       // Unary prefix

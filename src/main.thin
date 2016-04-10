@@ -81,7 +81,7 @@ extern function main_addArgument(text: string): void {
   lastArgument = argument;
 }
 
-#if WASM || C
+#if WASM
   extern unsafe function main_newString(length: uint): string {
     return string_new(length);
   }
@@ -102,7 +102,7 @@ function printUsage(): void {
 Usage: thinc [FLAGS] [INPUTS]
 
   --help           Print this message.
-  --out [PATH]     Save the generated code to PATH.
+  --out [PATH]     Emit code to PATH (the target format is the file extension).
   --define [NAME]  Define the flag NAME in all input files.
 
 Examples:
@@ -179,7 +179,7 @@ extern function main_entry(): int {
 
   // Start the compilation
   var compiler = new Compiler();
-  compiler.initialize(target);
+  compiler.initialize(target, output);
 
   // Second pass over the argument list
   argument = firstArgument;
@@ -207,9 +207,9 @@ extern function main_entry(): int {
 
   // Only emit the output if the compilation succeeded
   if (!compiler.log.hasErrors()) {
-    if (target == CompileTarget.C && IO_writeTextFile(output, compiler.output_c) ||
-        target == CompileTarget.JAVASCRIPT && IO_writeTextFile(output, compiler.output_js) ||
-        target == CompileTarget.WEBASSEMBLY && IO_writeBinaryFile(output, compiler.output_wasm)) {
+    if (target == CompileTarget.C && IO_writeTextFile(output, compiler.outputC) && IO_writeTextFile(replaceFileExtension(output, ".h"), compiler.outputH) ||
+        target == CompileTarget.JAVASCRIPT && IO_writeTextFile(output, compiler.outputJS) ||
+        target == CompileTarget.WEBASSEMBLY && IO_writeBinaryFile(output, compiler.outputWASM)) {
       return 0;
     }
 

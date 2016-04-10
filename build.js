@@ -7,20 +7,21 @@ eval(fs.readFileSync('./out/common.js', 'utf8'));
 function compile(compiler, sources) {
   var compiled = compileJavaScript(compiler);
 
-  var compiledC = compiled(sources, 'C');
+  var compiledC = compiled(sources, 'C', 'compiled');
   if (compiledC.stdout) process.stdout.write(compiledC.stdout);
   if (!compiledC.success) process.exit(1);
 
-  var compiledJS = compiled(sources, 'JavaScript');
+  var compiledJS = compiled(sources, 'JavaScript', 'compiled');
   if (compiledJS.stdout) process.stdout.write(compiledJS.stdout);
   if (!compiledJS.success) process.exit(1);
 
-  var compiledWASM = compiled(sources, 'WebAssembly');
+  var compiledWASM = compiled(sources, 'WebAssembly', 'compiled');
   if (compiledWASM.stdout) process.stdout.write(compiledWASM.stdout);
   if (!compiledWASM.success) process.exit(1);
 
   return {
     c: compiledC.output,
+    h: compiledC.secondaryOutput,
     js: compiledJS.output,
     wasm: compiledWASM.output,
   };
@@ -107,7 +108,9 @@ console.log('compiling again...');
 var compiled = compile(compiled.js, sources);
 
 fs.writeFileSync(__dirname + '/out/compiled.c', compiled.c);
+fs.writeFileSync(__dirname + '/out/compiled.h', compiled.h);
 console.log('wrote to "out/compiled.c"');
+console.log('wrote to "out/compiled.h"');
 
 fs.writeFileSync(__dirname + '/out/compiled.js', compiled.js);
 console.log('wrote to "out/compiled.js"');

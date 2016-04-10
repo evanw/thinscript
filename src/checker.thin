@@ -499,6 +499,7 @@ function resolveChildren(context: CheckContext, node: Node, parentScope: Scope):
   var child = node.firstChild;
   while (child != null) {
     resolve(context, child, parentScope);
+    assert(child.resolvedType != null);
     child = child.nextSibling;
   }
 }
@@ -514,6 +515,7 @@ function resolveChildrenAsExpressions(context: CheckContext, node: Node, parentS
 function resolveAsExpression(context: CheckContext, node: Node, parentScope: Scope): void {
   assert(isExpression(node));
   resolve(context, node, parentScope);
+  assert(node.resolvedType != null);
 
   if (node.resolvedType != context.errorType) {
     if (node.isType()) {
@@ -531,6 +533,7 @@ function resolveAsExpression(context: CheckContext, node: Node, parentScope: Sco
 function resolveAsType(context: CheckContext, node: Node, parentScope: Scope): void {
   assert(isExpression(node));
   resolve(context, node, parentScope);
+  assert(node.resolvedType != null);
 
   if (node.resolvedType != context.errorType && !node.isType()) {
     context.log.error(node.range, "Expected type but found expression");

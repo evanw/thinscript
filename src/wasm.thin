@@ -1228,6 +1228,6 @@ function wasmEmit(compiler: Compiler): void {
   assert(module.currentHeapPointer != -1);
   assert(module.originalHeapPointer != -1);
 
-  compiler.output_wasm = new ByteArray();
-  module.emitModule(compiler.output_wasm);
+  compiler.outputWASM = new ByteArray();
+  module.emitModule(compiler.outputWASM);
 }

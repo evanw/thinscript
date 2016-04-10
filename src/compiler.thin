@@ -14,15 +14,18 @@ class Compiler {
   target: CompileTarget;
   context: CheckContext;
   librarySource: Source;
-  output_wasm: ByteArray;
-  output_js: string;
-  output_c: string;
+  outputName: string;
+  outputWASM: ByteArray;
+  outputJS: string;
+  outputC: string;
+  outputH: string;
 
-  initialize(target: CompileTarget): void {
+  initialize(target: CompileTarget, outputName: string): void {
     assert(this.log == null);
     this.log = new Log();
     this.preprocessor = new Preprocessor();
     this.target = target;
+    this.outputName = outputName;
     this.librarySource = this.addInput("<native>", library());
     this.librarySource.isLibrary = true;
     this.createGlobals();
@@ -107,6 +110,7 @@ class Compiler {
 
     var global = this.global;
     var context = this.context;
+    var fullResolve = true;
 
     source = this.firstSource;
     while (source != null) {
@@ -127,10 +131,18 @@ class Compiler {
         }
       }
 
+      // Stop if the library code has errors because it's highly likely that everything is broken
+      if (source == this.librarySource && this.log.hasErrors()) {
+        fullResolve = false;
+        break;
+      }
+
       source = source.next;
     }
 
-    resolve(context, global, global.scope);
+    if (fullResolve) {
+      resolve(context, global, global.scope);
+    }
 
     Profiler_end("checking");
 
@@ -161,4 +173,18 @@ class Compiler {
 
     return true;
   }
+}
+
+function replaceFileExtension(path: string, extension: string): string {
+  var builder = StringBuilder_new();
+  var dot = path.lastIndexOf(".");
+  var forward = path.lastIndexOf("/");
+  var backward = path.lastIndexOf("\\");
+
+  // Make sure that there's a non-empty file name that the dot is a part of
+  if (dot > 0 && dot > forward && dot > backward) {
+    path = path.slice(0, dot);
+  }
+
+  return builder.append(path).append(extension).finish();
 }

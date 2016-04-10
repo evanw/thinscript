@@ -649,5 +649,5 @@ function jsEmit(compiler: Compiler): void {
   code.append("typeof exports !== 'undefined' ? exports : this\n");
   code.append("));\n");
 
-  compiler.output_js = code.finish();
+  compiler.outputJS = code.finish();
 }
