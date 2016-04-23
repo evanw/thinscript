@@ -193,7 +193,7 @@ class CResult {
         codePrefix.append(", S(");
         cEmitCharacter(codePrefix, value[i]);
         if (i + 1 < length) {
-          codePrefix.append(", ");
+          codePrefix.append(i % 32 == 20 ? ",\n  " : ", ");
           cEmitCharacter(codePrefix, value[i + 1]);
           codePrefix.appendChar(')');
         } else {
@@ -567,7 +567,7 @@ class CResult {
 
         if (this.shouldEmitFunction(symbol)) {
           var returnType = node.functionReturnType();
-          var child = node.firstChild;
+          var child = node.functionFirstArgument();
 
           this.emitNewlineBefore(node);
           if (!node.isDeclareOrExtern()) {

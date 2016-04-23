@@ -642,19 +642,108 @@ class ParserContext {
     return node.withRange(spanRanges(token.range, close.range)).withInternalRange(name.range);
   }
 
+  parseParameters(): Node {
+    var node = createParameters();
+    var open = this.current;
+    var close: Token;
+
+    assert(open.kind == TokenKind.LESS_THAN);
+    this.advance();
+
+    while (true) {
+      var name = this.current;
+      if (!this.expect(TokenKind.IDENTIFIER)) {
+        close = this.current;
+        if (this.eat(TokenKind.GREATER_THAN)) {
+          break;
+        }
+        return null;
+      }
+      node.appendChild(createParameter(name.range.toString()).withRange(name.range));
+
+      if (!this.eat(TokenKind.COMMA)) {
+        close = this.current;
+        if (!this.expect(TokenKind.GREATER_THAN)) {
+          return null;
+        }
+        break;
+      }
+    }
+
+    return node.withRange(spanRanges(open.range, close.range));
+  }
+
   parseClass(firstFlag: NodeFlag): Node {
     var token = this.current;
     assert(token.kind == TokenKind.CLASS);
     this.advance();
 
     var name = this.current;
-    if (!this.expect(TokenKind.IDENTIFIER) || !this.expect(TokenKind.LEFT_BRACE)) {
+    if (!this.expect(TokenKind.IDENTIFIER)) {
       return null;
     }
 
     var node = createClass(name.range.toString());
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
+
+    // Type parameters
+    if (this.peek(TokenKind.LESS_THAN)) {
+      var parameters = this.parseParameters();
+      if (parameters == null) {
+        return null;
+      }
+      node.appendChild(parameters);
+    }
+
+    // "extends" clause
+    var extendsToken = this.current;
+    if (this.eat(TokenKind.EXTENDS)) {
+      var type: Node;
+
+      // Recover from a missing type
+      if (this.peek(TokenKind.LEFT_BRACE) || this.peek(TokenKind.IMPLEMENTS)) {
+        this.unexpectedToken();
+        type = createParseError();
+      }
+
+      else {
+        type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+      }
+
+      node.appendChild(createExtends(type).withRange(type.range != null ? spanRanges(extendsToken.range, type.range) : extendsToken.range));
+    }
+
+    // "implements" clause
+    var implementsToken = this.current;
+    if (this.eat(TokenKind.IMPLEMENTS)) {
+      var list = createImplements();
+      var type: Node = null;
+      while (true) {
+        // Recover from a missing type
+        if (this.peek(TokenKind.LEFT_BRACE)) {
+          this.unexpectedToken();
+          break;
+        }
+
+        type = this.parseType();
+        if (type == null) {
+          return null;
+        }
+        list.appendChild(type);
+        if (!this.eat(TokenKind.COMMA)) {
+          break;
+        }
+      }
+      node.appendChild(list.withRange(type != null ? spanRanges(implementsToken.range, type.range) : implementsToken.range));
+    }
+
+    if (!this.expect(TokenKind.LEFT_BRACE)) {
+      return null;
+    }
 
     while (!this.peek(TokenKind.END_OF_FILE) && !this.peek(TokenKind.RIGHT_BRACE)) {
       var childFlags = this.parseFlags();
@@ -722,7 +811,7 @@ class ParserContext {
       }
 
       // Function
-      if (this.peek(TokenKind.LEFT_PARENTHESIS)) {
+      if (this.peek(TokenKind.LEFT_PARENTHESIS) || this.peek(TokenKind.LESS_THAN)) {
         this.current = childName;
         if (this.parseFunction(childFlags, node) == null) {
           return null;
@@ -842,15 +931,24 @@ class ParserContext {
       name = nameRange.toString();
     }
 
-    if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
-      return null;
-    }
-
     var node = createFunction(name);
     node.firstFlag = firstFlag;
     node.flags = allFlags(firstFlag);
     if (isOperator) {
       node.flags = node.flags | NODE_FLAG_OPERATOR;
+    }
+
+    // Type parameters
+    if (this.peek(TokenKind.LESS_THAN)) {
+      var parameters = this.parseParameters();
+      if (parameters == null) {
+        return null;
+      }
+      node.appendChild(parameters);
+    }
+
+    if (!this.expect(TokenKind.LEFT_PARENTHESIS)) {
+      return null;
     }
 
     if (!this.peek(TokenKind.RIGHT_PARENTHESIS)) {

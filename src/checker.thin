@@ -84,7 +84,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope, mode:
     symbol.name = node.stringValue;
     if (node.isOperator()) {
       if (symbol.name == "+" || symbol.name == "-") {
-        if (node.firstChild == node.functionReturnType()) {
+        if (node.functionFirstArgument() == node.functionReturnType()) {
           symbol.flags = SYMBOL_FLAG_IS_UNARY_OPERATOR;
           symbol.rename = symbol.name == "+" ? "op_positive" : "op_negative";
         } else {
@@ -127,7 +127,7 @@ function initialize(context: CheckContext, node: Node, parentScope: Scope, mode:
     if (symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
       var parent = symbol.parent();
       initializeSymbol(context, parent);
-      node.insertChildBefore(node.firstChild, createVariable("this", createType(parent.resolvedType), null));
+      node.insertChildBefore(node.functionFirstArgument(), createVariable("this", createType(parent.resolvedType), null));
     }
   }
 
@@ -250,6 +250,10 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
 
   // Function
   else if (isFunction(symbol.kind)) {
+    if (node.firstChild.kind == NodeKind.PARAMETERS) {
+      resolve(context, node.firstChild, symbol.scope);
+    }
+
     var body = node.functionBody();
     var returnType = node.functionReturnType();
     var oldUnsafeAllowed = context.isUnsafeAllowed;
@@ -257,7 +261,7 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
     resolveAsType(context, returnType, symbol.scope.parent);
 
     var argumentCount = 0;
-    var child = node.firstChild;
+    var child = node.functionFirstArgument();
     while (child != returnType) {
       assert(child.kind == NodeKind.VARIABLE);
       assert(child.symbol.kind == SymbolKind.VARIABLE_ARGUMENT);
@@ -372,8 +376,9 @@ function initializeSymbol(context: CheckContext, symbol: Symbol): void {
           .appendChar('_')
           .append(symbol.rename != null ? symbol.rename : symbol.name)
           .finish();
-        assert(node.firstChild.symbol.name == "this");
-        node.firstChild.symbol.rename = "__this";
+        var argument = node.functionFirstArgument();
+        assert(argument.symbol.name == "this");
+        argument.symbol.rename = "__this";
       }
     }
 
@@ -1141,6 +1146,24 @@ function resolve(context: CheckContext, node: Node, parentScope: Scope): void {
   }
 
   else if (kind == NodeKind.EMPTY) {
+  }
+
+  else if (kind == NodeKind.PARAMETERS) {
+    context.log.error(node.range, "Generics are not implemented yet");
+  }
+
+  else if (kind == NodeKind.EXTENDS) {
+    resolveAsType(context, node.extendsType(), parentScope);
+    context.log.error(node.range, "Subclassing is not implemented yet");
+  }
+
+  else if (kind == NodeKind.IMPLEMENTS) {
+    var child = node.firstChild;
+    while (child != null) {
+      resolveAsType(context, child, parentScope);
+      child = child.nextSibling;
+    }
+    context.log.error(node.range, "Interfaces are not implemented yet");
   }
 
   else if (kind == NodeKind.EXPRESSION) {

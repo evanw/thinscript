@@ -1,7 +1,11 @@
 enum NodeKind {
   // Other
+  EXTENDS,
   FILE,
   GLOBAL,
+  IMPLEMENTS,
+  PARAMETER,
+  PARAMETERS,
   VARIABLE,
 
   // Statements
@@ -409,11 +413,25 @@ class Node {
     return this;
   }
 
+  functionFirstArgument(): Node {
+    assert(this.kind == NodeKind.FUNCTION);
+    assert(this.childCount() >= 2);
+    var child = this.firstChild;
+    if (child.kind == NodeKind.PARAMETERS) {
+      child = child.nextSibling;
+    }
+    return child;
+  }
+
   functionFirstArgumentIgnoringThis(): Node {
     assert(this.kind == NodeKind.FUNCTION);
     assert(this.childCount() >= 2);
     assert(this.symbol != null);
-    return this.symbol.kind == SymbolKind.FUNCTION_INSTANCE ? this.firstChild.nextSibling : this.firstChild;
+    var child = this.functionFirstArgument();
+    if (this.symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+      child = child.nextSibling;
+    }
+    return child;
   }
 
   functionReturnType(): Node {
@@ -484,6 +502,13 @@ class Node {
     assert(this.kind == NodeKind.RETURN);
     assert(this.childCount() <= 1);
     assert(this.firstChild == null || isExpression(this.firstChild));
+    return this.firstChild;
+  }
+
+  extendsType(): Node {
+    assert(this.kind == NodeKind.EXTENDS);
+    assert(this.childCount() == 1);
+    assert(isExpression(this.firstChild));
     return this.firstChild;
   }
 
@@ -823,6 +848,33 @@ function createVariables(): Node {
 function createConstants(): Node {
   var node = new Node();
   node.kind = NodeKind.CONSTANTS;
+  return node;
+}
+
+function createParameters(): Node {
+  var node = new Node();
+  node.kind = NodeKind.PARAMETERS;
+  return node;
+}
+
+function createExtends(type: Node): Node {
+  assert(isExpression(type));
+  var node = new Node();
+  node.kind = NodeKind.EXTENDS;
+  node.appendChild(type);
+  return node;
+}
+
+function createImplements(): Node {
+  var node = new Node();
+  node.kind = NodeKind.IMPLEMENTS;
+  return node;
+}
+
+function createParameter(name: string): Node {
+  var node = new Node();
+  node.kind = NodeKind.PARAMETER;
+  node.stringValue = name;
   return node;
 }
 

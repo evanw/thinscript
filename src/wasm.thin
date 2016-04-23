@@ -558,7 +558,7 @@ class WasmModule {
       var argumentTypesLast: WasmWrappedType = null;
 
       // Make sure to include the implicit "this" variable as a normal argument
-      var argument = node.firstChild;
+      var argument = node.functionFirstArgument();
       while (argument != returnType) {
         var type = wasmWrapType(this.getWasmType(argument.variableType().resolvedType));
 
