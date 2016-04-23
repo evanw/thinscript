@@ -445,15 +445,7 @@
     shimButton.textContent = target === 'JavaScript' || target === 'WebAssembly' && supportsWebAssembly() ? 'Run' : 'Download';
     shimButton.disabled = shimName === null;
 
-    resetSelection(output);
-    resetSelection(secondaryOutput);
-    resetSelection(shim);
-
     compileTime.textContent = compiled.totalTime + 'ms';
-  }
-
-  function resetSelection(textarea) {
-    textarea.selectionStart = textarea.selectionEnd = 0;
   }
 
   function triggerDownload(name, contents) {
@@ -530,7 +522,7 @@
         }
 
         input.value = example;
-        resetSelection(input);
+        input.selectionStart = input.selectionEnd = 0;
         compile();
       });
     });
