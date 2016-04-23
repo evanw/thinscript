@@ -228,9 +228,8 @@ function wasmAreSignaturesEqual(a: WasmSignature, b: WasmSignature): bool {
 }
 
 class WasmFunction {
-  name: string;
+  symbol: Symbol;
   signatureIndex: int;
-  body: Node;
   isExported: bool;
   intLocalCount: int;
   next: WasmFunction;
@@ -287,11 +286,10 @@ class WasmModule {
     return result;
   }
 
-  allocateFunction(name: string, signatureIndex: int, body: Node): WasmFunction {
+  allocateFunction(symbol: Symbol, signatureIndex: int): WasmFunction {
     var fn = new WasmFunction();
-    fn.name = name;
+    fn.symbol = symbol;
     fn.signatureIndex = signatureIndex;
-    fn.body = body;
 
     if (this.firstFunction == null) this.firstFunction = fn;
     else this.lastFunction.next = fn;
@@ -340,6 +338,7 @@ class WasmModule {
     this.emitExportTable(array);
     this.emitFunctionBodies(array);
     this.emitDataSegments(array);
+    this.emitNames(array);
   }
 
   emitSignatures(array: ByteArray): void {
@@ -436,7 +435,7 @@ class WasmModule {
     while (fn != null) {
       if (fn.isExported) {
         wasmWriteVarUnsigned(array, i);
-        wasmWriteLengthPrefixedASCII(array, fn.name);
+        wasmWriteLengthPrefixedASCII(array, fn.symbol.name);
       }
       fn = fn.next;
       i = i + 1;
@@ -466,7 +465,7 @@ class WasmModule {
         wasmWriteVarUnsigned(array, 0);
       }
 
-      var child = fn.body.firstChild;
+      var child = fn.symbol.node.functionBody().firstChild;
       while (child != null) {
         this.emitNode(array, child);
         child = child.nextSibling;
@@ -503,6 +502,28 @@ class WasmModule {
     while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1;
+    }
+
+    wasmFinishSection(array, section);
+  }
+
+  emitNames(array: ByteArray): void {
+    var section = wasmStartSection(array, "names");
+    wasmWriteVarUnsigned(array, this.functionCount);
+
+    var fn = this.firstFunction;
+    while (fn != null) {
+      var name = fn.symbol.name;
+      if (fn.symbol.kind == SymbolKind.FUNCTION_INSTANCE) {
+        name = StringBuilder_new()
+          .append(fn.symbol.parent().name)
+          .appendChar('.')
+          .append(name)
+          .finish();
+      }
+      wasmWriteLengthPrefixedASCII(array, name);
+      wasmWriteVarUnsigned(array, 0); // No local variables for now
+      fn = fn.next;
     }
 
     wasmFinishSection(array, section);
@@ -583,7 +604,7 @@ class WasmModule {
       }
 
       symbol.offset = this.functionCount;
-      var fn = this.allocateFunction(symbol.name, signatureIndex, body);
+      var fn = this.allocateFunction(symbol, signatureIndex);
 
       // Make sure "malloc" is tracked
       if (symbol.kind == SymbolKind.FUNCTION_GLOBAL && symbol.name == "malloc") {

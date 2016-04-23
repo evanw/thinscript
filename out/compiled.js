@@ -7934,9 +7934,8 @@
   }
 
   function WasmFunction() {
-    this.name = null;
+    this.symbol = null;
     this.signatureIndex = 0;
-    this.body = null;
     this.isExported = false;
     this.intLocalCount = 0;
     this.next = null;
@@ -7997,11 +7996,10 @@
     return result;
   };
 
-  WasmModule.prototype.allocateFunction = function(name, signatureIndex, body) {
+  WasmModule.prototype.allocateFunction = function(symbol, signatureIndex) {
     var fn = new WasmFunction();
-    fn.name = name;
+    fn.symbol = symbol;
     fn.signatureIndex = signatureIndex;
-    fn.body = body;
 
     if (this.firstFunction === null) {
       this.firstFunction = fn;
@@ -8059,6 +8057,7 @@
     this.emitExportTable(array);
     this.emitFunctionBodies(array);
     this.emitDataSegments(array);
+    this.emitNames(array);
   };
 
   WasmModule.prototype.emitSignatures = function(array) {
@@ -8158,7 +8157,7 @@
     while (fn !== null) {
       if (fn.isExported) {
         wasmWriteVarUnsigned(array, i);
-        wasmWriteLengthPrefixedASCII(array, fn.name);
+        wasmWriteLengthPrefixedASCII(array, fn.symbol.name);
       }
 
       fn = fn.next;
@@ -8191,7 +8190,7 @@
         wasmWriteVarUnsigned(array, 0);
       }
 
-      var child = fn.body.firstChild;
+      var child = fn.symbol.node.functionBody().firstChild;
 
       while (child !== null) {
         this.emitNode(array, child);
@@ -8221,6 +8220,26 @@
     while (i < initializerLength) {
       array.append(memoryInitializer.get(i));
       i = i + 1 | 0;
+    }
+
+    wasmFinishSection(array, section);
+  };
+
+  WasmModule.prototype.emitNames = function(array) {
+    var section = wasmStartSection(array, "names");
+    wasmWriteVarUnsigned(array, this.functionCount);
+    var fn = this.firstFunction;
+
+    while (fn !== null) {
+      var name = fn.symbol.name;
+
+      if (fn.symbol.kind === 4) {
+        name = StringBuilder_new().append(fn.symbol.parent().name).appendChar(46).append(name).finish();
+      }
+
+      wasmWriteLengthPrefixedASCII(array, name);
+      wasmWriteVarUnsigned(array, 0);
+      fn = fn.next;
     }
 
     wasmFinishSection(array, section);
@@ -8312,7 +8331,7 @@
       }
 
       symbol.offset = this.functionCount;
-      var fn = this.allocateFunction(symbol.name, signatureIndex, body);
+      var fn = this.allocateFunction(symbol, signatureIndex);
 
       if (symbol.kind === 5 && symbol.name === "malloc") {
         __declare.assert(this.mallocFunctionIndex === -1);

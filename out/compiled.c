@@ -1148,10 +1148,11 @@ static const uint32_t __string_625_memory[] = {6, S('m', 'e'), S('m', 'o'), S('r
 static const uint32_t __string_626_export_table[] = {12, S('e', 'x'), S('p', 'o'), S('r', 't'), S('_', 't'), S('a', 'b'), S('l', 'e')};
 static const uint32_t __string_627_function_bodies[] = {15, S('f', 'u'), S('n', 'c'), S('t', 'i'), S('o', 'n'), S('_', 'b'), S('o', 'd'), S('i', 'e'), S('s', 0)};
 static const uint32_t __string_628_data_segments[] = {13, S('d', 'a'), S('t', 'a'), S('_', 's'), S('e', 'g'), S('m', 'e'), S('n', 't'), S('s', 0)};
-static const uint32_t __string_629_currentHeapPointer[] = {18, S('c', 'u'), S('r', 'r'), S('e', 'n'), S('t', 'H'), S('e', 'a'), S('p', 'P'), S('o', 'i'), S('n', 't'), S('e', 'r')};
-static const uint32_t __string_630_originalHeapPointer[] = {19, S('o', 'r'), S('i', 'g'), S('i', 'n'), S('a', 'l'), S('H', 'e'), S('a', 'p'), S('P', 'o'), S('i', 'n'), S('t', 'e'), S('r', 0)};
-static const uint32_t __string_631_global[] = {6, S('g', 'l'), S('o', 'b'), S('a', 'l')};
-static const uint32_t __string_632_malloc[] = {6, S('m', 'a'), S('l', 'l'), S('o', 'c')};
+static const uint32_t __string_629_names[] = {5, S('n', 'a'), S('m', 'e'), S('s', 0)};
+static const uint32_t __string_630_currentHeapPointer[] = {18, S('c', 'u'), S('r', 'r'), S('e', 'n'), S('t', 'H'), S('e', 'a'), S('p', 'P'), S('o', 'i'), S('n', 't'), S('e', 'r')};
+static const uint32_t __string_631_originalHeapPointer[] = {19, S('o', 'r'), S('i', 'g'), S('i', 'n'), S('a', 'l'), S('H', 'e'), S('a', 'p'), S('P', 'o'), S('i', 'n'), S('t', 'e'), S('r', 0)};
+static const uint32_t __string_632_global[] = {6, S('g', 'l'), S('o', 'b'), S('a', 'l')};
+static const uint32_t __string_633_malloc[] = {6, S('m', 'a'), S('l', 'l'), S('o', 'c')};
 
 #undef S
 
@@ -1379,9 +1380,8 @@ struct WasmSignature {
 };
 
 struct WasmFunction {
-  const uint16_t *name;
+  struct Symbol *symbol;
   int32_t signatureIndex;
-  struct Node *body;
   uint8_t isExported;
   int32_t intLocalCount;
   struct WasmFunction *next;
@@ -1741,7 +1741,7 @@ static uint8_t Type_hasInstanceMembers(struct Type *__this);
 static uint8_t wasmAreSignaturesEqual(struct WasmSignature *a, struct WasmSignature *b);
 static void WasmModule_growMemoryInitializer(struct WasmModule *__this);
 static struct WasmImport *WasmModule_allocateImport(struct WasmModule *__this, int32_t signatureIndex, const uint16_t *mod, const uint16_t *name);
-static struct WasmFunction *WasmModule_allocateFunction(struct WasmModule *__this, const uint16_t *name, int32_t signatureIndex, struct Node *body);
+static struct WasmFunction *WasmModule_allocateFunction(struct WasmModule *__this, struct Symbol *symbol, int32_t signatureIndex);
 static int32_t WasmModule_allocateSignature(struct WasmModule *__this, struct WasmWrappedType *argumentTypes, struct WasmWrappedType *returnType);
 static void WasmModule_emitModule(struct WasmModule *__this, struct ByteArray *array);
 static void WasmModule_emitSignatures(struct WasmModule *__this, struct ByteArray *array);
@@ -1751,6 +1751,7 @@ static void WasmModule_emitMemory(struct WasmModule *__this, struct ByteArray *a
 static void WasmModule_emitExportTable(struct WasmModule *__this, struct ByteArray *array);
 static void WasmModule_emitFunctionBodies(struct WasmModule *__this, struct ByteArray *array);
 static void WasmModule_emitDataSegments(struct WasmModule *__this, struct ByteArray *array);
+static void WasmModule_emitNames(struct WasmModule *__this, struct ByteArray *array);
 static void WasmModule_prepareToEmit(struct WasmModule *__this, struct Node *node);
 static void WasmModule_emitBinaryExpression(struct WasmModule *__this, struct ByteArray *array, struct Node *node, uint8_t opcode);
 static void WasmModule_emitLoadFromMemory(struct WasmModule *__this, struct ByteArray *array, struct Type *type, struct Node *relativeBase, int32_t offset);
@@ -9853,11 +9854,10 @@ static struct WasmImport *WasmModule_allocateImport(struct WasmModule *__this, i
   return result;
 }
 
-static struct WasmFunction *WasmModule_allocateFunction(struct WasmModule *__this, const uint16_t *name, int32_t signatureIndex, struct Node *body) {
+static struct WasmFunction *WasmModule_allocateFunction(struct WasmModule *__this, struct Symbol *symbol, int32_t signatureIndex) {
   struct WasmFunction *fn = calloc(1, sizeof(struct WasmFunction));
-  fn->name = name;
+  fn->symbol = symbol;
   fn->signatureIndex = signatureIndex;
-  fn->body = body;
 
   if (__this->firstFunction == NULL) {
     __this->firstFunction = fn;
@@ -9915,6 +9915,7 @@ static void WasmModule_emitModule(struct WasmModule *__this, struct ByteArray *a
   WasmModule_emitExportTable(__this, array);
   WasmModule_emitFunctionBodies(__this, array);
   WasmModule_emitDataSegments(__this, array);
+  WasmModule_emitNames(__this, array);
 }
 
 static void WasmModule_emitSignatures(struct WasmModule *__this, struct ByteArray *array) {
@@ -10014,7 +10015,7 @@ static void WasmModule_emitExportTable(struct WasmModule *__this, struct ByteArr
   while (fn != NULL) {
     if (fn->isExported) {
       wasmWriteVarUnsigned(array, i);
-      wasmWriteLengthPrefixedASCII(array, fn->name);
+      wasmWriteLengthPrefixedASCII(array, fn->symbol->name);
     }
 
     fn = fn->next;
@@ -10047,7 +10048,7 @@ static void WasmModule_emitFunctionBodies(struct WasmModule *__this, struct Byte
       wasmWriteVarUnsigned(array, 0);
     }
 
-    struct Node *child = fn->body->firstChild;
+    struct Node *child = Node_functionBody(fn->symbol->node)->firstChild;
 
     while (child != NULL) {
       WasmModule_emitNode(__this, array, child);
@@ -10077,6 +10078,26 @@ static void WasmModule_emitDataSegments(struct WasmModule *__this, struct ByteAr
   while (i < initializerLength) {
     ByteArray_append(array, ByteArray_get(memoryInitializer, i));
     i = i + 1;
+  }
+
+  wasmFinishSection(array, section);
+}
+
+static void WasmModule_emitNames(struct WasmModule *__this, struct ByteArray *array) {
+  int32_t section = wasmStartSection(array, (const uint16_t *)__string_629_names);
+  wasmWriteVarUnsigned(array, __this->functionCount);
+  struct WasmFunction *fn = __this->firstFunction;
+
+  while (fn != NULL) {
+    const uint16_t *name = fn->symbol->name;
+
+    if (fn->symbol->kind == 4) {
+      name = StringBuilder_finish(StringBuilder_append(StringBuilder_appendChar(StringBuilder_append(StringBuilder_new(), Symbol_parent(fn->symbol)->name), 46), name));
+    }
+
+    wasmWriteLengthPrefixedASCII(array, name);
+    wasmWriteVarUnsigned(array, 0);
+    fn = fn->next;
   }
 
   wasmFinishSection(array, section);
@@ -10119,12 +10140,12 @@ static void WasmModule_prepareToEmit(struct WasmModule *__this, struct Node *nod
         assert(0);
       }
 
-      if (string_op_equals(symbol->name, (const uint16_t *)__string_629_currentHeapPointer)) {
+      if (string_op_equals(symbol->name, (const uint16_t *)__string_630_currentHeapPointer)) {
         assert(__this->currentHeapPointer == -1);
         __this->currentHeapPointer = symbol->offset;
       }
 
-      else if (string_op_equals(symbol->name, (const uint16_t *)__string_630_originalHeapPointer)) {
+      else if (string_op_equals(symbol->name, (const uint16_t *)__string_631_originalHeapPointer)) {
         assert(__this->originalHeapPointer == -1);
         __this->originalHeapPointer = symbol->offset;
       }
@@ -10159,7 +10180,7 @@ static void WasmModule_prepareToEmit(struct WasmModule *__this, struct Node *nod
     struct Symbol *symbol = node->symbol;
 
     if (body == NULL) {
-      const uint16_t *moduleName = symbol->kind == 4 ? Symbol_parent(symbol)->name : (const uint16_t *)__string_631_global;
+      const uint16_t *moduleName = symbol->kind == 4 ? Symbol_parent(symbol)->name : (const uint16_t *)__string_632_global;
       symbol->offset = __this->importCount;
       WasmModule_allocateImport(__this, signatureIndex, moduleName, symbol->name);
       node = node->nextSibling;
@@ -10168,9 +10189,9 @@ static void WasmModule_prepareToEmit(struct WasmModule *__this, struct Node *nod
     }
 
     symbol->offset = __this->functionCount;
-    struct WasmFunction *fn = WasmModule_allocateFunction(__this, symbol->name, signatureIndex, body);
+    struct WasmFunction *fn = WasmModule_allocateFunction(__this, symbol, signatureIndex);
 
-    if (symbol->kind == 5 && string_op_equals(symbol->name, (const uint16_t *)__string_632_malloc)) {
+    if (symbol->kind == 5 && string_op_equals(symbol->name, (const uint16_t *)__string_633_malloc)) {
       assert(__this->mallocFunctionIndex == -1);
       __this->mallocFunctionIndex = symbol->offset;
     }
