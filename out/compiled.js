@@ -8049,7 +8049,7 @@
 
   WasmModule.prototype.emitModule = function(array) {
     ByteArray_append32(array, 1836278016);
-    ByteArray_append32(array, 10);
+    ByteArray_append32(array, 11);
     this.emitSignatures(array);
     this.emitImportTable(array);
     this.emitFunctionSignatures(array);
@@ -8061,7 +8061,7 @@
   };
 
   WasmModule.prototype.emitSignatures = function(array) {
-    var section = wasmStartSection(array, "signatures");
+    var section = wasmStartSection(array, "type");
     wasmWriteVarUnsigned(array, this.signatureCount);
     var signature = this.firstSignature;
 
@@ -8074,13 +8074,22 @@
         type = type.next;
       }
 
+      array.append(64);
       wasmWriteVarUnsigned(array, count);
-      wasmWriteVarUnsigned(array, signature.returnType.id);
       type = signature.argumentTypes;
 
       while (type !== null) {
         wasmWriteVarUnsigned(array, type.id);
         type = type.next;
+      }
+
+      if (signature.returnType.id !== 0) {
+        array.append(1);
+        wasmWriteVarUnsigned(array, signature.returnType.id);
+      }
+
+      else {
+        array.append(0);
       }
 
       signature = signature.next;
@@ -8094,7 +8103,7 @@
       return;
     }
 
-    var section = wasmStartSection(array, "import_table");
+    var section = wasmStartSection(array, "import");
     wasmWriteVarUnsigned(array, this.importCount);
     var current = this.firstImport;
 
@@ -8113,7 +8122,7 @@
       return;
     }
 
-    var section = wasmStartSection(array, "function_signatures");
+    var section = wasmStartSection(array, "function");
     wasmWriteVarUnsigned(array, this.functionCount);
     var fn = this.firstFunction;
 
@@ -8149,7 +8158,7 @@
       return;
     }
 
-    var section = wasmStartSection(array, "export_table");
+    var section = wasmStartSection(array, "export");
     wasmWriteVarUnsigned(array, exportedCount);
     var i = 0;
     fn = this.firstFunction;
@@ -8172,7 +8181,7 @@
       return;
     }
 
-    var section = wasmStartSection(array, "function_bodies");
+    var section = wasmStartSection(array, "code");
     wasmWriteVarUnsigned(array, this.functionCount);
     var fn = this.firstFunction;
 
@@ -8211,7 +8220,7 @@
     var initialHeapPointer = alignToNextMultipleOf(initializerLength + 8 | 0, 8);
     ByteArray_set32(memoryInitializer, this.currentHeapPointer, initialHeapPointer);
     ByteArray_set32(memoryInitializer, this.originalHeapPointer, initialHeapPointer);
-    var section = wasmStartSection(array, "data_segments");
+    var section = wasmStartSection(array, "data");
     wasmWriteVarUnsigned(array, 1);
     wasmWriteVarUnsigned(array, 8);
     wasmWriteVarUnsigned(array, initializerLength);
@@ -8226,7 +8235,7 @@
   };
 
   WasmModule.prototype.emitNames = function(array) {
-    var section = wasmStartSection(array, "names");
+    var section = wasmStartSection(array, "name");
     wasmWriteVarUnsigned(array, this.functionCount);
     var fn = this.firstFunction;
 
@@ -8355,12 +8364,21 @@
   };
 
   WasmModule.prototype.emitBinaryExpression = function(array, node, opcode) {
-    array.append(opcode);
     this.emitNode(array, node.binaryLeft());
     this.emitNode(array, node.binaryRight());
+    array.append(opcode);
   };
 
   WasmModule.prototype.emitLoadFromMemory = function(array, type, relativeBase, offset) {
+    if (relativeBase !== null) {
+      this.emitNode(array, relativeBase);
+    }
+
+    else {
+      array.append(16);
+      wasmWriteVarUnsigned(array, 0);
+    }
+
     var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf === 1) {
@@ -8383,18 +8401,19 @@
     }
 
     wasmWriteVarUnsigned(array, offset);
+  };
 
+  WasmModule.prototype.emitStoreToMemory = function(array, type, relativeBase, offset, value) {
     if (relativeBase !== null) {
       this.emitNode(array, relativeBase);
     }
 
     else {
-      array.append(10);
+      array.append(16);
       wasmWriteVarUnsigned(array, 0);
     }
-  };
 
-  WasmModule.prototype.emitStoreToMemory = function(array, type, relativeBase, offset, value) {
+    this.emitNode(array, value);
     var sizeOf = type.variableSizeOf(this.context);
 
     if (sizeOf === 1) {
@@ -8417,17 +8436,6 @@
     }
 
     wasmWriteVarUnsigned(array, offset);
-
-    if (relativeBase !== null) {
-      this.emitNode(array, relativeBase);
-    }
-
-    else {
-      array.append(10);
-      wasmWriteVarUnsigned(array, 0);
-    }
-
-    this.emitNode(array, value);
   };
 
   WasmModule.prototype.emitNode = function(array, node) {
@@ -8435,17 +8443,14 @@
 
     if (node.kind === 7) {
       array.append(1);
-      var offset = array.length();
-      wasmWriteVarUnsigned(array, -1);
-      var count = 0;
       var child = node.firstChild;
 
       while (child !== null) {
-        count = count + this.emitNode(array, child) | 0;
+        this.emitNode(array, child);
         child = child.nextSibling;
       }
 
-      wasmPatchVarUnsigned(array, offset, count, -1);
+      array.append(15);
     }
 
     else if (node.kind === 20) {
@@ -8453,57 +8458,70 @@
       var body = node.whileBody();
 
       if (value.kind === 22 && value.intValue === 0) {
-        return 0;
+        return;
       }
 
       array.append(2);
-      var offset = array.length();
-      wasmWriteVarUnsigned(array, -1);
-      var count = 0;
 
       if (value.kind !== 22) {
-        array.append(7);
-        wasmWriteVarUnsigned(array, 1);
-        array.append(0);
-        array.append(90);
         this.emitNode(array, value);
-        count = count + 1 | 0;
+        array.append(90);
+        array.append(7);
+        array.append(0);
+        wasmWriteVarUnsigned(array, 1);
       }
 
       var child = body.firstChild;
 
       while (child !== null) {
-        count = count + this.emitNode(array, child) | 0;
+        this.emitNode(array, child);
         child = child.nextSibling;
       }
 
       array.append(6);
-      wasmWriteVarUnsigned(array, 0);
       array.append(0);
-      count = count + 1 | 0;
-      wasmPatchVarUnsigned(array, offset, count, -1);
+      wasmWriteVarUnsigned(array, 0);
+      array.append(15);
     }
 
     else if (node.kind === 8 || node.kind === 11) {
       var label = 0;
       var parent = node.parent;
+      var child = node;
 
       while (parent !== null && parent.kind !== 20) {
         if (parent.kind === 7) {
           label = label + 1 | 0;
         }
 
+        else if (parent.kind === 16 && parent.ifValue() !== child) {
+          label = label + 1 | 0;
+        }
+
+        else if (parent.kind === 26 && parent.hookValue() !== child) {
+          label = label + 1 | 0;
+        }
+
+        else if (parent.kind === 60 && parent.binaryLeft() !== child) {
+          label = label + 1 | 0;
+        }
+
+        else if (parent.kind === 61 && parent.binaryLeft() !== child) {
+          label = label + 1 | 0;
+        }
+
         parent = parent.parent;
+        child = child.parent;
       }
 
       __declare.assert(label > 0);
       array.append(6);
-      wasmWriteVarUnsigned(array, label - (node.kind === 8 ? 0 : 1) | 0);
       array.append(0);
+      wasmWriteVarUnsigned(array, label - (node.kind === 8 ? 0 : 1) | 0);
     }
 
     else if (node.kind === 12) {
-      return 0;
+      return;
     }
 
     else if (node.kind === 14) {
@@ -8512,59 +8530,67 @@
 
     else if (node.kind === 17) {
       var value = node.returnValue();
-      array.append(20);
 
       if (value !== null) {
         this.emitNode(array, value);
+        array.append(9);
+        array.append(1);
+      }
+
+      else {
+        array.append(9);
+        array.append(0);
       }
     }
 
     else if (node.kind === 19) {
-      var count = 0;
       var child = node.firstChild;
 
       while (child !== null) {
         __declare.assert(child.kind === 6);
-        count = count + this.emitNode(array, child) | 0;
+        this.emitNode(array, child);
         child = child.nextSibling;
       }
-
-      return count;
     }
 
     else if (node.kind === 16) {
       var branch = node.ifFalse();
-      array.append(branch === null ? 3 : 4);
       this.emitNode(array, node.ifValue());
+      array.append(3);
       this.emitNode(array, node.ifTrue());
 
       if (branch !== null) {
+        array.append(4);
         this.emitNode(array, branch);
       }
+
+      array.append(15);
     }
 
     else if (node.kind === 26) {
-      array.append(4);
       this.emitNode(array, node.hookValue());
+      array.append(3);
       this.emitNode(array, node.hookTrue());
+      array.append(4);
       this.emitNode(array, node.hookFalse());
+      array.append(15);
     }
 
     else if (node.kind === 6) {
       var value = node.variableValue();
 
       if (node.symbol.kind === 10) {
-        array.append(15);
-        wasmWriteVarUnsigned(array, node.symbol.offset);
-
         if (value !== null) {
           this.emitNode(array, value);
         }
 
         else {
-          array.append(10);
+          array.append(16);
           wasmWriteVarSigned(array, 0);
         }
+
+        array.append(21);
+        wasmWriteVarUnsigned(array, node.symbol.offset);
       }
 
       else {
@@ -8576,7 +8602,7 @@
       var symbol = node.symbol;
 
       if (symbol.kind === 6 || symbol.kind === 10) {
-        array.append(14);
+        array.append(20);
         wasmWriteVarUnsigned(array, symbol.offset);
       }
 
@@ -8594,17 +8620,17 @@
     }
 
     else if (node.kind === 31) {
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, 0);
     }
 
     else if (node.kind === 28 || node.kind === 22) {
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, node.intValue);
     }
 
     else if (node.kind === 34) {
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, node.intValue + 8 | 0);
     }
 
@@ -8612,29 +8638,35 @@
       var value = node.callValue();
       var symbol = value.symbol;
       __declare.assert(isFunction(symbol.kind));
-      array.append(symbol.node.functionBody() === null ? 31 : 18);
-      wasmWriteVarUnsigned(array, symbol.offset);
+      var count = 0;
 
       if (symbol.kind === 4) {
         this.emitNode(array, value.dotTarget());
+        count = count + 1 | 0;
       }
 
       var child = value.nextSibling;
 
       while (child !== null) {
         this.emitNode(array, child);
+        count = count + 1 | 0;
         child = child.nextSibling;
       }
+
+      array.append(symbol.node.functionBody() === null ? 24 : 22);
+      wasmWriteVarUnsigned(array, count);
+      wasmWriteVarUnsigned(array, symbol.offset);
     }
 
     else if (node.kind === 30) {
       var type = node.newType();
       var size = type.resolvedType.allocationSizeOf(this.context);
-      array.append(18);
-      wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
       __declare.assert(size > 0);
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, size);
+      array.append(22);
+      array.append(1);
+      wasmWriteVarUnsigned(array, this.mallocFunctionIndex);
     }
 
     else if (node.kind === 43) {
@@ -8642,22 +8674,22 @@
     }
 
     else if (node.kind === 40) {
-      array.append(65);
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, 0);
       this.emitNode(array, node.unaryValue());
+      array.append(65);
     }
 
     else if (node.kind === 38) {
-      array.append(73);
-      array.append(10);
+      array.append(16);
       wasmWriteVarSigned(array, -1);
       this.emitNode(array, node.unaryValue());
+      array.append(73);
     }
 
     else if (node.kind === 41) {
-      array.append(90);
       this.emitNode(array, node.unaryValue());
+      array.append(90);
     }
 
     else if (node.kind === 24) {
@@ -8674,20 +8706,20 @@
 
       else if (type === context.sbyteType || type === context.shortType) {
         var shift = 32 - (typeSize << 3) | 0;
-        array.append(76);
-        array.append(74);
         this.emitNode(array, value);
-        array.append(10);
+        array.append(16);
         wasmWriteVarSigned(array, shift);
-        array.append(10);
+        array.append(74);
+        array.append(16);
         wasmWriteVarSigned(array, shift);
+        array.append(76);
       }
 
       else if (type === context.byteType || type === context.ushortType) {
-        array.append(71);
         this.emitNode(array, value);
-        array.append(10);
+        array.append(16);
         wasmWriteVarSigned(array, type.integerBitMask(this.context) | 0);
+        array.append(71);
       }
 
       else {
@@ -8725,9 +8757,9 @@
       }
 
       else if (symbol.kind === 6 || symbol.kind === 10) {
-        array.append(15);
-        wasmWriteVarUnsigned(array, symbol.offset);
         this.emitNode(array, right);
+        array.append(21);
+        wasmWriteVarUnsigned(array, symbol.offset);
       }
 
       else {
@@ -8736,19 +8768,23 @@
     }
 
     else if (node.kind === 60) {
-      array.append(4);
       this.emitNode(array, node.binaryLeft());
+      array.append(3);
       this.emitNode(array, node.binaryRight());
-      array.append(10);
+      array.append(4);
+      array.append(16);
       wasmWriteVarSigned(array, 0);
+      array.append(15);
     }
 
     else if (node.kind === 61) {
-      array.append(4);
       this.emitNode(array, node.binaryLeft());
-      array.append(10);
+      array.append(3);
+      array.append(16);
       wasmWriteVarSigned(array, 1);
+      array.append(4);
       this.emitNode(array, node.binaryRight());
+      array.append(15);
     }
 
     else {
@@ -8757,7 +8793,6 @@
       if (node.kind === 48) {
         var left = node.binaryLeft();
         var right = node.binaryRight();
-        array.append(64);
         this.emitNode(array, left);
 
         if (left.resolvedType.pointerTo === null) {
@@ -8770,29 +8805,29 @@
 
           if (size === 2) {
             if (right.kind === 28) {
-              array.append(10);
+              array.append(16);
               wasmWriteVarSigned(array, right.intValue << 1);
             }
 
             else {
-              array.append(74);
               this.emitNode(array, right);
-              array.append(10);
+              array.append(16);
               wasmWriteVarSigned(array, 1);
+              array.append(74);
             }
           }
 
           else if (size === 4) {
             if (right.kind === 28) {
-              array.append(10);
+              array.append(16);
               wasmWriteVarSigned(array, right.intValue << 2);
             }
 
             else {
-              array.append(74);
               this.emitNode(array, right);
-              array.append(10);
+              array.append(16);
               wasmWriteVarSigned(array, 2);
+              array.append(74);
             }
           }
 
@@ -8800,6 +8835,8 @@
             this.emitNode(array, right);
           }
         }
+
+        array.append(64);
       }
 
       else if (node.kind === 50) {
@@ -8866,8 +8903,6 @@
         __declare.assert(false);
       }
     }
-
-    return 1;
   };
 
   WasmModule.prototype.getWasmType = function(type) {
@@ -8959,9 +8994,9 @@
   }
 
   function wasmStartSection(array, name) {
+    wasmWriteLengthPrefixedASCII(array, name);
     var offset = array.length();
     wasmWriteVarUnsigned(array, -1);
-    wasmWriteLengthPrefixedASCII(array, name);
 
     return offset;
   }
